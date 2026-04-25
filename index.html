@@ -717,7 +717,6 @@ let syncCode   = null;
 let _localWrite = false;
 let _selectMode   = false;
 let _selectedIds  = new Set();
-let _floorSort    = 'default';
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 let state = JSON.parse(localStorage.getItem('hallway_tracker_v2') || '{"floors":[],"materials":[]}');
@@ -727,6 +726,7 @@ let state = JSON.parse(localStorage.getItem('hallway_tracker_v2') || '{"floors":
     (f.items || []).forEach(i => { if (!i.hoursLog) i.hoursLog = []; });
 });
 if (!state.materials) state.materials = [];
+
 
 const DEFAULT_MATERIALS = [
     { name: 'Joint Compound',     unit: 'bags',  trade: 'Drywall'      },
@@ -1047,14 +1047,8 @@ function renderFloors() {
         </div>`;
     }
 
-    const sortFloors = arr => {
-        if (_floorSort === 'name')    return [...arr].sort((a,b) => a.name.localeCompare(b.name));
-        if (_floorSort === 'date')    return [...arr].sort((a,b) => (a.startDate||'').localeCompare(b.startDate||''));
-        if (_floorSort === 'hours')   return [...arr].sort((a,b) => floorManHours(b) - floorManHours(a));
-        return arr;
-    };
-    const activeFloors    = sortFloors(state.floors.filter(f => !f.completed));
-    const completedFloors = sortFloors(state.floors.filter(f =>  f.completed));
+    const activeFloors    = state.floors.filter(f => !f.completed);
+    const completedFloors = state.floors.filter(f =>  f.completed);
 
     if (state.floors.length === 0) {
         html += `<div class="empty-state">No floors yet.<br>Add your first floor below.</div>`;
@@ -1068,51 +1062,7 @@ function renderFloors() {
             <div class="stat-card"><div class="stat-value">${totalHrs}</div><div class="stat-label">Man-Hrs</div></div>
         </div>`;
 
-        // Overall progress bar
-        const totalItemCount = state.floors.reduce((s, f) => s + (f.items || []).length, 0);
-        const doneItemCount  = state.floors.reduce((s, f) => s + (f.items || []).filter(i => (i.status||'pending') === 'done').length, 0);
-        const overallPct     = totalItemCount > 0 ? Math.round((doneItemCount / totalItemCount) * 100) : 0;
-        html += `<div style="background:white;border-radius:12px;padding:14px 16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.08)">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-                <span style="font-size:13px;font-weight:600;color:#1a3a5c">Overall Project Progress</span>
-                <span style="font-size:13px;font-weight:700;color:#1a3a5c">${overallPct}% &nbsp;·&nbsp; ${doneItemCount}/${totalItemCount} items done</span>
-            </div>
-            <div style="background:#e8eef8;border-radius:99px;height:10px;overflow:hidden">
-                <div style="background:${overallPct===100?'#16a34a':'#1a3a5c'};height:100%;width:${overallPct}%;border-radius:99px;transition:width 0.3s"></div>
-            </div>
-        </div>`;
-
-        // Week at a glance
-        const { start: wStart, end: wEnd } = getWeekRange();
-        const inWeek     = d => d >= wStart && d <= wEnd;
-        const weekFloors = state.floors.map(f => ({
-            name: f.name,
-            hrs:  (f.items || []).reduce((s, i) => s + (i.hoursLog || []).filter(h => inWeek(h.date)).reduce((ss, e) => ss + entryManHours(e), 0), 0)
-        })).filter(f => f.hrs > 0);
-        const weekTotal = weekFloors.reduce((s, f) => s + f.hrs, 0);
-
-        html += `<div class="week-summary">
-            <div class="week-summary-title">This Week &nbsp;·&nbsp; ${displayDate(wStart)} – ${displayDate(wEnd)}</div>`;
-        if (weekFloors.length === 0) {
-            html += `<div class="notes-empty">No hours logged this week.</div>`;
-        } else {
-            weekFloors.forEach(f => {
-                html += `<div class="week-floor-row"><span>${f.name}</span><span class="week-floor-total">${f.hrs} man-hrs</span></div>`;
-            });
-            html += `<div class="week-grand">WEEK TOTAL: ${weekTotal} MAN-HOURS</div>`;
-        }
-        html += `</div>`;
-
-        html += `<button class="log-today-btn" onclick="openGlobalLogToday()">+ Log Today's Hours</button>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-            <span style="font-size:13px;color:#999;white-space:nowrap">Sort:</span>
-            <select onchange="_floorSort=this.value;render()" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;background:white">
-                <option value="default" ${_floorSort==='default'?'selected':''}>Default (added order)</option>
-                <option value="name"    ${_floorSort==='name'   ?'selected':''}>Name (A–Z)</option>
-                <option value="date"    ${_floorSort==='date'   ?'selected':''}>Start Date</option>
-                <option value="hours"   ${_floorSort==='hours'  ?'selected':''}>Man-Hours (most first)</option>
-            </select>
-        </div>`;
+        html += `<button class="log-today-btn" onclick="openGlobalLogToday()">+ Log Today's Hours</button>`;
 
         const allIds = state.floors.map(f => f.id);
         const allChecked = allIds.every(id => _selectedIds.has(id));
@@ -1131,14 +1081,6 @@ function renderFloors() {
         }
     }
 
-    if (state.floors.length === 0) {
-        html += `<button class="add-btn" style="background:#1a3a5c;margin-bottom:10px" onclick="loadGeorgetownSchedule()">&#128203; Import Georgetown Plaza Schedule</button>`;
-    } else {
-        const allLoaded = GEORGETOWN_SCHEDULE.every(f => state.floors.some(sf => sf.name === f.name));
-        if (!allLoaded) {
-            html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px;padding:12px" onclick="loadGeorgetownSchedule()">&#128203; Import Georgetown Plaza Schedule</button>`;
-        }
-    }
     html += `<button class="add-btn" onclick="openAddFloor()">+ Add Floor</button>`;
     html += `<div class="backup-row">
         <button class="btn btn-secondary" onclick="backupData()">&#8681; Backup</button>
@@ -2571,6 +2513,19 @@ function disconnectSync() {
     if (el) el.style.display = 'none';
     document.getElementById('syncCodeInput').value = '';
     document.getElementById('syncOverlay').classList.add('open');
+}
+
+// ── Auto-seed Georgetown Plaza schedule on first run ──────────────────────────
+if (state.floors.length === 0) {
+    GEORGETOWN_SCHEDULE.forEach(f => {
+        state.floors.push({
+            id: uid(),
+            name: f.name,
+            startDate: f.startDate,
+            items: DEFAULT_ITEMS.map(n => ({ id: uid(), name: n, hoursLog: [], status: 'pending' }))
+        });
+    });
+    persist();
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
