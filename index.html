@@ -1828,14 +1828,22 @@ function loadDefaultMaterials() {
 }
 
 function openAddMaterial() {
+    const currentTrade = view.matTrade || '';
+    const tradeOptions = TRADE_ORDER.map(t =>
+        `<option value="${t}"${t === currentTrade ? ' selected' : ''}>${t}</option>`
+    ).join('');
     openModal('Add Material', `
         <div class="form-group"><label>Material Name</label><input id="mat_name" placeholder="e.g. Skim Coat" /></div>
         <div class="form-group"><label>Unit</label><input id="mat_unit" placeholder="e.g. bags, gal, rolls, pcs" /></div>
+        <div class="form-group"><label>Category</label>
+            <select id="mat_trade">${tradeOptions}</select>
+        </div>
     `, () => {
-        const name = document.getElementById('mat_name').value.trim();
-        const unit = document.getElementById('mat_unit').value.trim();
+        const name  = document.getElementById('mat_name').value.trim();
+        const unit  = document.getElementById('mat_unit').value.trim();
+        const trade = document.getElementById('mat_trade').value;
         if (!name || !unit) { alert('Enter name and unit.'); return; }
-        state.materials.push({ id: uid(), name, unit, log: [] });
+        state.materials.push({ id: uid(), name, unit, trade, log: [] });
         persist(); closeModal(); render();
     });
 }
