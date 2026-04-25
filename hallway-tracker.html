@@ -1820,6 +1820,7 @@ function _buildMatLogModal(title, type, matId) {
         mats.forEach((mat, i) => {
             const val = parseFloat(document.getElementById(`mat_qty_${i}`)?.value);
             if (!isNaN(val) && val >= 0) {
+                if (!mat.log) mat.log = [];
                 mat.log.push({ id: uid(), date, type, qty: val });
                 saved++;
             }
@@ -2468,7 +2469,16 @@ function initFirebase() {
             state = remote;
             if (!state.materials) state.materials = [];
             (state.floors || []).forEach(f => { (f.items || []).forEach(i => { if (!i.hoursLog) i.hoursLog = []; }); });
+            // Normalize materials: ensure log array and backfill trade
+            const _tradeLookup = {};
+            DEFAULT_MATERIALS.forEach(d => { _tradeLookup[d.name.toLowerCase()] = d.trade; });
+            let _tradeDirty = false;
+            state.materials.forEach(m => {
+                if (!m.log) m.log = [];
+                if (!m.trade && _tradeLookup[m.name.toLowerCase()]) { m.trade = _tradeLookup[m.name.toLowerCase()]; _tradeDirty = true; }
+            });
             localStorage.setItem('hallway_tracker_v2', JSON.stringify(state));
+            if (_tradeDirty) persist();
             render();
         } else if (state.floors && state.floors.length > 0) {
             // First time connecting — push existing local data up
