@@ -708,21 +708,26 @@ let state = JSON.parse(localStorage.getItem('hallway_tracker_v2') || '{"floors":
 if (!state.materials) state.materials = [];
 
 const DEFAULT_MATERIALS = [
-    { name: 'Joint Compound',    unit: 'bags'  },
-    { name: 'Mesh Tape',         unit: 'rolls' },
-    { name: 'Corner Bead',       unit: 'pcs'   },
-    { name: 'Wall Primer',       unit: 'gal'   },
-    { name: 'Ceiling Primer',    unit: 'gal'   },
-    { name: 'Ceiling Paint',     unit: 'gal'   },
-    { name: 'Door/Frame Paint',  unit: 'gal'   },
-    { name: 'Wallcovering',      unit: 'rolls' },
-    { name: 'Wallcovering Paste',unit: 'gal'   },
-    { name: 'Baseboard',         unit: 'pcs'   },
-    { name: 'Raceway',           unit: 'pcs'   },
-    { name: 'Painter\'s Tape',   unit: 'rolls' },
-    { name: 'Light Fixtures',    unit: 'units' },
-    { name: 'Blocking',          unit: 'pcs'   },
-    { name: 'Sandpaper',         unit: 'sheets'},
+    { name: 'Joint Compound',     unit: 'bags',  trade: 'Drywall'      },
+    { name: 'Mesh Tape',          unit: 'rolls', trade: 'Drywall'      },
+    { name: 'Corner Bead',        unit: 'pcs',   trade: 'Drywall'      },
+    { name: 'Sandpaper',          unit: 'sheets',trade: 'Drywall'      },
+    { name: 'Wall Primer',        unit: 'gal',   trade: 'Paint'        },
+    { name: 'Ceiling Primer',     unit: 'gal',   trade: 'Paint'        },
+    { name: 'Ceiling Paint',      unit: 'gal',   trade: 'Paint'        },
+    { name: 'Door/Frame Paint',   unit: 'gal',   trade: 'Paint'        },
+    { name: 'Frog Tape',          unit: 'rolls', trade: 'Paint'        },
+    { name: 'Masking Tape',       unit: 'rolls', trade: 'Paint'        },
+    { name: 'Wallcovering',       unit: 'rolls', trade: 'Wallcovering' },
+    { name: 'Wallcovering Paste', unit: 'gal',   trade: 'Wallcovering' },
+    { name: 'Baseboard',          unit: 'pcs',   trade: 'Carpentry'    },
+    { name: 'Blocking',           unit: 'pcs',   trade: 'Carpentry'    },
+    { name: 'Raceway',            unit: 'pcs',   trade: 'Carpentry'    },
+    { name: 'Light Retrofit Kits',unit: 'units', trade: 'Electrical'   },
+    { name: 'Outlets',            unit: 'pcs',   trade: 'Electrical'   },
+    { name: 'Device Covers',      unit: 'pcs',   trade: 'Electrical'   },
+    { name: 'Sconces',            unit: 'units', trade: 'Electrical'   },
+    { name: 'EM Devices',         unit: 'pcs',   trade: 'Electrical'   },
 ];
 
 function matCurrentStock(mat) {
@@ -1123,22 +1128,35 @@ function renderMaterials() {
             <button class="mat-action-btn mat-eod-btn" onclick="openLogEod()">&#128337; Log EOD Count</button>
         </div>`;
 
+        const TRADE_ORDER = ['Drywall','Paint','Wallcovering','Carpentry','Electrical','Other'];
+        const byTrade = {};
         mats.forEach(mat => {
-            const stock    = matCurrentStock(mat);
-            const lastDate = matLastEodDate(mat);
-            const delivToday = (mat.log||[]).filter(e => e.type==='delivery' && e.date===today()).reduce((s,e) => s+e.qty, 0);
-            html += `<div class="mat-card" onclick="navigate('material',null,null,'${mat.id}')">
-                <div>
-                    <div class="mat-name">${mat.name}</div>
-                    <div class="mat-meta">${mat.unit}${delivToday > 0 ? ` &nbsp;·&nbsp; <span style="color:#16a34a;font-weight:600">+${delivToday} delivered today</span>` : ''}</div>
-                    ${lastDate ? `<div class="mat-meta">Last count: ${displayDate(lastDate)}</div>` : ''}
-                </div>
-                <div class="mat-stock">
-                    ${stock !== null
-                        ? `<div class="mat-stock-num">${stock}</div><div class="mat-stock-unit">${mat.unit}</div>`
-                        : `<div class="mat-stock-none">No count yet</div>`}
-                </div>
-            </div>`;
+            const t = mat.trade || 'Other';
+            if (!byTrade[t]) byTrade[t] = [];
+            byTrade[t].push(mat);
+        });
+        const tradeKeys = TRADE_ORDER.filter(t => byTrade[t]);
+        Object.keys(byTrade).forEach(t => { if (!TRADE_ORDER.includes(t)) tradeKeys.push(t); });
+
+        tradeKeys.forEach(trade => {
+            html += `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#64748b;margin:18px 0 6px 2px">${trade}</div>`;
+            byTrade[trade].forEach(mat => {
+                const stock    = matCurrentStock(mat);
+                const lastDate = matLastEodDate(mat);
+                const delivToday = (mat.log||[]).filter(e => e.type==='delivery' && e.date===today()).reduce((s,e) => s+e.qty, 0);
+                html += `<div class="mat-card" onclick="navigate('material',null,null,'${mat.id}')">
+                    <div>
+                        <div class="mat-name">${mat.name}</div>
+                        <div class="mat-meta">${mat.unit}${delivToday > 0 ? ` &nbsp;·&nbsp; <span style="color:#16a34a;font-weight:600">+${delivToday} delivered today</span>` : ''}</div>
+                        ${lastDate ? `<div class="mat-meta">Last count: ${displayDate(lastDate)}</div>` : ''}
+                    </div>
+                    <div class="mat-stock">
+                        ${stock !== null
+                            ? `<div class="mat-stock-num">${stock}</div><div class="mat-stock-unit">${mat.unit}</div>`
+                            : `<div class="mat-stock-none">No count yet</div>`}
+                    </div>
+                </div>`;
+            });
         });
 
         html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px;margin-top:4px" onclick="exportMaterialsReport()">&#8681; Export Usage Report</button>`;
