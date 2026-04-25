@@ -2570,21 +2570,40 @@ function disconnectSync() {
     c.width = c.height = 180;
     const ctx = c.getContext('2d');
 
-    // Navy background
-    ctx.fillStyle = '#1a3a5c';
+    // Diagonal gradient: deep orange → hot pink/magenta
+    const grad = ctx.createLinearGradient(0, 0, 180, 180);
+    grad.addColorStop(0,   '#ff6b35');
+    grad.addColorStop(0.5, '#e8264a');
+    grad.addColorStop(1,   '#c0166e');
+    ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 180, 180);
 
-    // Hammer emoji
-    ctx.font = '76px serif';
+    // Radial highlight — bright burst top-left
+    const glow = ctx.createRadialGradient(40, 35, 0, 40, 35, 110);
+    glow.addColorStop(0, 'rgba(255,255,255,0.22)');
+    glow.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, 180, 180);
+
+    // Hammer — rotated, large
+    ctx.save();
+    ctx.translate(90, 72);
+    ctx.rotate(-0.3);
+    ctx.font = '74px serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🔨', 0, 0);
+    ctx.restore();
+
+    // CP — bold white with deep shadow
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText('🔨', 90, 100);
-
-    // CP text
-    ctx.font = 'bold 52px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.font = 'bold 58px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.shadowColor = 'rgba(0,0,0,0.4)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 3;
     ctx.fillStyle = '#ffffff';
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillText('CP', 90, 162);
+    ctx.fillText('CP', 90, 160);
 
     const url = c.toDataURL('image/png');
     document.getElementById('appIcon').href = url;
