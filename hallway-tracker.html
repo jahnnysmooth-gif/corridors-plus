@@ -644,6 +644,7 @@
     <button class="back-btn" id="backBtn" style="display:none">&#8592;</button>
     <h1 id="headerTitle">Corridor's Plus <span style="filter:brightness(0) invert(1)">➕</span></h1>
     <span class="sync-indicator" id="syncIndicator" style="display:none"></span>
+    <button class="header-btn" id="homeBtn" onclick="navigate('home')" style="display:none">&#8962;</button>
     <button class="header-btn" id="exportBtn" onclick="openExportModal()" style="display:none">Export</button>
 </header>
 
@@ -887,6 +888,7 @@ function render() {
 
     back.style.display = 'none';
     exp.style.display  = 'none';
+    document.getElementById('homeBtn').style.display = view.screen === 'home' ? 'none' : 'inline-block';
 
     if (view.screen === 'home') {
         title.innerHTML = `Corridor's Plus <span style="filter:brightness(0) invert(1)">➕</span>`;
