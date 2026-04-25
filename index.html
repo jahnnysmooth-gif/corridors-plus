@@ -2487,8 +2487,20 @@ function initFirebase() {
             localStorage.setItem('hallway_tracker_v2', JSON.stringify(state));
             if (_tradeDirty) persist();
             render();
-        } else if (state.floors && state.floors.length > 0) {
-            // Remote is empty or missing — push local data (including seeded schedule) up
+        } else {
+            // Remote is empty or missing — seed if needed, push local data up, and render
+            if (state.floors.length === 0) {
+                GEORGETOWN_SCHEDULE.forEach(f => {
+                    state.floors.push({
+                        id: uid(),
+                        name: f.name,
+                        startDate: f.startDate,
+                        items: DEFAULT_ITEMS.map(n => ({ id: uid(), name: n, hoursLog: [], status: 'pending' }))
+                    });
+                });
+                localStorage.setItem('hallway_tracker_v2', JSON.stringify(state));
+            }
+            render();
             db.ref('projects/' + syncCode + '/state').set(state);
         }
     });
