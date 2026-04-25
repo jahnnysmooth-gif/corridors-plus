@@ -739,28 +739,30 @@ state.floors.forEach(f => {
 
 
 const DEFAULT_MATERIALS = [
-    { name: 'Joint Compound',     unit: 'buckets', trade: 'Drywall'    },
-    { name: 'Mesh Tape',          unit: 'rolls', trade: 'Drywall'      },
-    { name: 'Corner Bead',        unit: 'pcs',   trade: 'Drywall'      },
-    { name: 'Sandpaper',          unit: 'sheets',trade: 'Drywall'      },
-    { name: 'Wall Primer',        unit: 'gal',   trade: 'Paint'        },
-    { name: 'Ceiling Primer',     unit: 'gal',   trade: 'Paint'        },
-    { name: 'Ceiling Paint',      unit: 'gal',   trade: 'Paint'        },
-    { name: 'Door/Frame Paint',   unit: 'gal',   trade: 'Paint'        },
-    { name: 'Frog Tape',          unit: 'rolls', trade: 'Paint'        },
-    { name: 'Masking Tape',       unit: 'rolls', trade: 'Paint'        },
-    { name: 'Wallcovering',       unit: 'rolls', trade: 'Wallcovering' },
-    { name: 'Wallcovering Paste', unit: 'gal',   trade: 'Wallcovering' },
-    { name: 'Baseboard',          unit: 'pcs',   trade: 'Carpentry'    },
-    { name: 'Blocking',           unit: 'pcs',   trade: 'Carpentry'    },
-    { name: 'Raceway',            unit: 'pcs',   trade: 'Carpentry'    },
-    { name: 'Light Retrofit Kits',unit: 'units', trade: 'Electrical'   },
-    { name: 'Outlets',            unit: 'pcs',   trade: 'Electrical'   },
-    { name: 'Device Covers',      unit: 'pcs',   trade: 'Electrical'   },
-    { name: 'Sconces',            unit: 'units', trade: 'Electrical'   },
-    { name: 'EM Devices',         unit: 'pcs',   trade: 'Electrical'   },
-    { name: 'PL400',              unit: 'tubes', trade: 'Misc.'        },
-    { name: 'Ready Patch',        unit: 'pcs',   trade: 'Misc.'        },
+    { name: 'Joint Compound',     unit: 'buckets', trade: 'Plaster'      },
+    { name: 'Mesh Tape',          unit: 'rolls',   trade: 'Plaster'      },
+    { name: 'Corner Bead',        unit: 'pcs',     trade: 'Plaster'      },
+    { name: 'Sandpaper',          unit: 'sheets',  trade: 'Plaster'      },
+    { name: 'Plaster Weld',       unit: 'gal',     trade: 'Plaster'      },
+    { name: 'Primer',             unit: 'buckets', trade: 'Paint'        },
+    { name: 'Stix Primer',        unit: 'gal',     trade: 'Paint'        },
+    { name: 'Ceiling Paint',      unit: 'gal',     trade: 'Paint'        },
+    { name: 'Door/Frame Paint',   unit: 'gal',     trade: 'Paint'        },
+    { name: 'Frog Tape',          unit: 'rolls',   trade: 'Paint'        },
+    { name: 'Masking Tape',       unit: 'rolls',   trade: 'Paint'        },
+    { name: 'Wallcovering',       unit: 'rolls',   trade: 'Wallcovering' },
+    { name: 'Wallcovering Paste', unit: 'gal',     trade: 'Wallcovering' },
+    { name: 'Baseboard',          unit: 'pcs',     trade: 'Carpentry'    },
+    { name: 'Blocking',           unit: 'pcs',     trade: 'Carpentry'    },
+    { name: 'Raceway',            unit: 'pcs',     trade: 'Carpentry'    },
+    { name: 'Light Retrofit Kits',unit: 'units',   trade: 'Electrical'   },
+    { name: 'Outlets',            unit: 'pcs',     trade: 'Electrical'   },
+    { name: 'Device Covers',      unit: 'pcs',     trade: 'Electrical'   },
+    { name: 'Sconces',            unit: 'units',   trade: 'Electrical'   },
+    { name: 'EM Devices',         unit: 'pcs',     trade: 'Electrical'   },
+    { name: 'PL400',              unit: 'tubes',   trade: 'Misc.'        },
+    { name: 'Ready Patch',        unit: 'pcs',     trade: 'Misc.'        },
+    { name: 'Garbage Bags',       unit: 'boxes',   trade: 'Misc.'        },
 ];
 
 // Backfill trade onto existing materials that predate the trade field
@@ -1133,9 +1135,9 @@ function renderFloors() {
 }
 
 // ── Materials screen ──────────────────────────────────────────────────────────
-const TRADE_ORDER  = ['Drywall','Paint','Wallcovering','Carpentry','Electrical','Misc.','Other'];
-const TRADE_ICONS  = { Drywall:'🧱', Paint:'🖌️', Wallcovering:'🌿', Carpentry:'🪚', Electrical:'⚡', 'Misc.':'🔧', Other:'📦' };
-const TRADE_COLORS = { Drywall:'#b45309', Paint:'#1d4ed8', Wallcovering:'#15803d', Carpentry:'#92400e', Electrical:'#7c3aed', 'Misc.':'#0891b2', Other:'#475569' };
+const TRADE_ORDER  = ['Plaster','Paint','Wallcovering','Carpentry','Electrical','Misc.','Other'];
+const TRADE_ICONS  = { Plaster:'🧱', Paint:'🖌️', Wallcovering:'🌿', Carpentry:'🪚', Electrical:'⚡', 'Misc.':'🔧', Other:'📦' };
+const TRADE_COLORS = { Plaster:'#b45309', Paint:'#1d4ed8', Wallcovering:'#15803d', Carpentry:'#92400e', Electrical:'#7c3aed', 'Misc.':'#0891b2', Other:'#475569' };
 
 function renderMaterials() {
     const mats = state.materials || [];
@@ -2665,9 +2667,28 @@ function initFirebase() {
             // Patch Joint Compound unit
             const _jc = (state.materials || []).find(m => m.name === 'Joint Compound' && m.unit === 'bags');
             if (_jc) { _jc.unit = 'buckets'; _tradeDirty = true; }
-            // Add PL400 and Ready Patch if missing
+            // Rename Drywall → Plaster
+            (state.materials || []).forEach(m => { if (m.trade === 'Drywall') { m.trade = 'Plaster'; _tradeDirty = true; } });
+            // Merge Wall Primer + Ceiling Primer → Primer
+            const _wallP   = (state.materials || []).find(m => m.name === 'Wall Primer');
+            const _ceilP   = (state.materials || []).find(m => m.name === 'Ceiling Primer');
+            const _primerX = (state.materials || []).find(m => m.name === 'Primer');
+            if ((_wallP || _ceilP) && !_primerX) {
+                const _ml = [...(_wallP ? _wallP.log||[] : []), ...(_ceilP ? _ceilP.log||[] : [])];
+                state.materials.push({ id: uid(), name: 'Primer', unit: 'buckets', trade: 'Paint', log: _ml });
+                _tradeDirty = true;
+            }
+            if (_wallP) { state.materials = state.materials.filter(m => m.name !== 'Wall Primer'); _tradeDirty = true; }
+            if (_ceilP) { state.materials = state.materials.filter(m => m.name !== 'Ceiling Primer'); _tradeDirty = true; }
+            // Add new materials if missing
             const _matNames = new Set((state.materials || []).map(m => m.name));
-            [{ name: 'PL400', unit: 'tubes', trade: 'Misc.' }, { name: 'Ready Patch', unit: 'pcs', trade: 'Misc.' }].forEach(m => {
+            [
+                { name: 'Plaster Weld', unit: 'gal',   trade: 'Plaster' },
+                { name: 'Stix Primer',  unit: 'gal',   trade: 'Paint'   },
+                { name: 'PL400',        unit: 'tubes', trade: 'Misc.'   },
+                { name: 'Ready Patch',  unit: 'pcs',   trade: 'Misc.'   },
+                { name: 'Garbage Bags', unit: 'boxes', trade: 'Misc.'   },
+            ].forEach(m => {
                 if (!_matNames.has(m.name)) { state.materials.push({ id: uid(), ...m, log: [] }); _tradeDirty = true; }
             });
             localStorage.setItem('hallway_tracker_v2', JSON.stringify(state));
@@ -2711,9 +2732,28 @@ function disconnectSync() {
     // Patch Joint Compound unit from bags → buckets
     const jc = (state.materials || []).find(m => m.name === 'Joint Compound' && m.unit === 'bags');
     if (jc) { jc.unit = 'buckets'; dirty = true; }
-    // Add PL400 and Ready Patch if missing
+    // Rename Drywall trade → Plaster
+    (state.materials || []).forEach(m => { if (m.trade === 'Drywall') { m.trade = 'Plaster'; dirty = true; } });
+    // Merge Wall Primer + Ceiling Primer → Primer (buckets)
+    const wallPrimer    = (state.materials || []).find(m => m.name === 'Wall Primer');
+    const ceilPrimer    = (state.materials || []).find(m => m.name === 'Ceiling Primer');
+    const primerExists  = (state.materials || []).find(m => m.name === 'Primer');
+    if ((wallPrimer || ceilPrimer) && !primerExists) {
+        const mergedLog = [...(wallPrimer ? wallPrimer.log || [] : []), ...(ceilPrimer ? ceilPrimer.log || [] : [])];
+        state.materials.push({ id: uid(), name: 'Primer', unit: 'buckets', trade: 'Paint', log: mergedLog });
+        dirty = true;
+    }
+    if (wallPrimer) { state.materials = state.materials.filter(m => m.name !== 'Wall Primer'); dirty = true; }
+    if (ceilPrimer) { state.materials = state.materials.filter(m => m.name !== 'Ceiling Primer'); dirty = true; }
+    // Add new materials if missing
     const matNames = new Set((state.materials || []).map(m => m.name));
-    [{ name: 'PL400', unit: 'tubes', trade: 'Misc.' }, { name: 'Ready Patch', unit: 'pcs', trade: 'Misc.' }].forEach(m => {
+    [
+        { name: 'Plaster Weld',  unit: 'gal',     trade: 'Plaster' },
+        { name: 'Stix Primer',   unit: 'gal',     trade: 'Paint'   },
+        { name: 'PL400',         unit: 'tubes',   trade: 'Misc.'   },
+        { name: 'Ready Patch',   unit: 'pcs',     trade: 'Misc.'   },
+        { name: 'Garbage Bags',  unit: 'boxes',   trade: 'Misc.'   },
+    ].forEach(m => {
         if (!matNames.has(m.name)) { state.materials.push({ id: uid(), ...m, log: [] }); dirty = true; }
     });
 
