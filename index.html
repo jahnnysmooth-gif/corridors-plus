@@ -1312,7 +1312,6 @@ function renderFloor(floor) {
     }
 
     html += `<button class="add-btn" onclick="openAddItem('${floor.id}')">+ Add Work Item</button>`;
-    html += `<button class="add-btn" onclick="openCopyItemsModal('${floor.id}')">&#8595; Copy Items From Another Floor</button>`;
     html += `<div class="delete-zone">
         <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn btn-secondary btn-sm" onclick="renameFloor('${floor.id}')">&#9998; Rename Floor</button>
@@ -1959,29 +1958,6 @@ function editHoursEntry(floorId, itemId, idx) {
     });
 }
 
-// ── Copy items ────────────────────────────────────────────────────────────────
-function openCopyItemsModal(floorId) {
-    const others = state.floors.filter(f => f.id !== floorId);
-    if (others.length === 0) { alert('No other floors to copy from.'); return; }
-    const options = others.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
-    openModal('Copy Items From Floor', `
-        <div class="form-group"><label>Copy items from</label><select id="ci_floor">${options}</select></div>
-        <p style="font-size:13px;color:#999;margin-top:4px">Items with the same name are skipped.</p>
-    `, () => {
-        const source   = state.floors.find(f => f.id === document.getElementById('ci_floor').value);
-        const target   = state.floors.find(f => f.id === floorId);
-        const existing = new Set(target.items.map(i => i.name.toLowerCase()));
-        let added = 0;
-        source.items.forEach(item => {
-            if (!existing.has(item.name.toLowerCase())) {
-                target.items.push({ id: uid(), name: item.name, hoursLog: [], status: 'pending' });
-                added++;
-            }
-        });
-        persist(); closeModal(); render();
-        if (added === 0) alert('All items already exist on this floor — nothing added.');
-    });
-}
 
 // ── Mark floor complete ───────────────────────────────────────────────────────
 function toggleFloorComplete(floorId) {
