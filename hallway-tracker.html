@@ -785,8 +785,9 @@ function matDailyUsage(mat) {
         const delivered = log.filter(e => e.type === 'delivery' && e.date === date).reduce((s,e) => s + e.qty, 0);
         const prevDate  = i > 0 ? days[i-1] : null;
         const openingStock = prevDate ? log.filter(e => e.type === 'eod' && e.date === prevDate).reduce((s,e) => s + e.qty, 0) : 0;
-        const used = Math.max(0, openingStock + delivered - eodQty);
-        result.push({ date, openingStock, delivered, eodQty, used });
+        const onSite = openingStock + delivered;
+        const used = Math.max(0, onSite - eodQty);
+        result.push({ date, delivered, onSite, eodQty, used });
     });
     return result;
 }
@@ -1254,13 +1255,13 @@ function renderMaterialDetail(mat) {
         html += `<div class="card"><div class="empty-state">No EOD counts logged yet.</div></div>`;
     } else {
         html += `<div class="card"><table class="usage-table">
-            <thead><tr><th>Date</th><th>Opening</th><th>Delivered</th><th>EOD Count</th><th>Used</th></tr></thead>
+            <thead><tr><th>Date</th><th>Delivered</th><th>On Site</th><th>EOD Count</th><th>Used</th></tr></thead>
             <tbody>`;
         [...usage].reverse().forEach(d => {
             html += `<tr>
                 <td>${displayDate(d.date)}</td>
-                <td>${d.openingStock} ${mat.unit}</td>
                 <td>${d.delivered > 0 ? `+${d.delivered}` : '—'}</td>
+                <td>${d.onSite} ${mat.unit}</td>
                 <td>${d.eodQty} ${mat.unit}</td>
                 <td class="usage-used">${d.used} ${mat.unit}</td>
             </tr>`;
@@ -2444,8 +2445,8 @@ function exportMaterialsReport() {
         const totalDel  = usage.reduce((s,d) => s + d.delivered, 0);
         let rows = usage.map(d => `<tr>
             <td>${displayDate(d.date)}</td>
-            <td>${d.openingStock}</td>
             <td>${d.delivered > 0 ? '+'+d.delivered : '—'}</td>
+            <td>${d.onSite}</td>
             <td>${d.eodQty}</td>
             <td style="font-weight:700;color:#1a3a5c">${d.used}</td>
         </tr>`).reverse().join('');
@@ -2457,8 +2458,8 @@ function exportMaterialsReport() {
             <table style="width:100%;border-collapse:collapse;font-size:12px">
                 <thead><tr style="background:#1a3a5c;color:white">
                     <th style="padding:8px 10px;text-align:left">Date</th>
-                    <th style="padding:8px 10px;text-align:left">Opening</th>
                     <th style="padding:8px 10px;text-align:left">Delivered</th>
+                    <th style="padding:8px 10px;text-align:left">On Site</th>
                     <th style="padding:8px 10px;text-align:left">EOD Count</th>
                     <th style="padding:8px 10px;text-align:left">Used</th>
                 </tr></thead>
