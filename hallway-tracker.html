@@ -1,0 +1,2091 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Corridor's Plus</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧰</text></svg>">
+
+    <!-- PWA / Add to Home Screen -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Corridor's Plus">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#1a3a5c">
+
+    <!-- Firebase (CDN — no npm needed) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f0f3f8;
+            color: #1a1a2e;
+            min-height: 100vh;
+        }
+
+        header {
+            background: #1a3a5c;
+            color: white;
+            padding: 16px 20px;
+            padding-top: max(16px, env(safe-area-inset-top));
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+
+        .back-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 22px;
+            cursor: pointer;
+            padding: 0 4px;
+            line-height: 1;
+        }
+
+        header h1 { font-size: 18px; font-weight: 600; flex: 1; }
+
+        .header-btn {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .container {
+            padding: 16px;
+            max-width: 640px;
+            margin: 0 auto;
+        }
+
+        /* ── Stats row ── */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 14px 10px;
+            text-align: center;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+        }
+
+        .stat-value { font-size: 26px; font-weight: 700; color: #1a3a5c; line-height: 1; }
+        .stat-label { font-size: 11px; color: #999; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+        /* ── Floor cards ── */
+        .floor-card {
+            background: white;
+            border-radius: 12px;
+            padding: 18px 16px;
+            margin-bottom: 10px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+            cursor: pointer;
+            transition: box-shadow 0.15s;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .floor-card:hover { box-shadow: 0 3px 10px rgba(0,0,0,0.12); }
+        .floor-card-name { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
+        .floor-card-meta { font-size: 13px; color: #999; }
+        .floor-card-right { display: flex; align-items: center; gap: 10px; }
+        .floor-card-arrow { font-size: 22px; color: #ccc; }
+        .floor-card.selected { border: 2px solid #1a3a5c; background: #f0f4ff; }
+        .floor-card-checkbox { width: 22px; height: 22px; accent-color: #1a3a5c; cursor: pointer; flex-shrink: 0; margin-right: 4px; }
+        .select-bar { display: flex; gap: 10px; margin-bottom: 12px; align-items: center; }
+        .select-bar-info { flex: 1; font-size: 14px; font-weight: 600; color: #1a3a5c; }
+        .delete-selected-btn { background: #dc2626; color: white; border: none; border-radius: 8px; padding: 10px 18px; font-size: 14px; font-weight: 700; cursor: pointer; }
+        .delete-selected-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+        /* ── Progress pill ── */
+        .progress-pill {
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 9px;
+            border-radius: 20px;
+            white-space: nowrap;
+        }
+        .progress-0   { background: #f0f0f0; color: #aaa; }
+        .progress-mid { background: #fef3c7; color: #92400e; }
+        .progress-100 { background: #dcfce7; color: #166534; }
+
+        /* ── Tile grid ── */
+        .tile-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 9px;
+            margin-bottom: 12px;
+        }
+
+        .item-tile {
+            border-radius: 12px;
+            padding: 12px 11px;
+            cursor: pointer;
+            transition: box-shadow 0.15s, transform 0.1s;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-height: 90px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+            position: relative;
+        }
+        .item-tile:hover  { box-shadow: 0 3px 10px rgba(0,0,0,0.13); }
+        .item-tile:active { transform: scale(0.96); }
+
+        .tile-status-dot {
+            position: absolute;
+            top: 9px;
+            right: 9px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        .dot-pending { background: rgba(0,0,0,0.18); }
+        .dot-active  { background: #f59e0b; box-shadow: 0 0 0 2px rgba(245,158,11,0.25); }
+        .dot-done    { background: #22c55e; box-shadow: 0 0 0 2px rgba(34,197,94,0.25); }
+
+        .item-tile-name {
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1.3;
+            flex: 1;
+            padding-right: 10px;
+        }
+
+        .item-tile-footer {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+        }
+
+        .item-tile-hrs  { font-size: 20px; font-weight: 800; line-height: 1; }
+        .item-tile-unit { font-size: 9px; text-transform: uppercase; letter-spacing: 0.4px; margin-top: 2px; opacity: 0.6; }
+        .item-tile-sessions { font-size: 10px; opacity: 0.5; text-align: right; }
+
+        /* ── Log Today (big) button ── */
+        .log-today-btn {
+            width: 100%;
+            padding: 15px;
+            background: #1a3a5c;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: 14px;
+            transition: background 0.15s;
+        }
+        .log-today-btn:hover { background: #15304d; }
+
+        /* ── Add / util buttons ── */
+        .add-btn {
+            width: 100%;
+            padding: 14px;
+            border: 2px dashed #c8d0dc;
+            background: none;
+            border-radius: 12px;
+            color: #7a8a9a;
+            font-size: 14px;
+            cursor: pointer;
+            margin-top: 4px;
+            transition: all 0.15s;
+        }
+        .add-btn:hover { border-color: #1a3a5c; color: #1a3a5c; background: #f0f5ff; }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 10px 18px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: opacity 0.15s;
+        }
+        .btn:hover { opacity: 0.85; }
+        .btn-primary   { background: #1a3a5c; color: white; }
+        .btn-secondary { background: #e8ecf2; color: #333; }
+        .btn-danger    { background: #fee2e2; color: #b91c1c; }
+        .btn-sm        { padding: 6px 12px; font-size: 13px; }
+
+        /* ── Section header ── */
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 18px 0 8px;
+        }
+        .section-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+
+        /* ── Card ── */
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 10px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+        }
+
+        /* ── Log table ── */
+        .log-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        .log-table th {
+            text-align: left;
+            padding: 6px 8px;
+            color: #aaa;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            border-bottom: 1px solid #eee;
+        }
+        .log-table td { padding: 10px 8px; border-bottom: 1px solid #f5f5f5; vertical-align: middle; }
+        .log-table tr:last-child td { border-bottom: none; }
+        .man-hrs-cell { font-weight: 700; color: #1a3a5c; }
+
+        .delete-row {
+            color: #ddd;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+            padding: 0 2px;
+        }
+        .delete-row:hover { color: #ef4444; }
+
+        /* ── Empty state ── */
+        .empty-state { text-align: center; padding: 28px 16px; color: #bbb; font-size: 14px; line-height: 1.6; }
+
+        /* ── Delete zone ── */
+        .delete-zone { margin-top: 24px; padding-top: 16px; border-top: 1px solid #eee; }
+
+        /* ── Status toggle ── */
+        .status-toggle {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 14px;
+        }
+        .status-btn {
+            flex: 1;
+            padding: 8px 6px;
+            border-radius: 8px;
+            border: 1.5px solid #e0e0e0;
+            background: white;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+            text-align: center;
+            color: #aaa;
+        }
+        .status-btn.active-pending { border-color: #aaa;    background: #f5f5f5;  color: #555; }
+        .status-btn.active-active  { border-color: #f59e0b; background: #fef3c7;  color: #92400e; }
+        .status-btn.active-done    { border-color: #22c55e; background: #dcfce7;  color: #166534; }
+
+        /* ── Quick log ── */
+        .quick-log-card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 14px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+        }
+
+        .quick-log-date { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+
+        .date-chip {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            border: 1.5px solid transparent;
+            cursor: pointer;
+            transition: all 0.15s;
+            background: #f0f3f8;
+            color: #555;
+        }
+        .date-chip.active { background: #1a3a5c; color: white; border-color: #1a3a5c; }
+        .date-chip:hover:not(.active) { border-color: #1a3a5c; color: #1a3a5c; }
+
+        .date-picker-wrap { display: none; margin-top: 8px; }
+        .date-picker-wrap.open { display: block; }
+        .date-picker-wrap input[type=date] {
+            width: 100%;
+            padding: 9px 12px;
+            border: 1.5px solid #1a3a5c;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #1a3a5c;
+            outline: none;
+        }
+
+        .cal-btn {
+            padding: 5px 10px;
+            border-radius: 20px;
+            border: 1.5px solid transparent;
+            background: #f0f3f8;
+            cursor: pointer;
+            transition: all 0.15s;
+            display: inline-flex;
+            align-items: center;
+        }
+        .cal-btn:hover { border-color: #1a3a5c; background: #e8eef8; }
+        .cal-btn.active { background: #1a3a5c; border-color: #1a3a5c; }
+        .cal-btn.active svg { stroke: white; }
+        .cal-btn svg { display: block; }
+
+        .quick-log-inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr auto;
+            gap: 8px;
+            align-items: flex-end;
+        }
+
+        .quick-log-field label {
+            display: block;
+            font-size: 10px;
+            font-weight: 700;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            margin-bottom: 5px;
+        }
+
+        .quick-log-field input {
+            width: 100%;
+            padding: 10px;
+            border: 1.5px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            color: #1a1a2e;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        .quick-log-field input:focus { border-color: #1a3a5c; }
+
+        .log-btn {
+            padding: 10px 14px;
+            background: #1a3a5c;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+            align-self: flex-end;
+        }
+        .log-btn:hover { background: #15304d; }
+
+        /* ── Modal ── */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 200;
+            align-items: flex-end;
+            justify-content: center;
+        }
+        .modal-overlay.open { display: flex; }
+
+        .modal {
+            background: white;
+            width: 100%;
+            max-width: 640px;
+            border-radius: 20px 20px 0 0;
+            padding: 24px 20px 36px;
+            max-height: 88vh;
+            overflow-y: auto;
+        }
+
+        .modal h2 { font-size: 18px; font-weight: 700; margin-bottom: 20px; }
+
+        .form-group { margin-bottom: 14px; }
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 700;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            margin-bottom: 6px;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 12px 13px;
+            border: 1.5px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: border-color 0.15s;
+            background: white;
+        }
+        .form-group input:focus, .form-group select:focus { outline: none; border-color: #1a3a5c; }
+
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+        .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+        .modal-actions .btn { flex: 1; padding: 13px; }
+
+        /* ── Daily log modal rows ── */
+        .daily-floor-header {
+            font-size: 13px;
+            font-weight: 800;
+            color: #1a3a5c;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 12px 0 6px;
+            border-top: 1px solid #eee;
+            margin-top: 8px;
+        }
+        .daily-floor-header:first-of-type { border-top: none; margin-top: 0; }
+
+        .daily-row { padding: 8px 0; border-bottom: 1px solid #f5f5f5; }
+        .daily-row:last-child { border-bottom: none; }
+        .daily-row-label { font-size: 13px; font-weight: 600; margin-bottom: 6px; color: #1a1a2e; }
+
+        /* ── Backup row ── */
+        .backup-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .backup-row .btn { flex: 1; font-size: 13px; padding: 10px; }
+
+        /* ── Backup warning ── */
+        .backup-warning {
+            background: #fef3c7;
+            border: 1.5px solid #f59e0b;
+            border-radius: 10px;
+            padding: 12px 14px;
+            margin-bottom: 14px;
+            font-size: 13px;
+            color: #92400e;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .backup-warn-btn {
+            background: #f59e0b;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        /* ── Week summary ── */
+        .week-summary {
+            background: white;
+            border-radius: 12px;
+            padding: 14px 16px;
+            margin-bottom: 14px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+        }
+        .week-summary-title { font-size: 11px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 10px; }
+        .week-floor-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid #f5f5f5; font-size: 14px; }
+        .week-floor-row:last-of-type { border-bottom: none; }
+        .week-floor-total { font-weight: 700; color: #1a3a5c; }
+        .week-grand { margin-top: 8px; text-align: right; font-size: 12px; font-weight: 700; color: #1a3a5c; padding-top: 6px; border-top: 1px solid #eee; }
+
+        /* ── Notes card ── */
+        .notes-card { background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; }
+        .notes-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+        .notes-card-label { font-size: 11px; font-weight: 700; color: #92400e; text-transform: uppercase; letter-spacing: 0.5px; }
+        .notes-card-text { font-size: 14px; color: #1a1a2e; line-height: 1.5; white-space: pre-wrap; }
+        .notes-empty { font-size: 13px; color: #aaa; font-style: italic; }
+        .notes-edit-btn { background: none; border: none; color: #92400e; font-size: 13px; font-weight: 600; cursor: pointer; padding: 2px 8px; border-radius: 4px; }
+        .notes-edit-btn:hover { background: #fde68a; }
+
+        /* ── Completed floors ── */
+        .completed-section-header { font-size: 11px; font-weight: 700; color: #bbb; text-transform: uppercase; letter-spacing: 0.6px; padding: 16px 0 8px; border-top: 1px solid #eee; margin-top: 8px; }
+        .floor-card.completed { opacity: 0.6; }
+
+        /* ── Edit / icon row buttons ── */
+        .edit-row { color: #bbb; background: none; border: none; cursor: pointer; font-size: 15px; line-height: 1; padding: 0 2px; }
+        .edit-row:hover { color: #1a3a5c; }
+        .icon-btn { background: none; border: none; cursor: pointer; font-size: 13px; color: #999; padding: 3px 8px; border-radius: 6px; font-weight: 600; }
+        .icon-btn:hover { background: #f0f3f8; color: #1a3a5c; }
+
+        /* ── Quick log grid (2-col) ── */
+        .quick-log-inputs { grid-template-columns: 1fr 1fr; }
+
+        /* ── Sync overlay ── */
+        .sync-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: #1a3a5c;
+            z-index: 300;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+        .sync-overlay.open { display: flex; }
+        .sync-card {
+            background: white;
+            border-radius: 20px;
+            padding: 32px 24px;
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+        .sync-card h2 { font-size: 22px; font-weight: 800; color: #1a3a5c; margin-bottom: 8px; }
+        .sync-card .sync-desc { font-size: 14px; color: #888; margin-bottom: 24px; line-height: 1.5; }
+        .sync-card .sync-hint { margin-top: 16px; font-size: 12px; color: #bbb; line-height: 1.5; }
+
+        /* ── Sync indicator in header ── */
+        .sync-indicator {
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 9px;
+            border-radius: 20px;
+            background: rgba(255,255,255,0.15);
+            color: rgba(255,255,255,0.85);
+            white-space: nowrap;
+            letter-spacing: 0.3px;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <button class="back-btn" id="backBtn" style="display:none">&#8592;</button>
+    <h1 id="headerTitle">Corridor's Plus <span style="filter:brightness(0) invert(1)">➕</span></h1>
+    <span class="sync-indicator" id="syncIndicator" style="display:none"></span>
+    <button class="header-btn" id="exportBtn" onclick="openExportModal()" style="display:none">Export</button>
+</header>
+
+<div class="container" id="app"></div>
+
+<div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+        <h2 id="modalTitle"></h2>
+        <div id="modalBody"></div>
+        <div class="modal-actions" id="modalActions">
+            <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveModal()">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- Sync code overlay -->
+<div class="sync-overlay" id="syncOverlay">
+    <div class="sync-card">
+        <h2>Corridor's Plus ➕</h2>
+        <p class="sync-desc">Enter a team sync code to connect. Everyone on your crew uses the same code to share data in real time.</p>
+        <div class="form-group" style="text-align:left">
+            <label>Team Sync Code</label>
+            <input id="syncCodeInput" type="text" placeholder="e.g. corridors-2026"
+                style="text-transform:lowercase"
+                onkeydown="if(event.key==='Enter')joinSync()" />
+        </div>
+        <button class="btn btn-primary" style="width:100%;padding:14px;font-size:16px;margin-top:4px" onclick="joinSync()">Connect</button>
+        <p class="sync-hint">Share this code with your foreman so they can connect to the same data.<br>Keep it private — anyone with the code can view and edit.</p>
+    </div>
+</div>
+
+<!-- Hidden file input for restore -->
+<input type="file" id="restoreInput" accept=".json" style="display:none" onchange="restoreData(this)" />
+
+<script>
+// ── Firebase ──────────────────────────────────────────────────────────────────
+const FIREBASE_CONFIG = {
+    apiKey:            "AIzaSyA1qrqYCFXSfz2S4NkYYDp0j2mls6kviGk",
+    authDomain:        "corridors-plus.firebaseapp.com",
+    databaseURL:       "https://corridors-plus-default-rtdb.firebaseio.com",
+    projectId:         "corridors-plus",
+    storageBucket:     "corridors-plus.firebasestorage.app",
+    messagingSenderId: "237703946611",
+    appId:             "1:237703946611:web:d52dafcc7596060589a506"
+};
+let db         = null;
+let syncCode   = null;
+let _localWrite = false;
+let _selectMode   = false;
+let _selectedIds  = new Set();
+let _floorSort    = 'default';
+
+// ── Data ──────────────────────────────────────────────────────────────────────
+let state = JSON.parse(localStorage.getItem('hallway_tracker_v2') || '{"floors":[]}');
+
+// Normalize any items that are missing hoursLog (created by older app versions)
+(state.floors || []).forEach(f => {
+    (f.items || []).forEach(i => { if (!i.hoursLog) i.hoursLog = []; });
+});
+
+function persist() {
+    localStorage.setItem('hallway_tracker_v2', JSON.stringify(state));
+    if (db && syncCode) {
+        _localWrite = true;
+        db.ref('projects/' + syncCode + '/state').set(state)
+          .then(() => setTimeout(() => { _localWrite = false; }, 500))
+          .catch(() => { _localWrite = false; });
+    }
+}
+
+function uid() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+function today() {
+    return new Date().toISOString().slice(0, 10);
+}
+
+function yesterday() {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().slice(0, 10);
+}
+
+function formatDate(iso) {
+    const [y, m, d] = iso.split('-');
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${months[parseInt(m)-1]} ${parseInt(d)}`;
+}
+
+function displayDate(iso) {
+    if (!iso) return '—';
+    const [y, m, d] = iso.split('-');
+    return `${m}-${d}-${y}`;
+}
+
+function addWeeks(iso, weeks) {
+    const d = new Date(iso + 'T00:00:00');
+    d.setDate(d.getDate() + weeks * 7);
+    return d.toISOString().slice(0, 10);
+}
+
+// ── View ──────────────────────────────────────────────────────────────────────
+let view = { screen: 'floors', floorId: null, itemId: null };
+let modalSaveFn = null;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function entryManHours(e) {
+    // new format: separate hours per type
+    if (e.skilledHours !== undefined || e.laborerHours !== undefined) {
+        return Number(e.skilled || 0) * Number(e.skilledHours || 0)
+             + Number(e.laborer || 0) * Number(e.laborerHours || 0);
+    }
+    // previous format: skilled/laborer share one hours field
+    if (e.skilled !== undefined || e.laborer !== undefined) {
+        return (Number(e.skilled || 0) + Number(e.laborer || 0)) * Number(e.hours || 0);
+    }
+    // legacy format: workers field
+    return Number(e.workers || 0) * Number(e.hours || 0);
+}
+
+function entryDisplay(e) {
+    if (e.skilledHours !== undefined || e.laborerHours !== undefined) {
+        return { skilled: Number(e.skilled||0), skilledHours: Number(e.skilledHours||0),
+                 laborer: Number(e.laborer||0), laborerHours: Number(e.laborerHours||0) };
+    }
+    const skilled = e.skilled !== undefined ? Number(e.skilled) : Number(e.workers || 0);
+    const laborer = e.laborer !== undefined ? Number(e.laborer) : 0;
+    const h = Number(e.hours || 0);
+    return { skilled, skilledHours: h, laborer, laborerHours: laborer > 0 ? h : 0 };
+}
+
+function itemManHours(item) {
+    return (item.hoursLog || []).reduce((s, e) => s + entryManHours(e), 0);
+}
+
+function floorManHours(floor) {
+    return (floor.items || []).reduce((s, i) => s + itemManHours(i), 0);
+}
+
+function floorProgress(floor) {
+    if (!(floor.items || []).length) return 0;
+    const done = floor.items.filter(i => (i.status || 'pending') === 'done').length;
+    return Math.round((done / floor.items.length) * 100);
+}
+
+function getWeekRange() {
+    const d   = new Date();
+    const day = d.getDay();
+    const mon = new Date(d); mon.setDate(d.getDate() - ((day + 6) % 7));
+    const fri = new Date(mon); fri.setDate(mon.getDate() + 4);
+    return { start: mon.toISOString().slice(0, 10), end: fri.toISOString().slice(0, 10) };
+}
+
+function entrySkilledMH(e) {
+    if (e.skilledHours !== undefined) return Number(e.skilled || 0) * Number(e.skilledHours || 0);
+    if (e.skilled !== undefined)      return Number(e.skilled || 0) * Number(e.hours || 0);
+    return Number(e.workers || 0) * Number(e.hours || 0);
+}
+function entryLaborerMH(e) {
+    if (e.laborerHours !== undefined) return Number(e.laborer || 0) * Number(e.laborerHours || 0);
+    if (e.laborer !== undefined)      return Number(e.laborer || 0) * Number(e.hours || 0);
+    return 0;
+}
+function itemSkilledMH(item)  { return (item.hoursLog || []).reduce((s, e) => s + entrySkilledMH(e), 0); }
+function itemLaborerMH(item)  { return (item.hoursLog || []).reduce((s, e) => s + entryLaborerMH(e), 0); }
+function floorSkilledMH(floor) { return (floor.items || []).reduce((s, i) => s + itemSkilledMH(i), 0); }
+function floorLaborerMH(floor) { return (floor.items || []).reduce((s, i) => s + itemLaborerMH(i), 0); }
+
+function getFloor() { return state.floors.find(f => f.id === view.floorId); }
+function getItem(f)  { return f.items.find(i => i.id === view.itemId); }
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+function hasUnsavedHours() {
+    if (view.screen !== 'item') return false;
+    const s  = parseFloat(document.getElementById('ql_skilled')?.value)       || 0;
+    const sh = parseFloat(document.getElementById('ql_skilled_hours')?.value) || 0;
+    const l  = parseFloat(document.getElementById('ql_laborer')?.value)       || 0;
+    const lh = parseFloat(document.getElementById('ql_laborer_hours')?.value) || 0;
+    return (s + l + sh + lh) > 0;
+}
+
+function navigate(screen, floorId, itemId) {
+    if (hasUnsavedHours() && !confirm('You have unsaved hours. Leave without logging?')) return;
+    view = { screen, floorId: floorId || null, itemId: itemId || null };
+    render();
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function render() {
+    const app   = document.getElementById('app');
+    const back  = document.getElementById('backBtn');
+    const title = document.getElementById('headerTitle');
+    const exp   = document.getElementById('exportBtn');
+
+    back.style.display = 'none';
+    exp.style.display  = 'none';
+
+    if (view.screen === 'floors') {
+        title.innerHTML = `Corridor's Plus <span style="filter:brightness(0) invert(1)">➕</span>`;
+        exp.style.display = state.floors.length > 0 ? 'block' : 'none';
+        app.innerHTML = renderFloors();
+
+    } else if (view.screen === 'floor') {
+        const floor = getFloor();
+        back.style.display = 'block';
+        exp.style.display  = 'block';
+        back.onclick = () => navigate('floors');
+        title.textContent = floor.name;
+        app.innerHTML = renderFloor(floor);
+
+    } else if (view.screen === 'item') {
+        const floor = getFloor();
+        const item  = getItem(floor);
+        back.style.display = 'block';
+        exp.style.display  = 'block';
+        back.onclick = () => navigate('floor', view.floorId);
+        title.textContent = item.name;
+        app.innerHTML = renderItem(floor, item);
+    }
+}
+
+// ── Floors screen ─────────────────────────────────────────────────────────────
+function renderFloorCard(floor) {
+    const hrs  = floorManHours(floor);
+    const pct  = floorProgress(floor);
+    const pcls = floor.completed ? 'progress-100' : pct === 0 ? 'progress-0' : pct === 100 ? 'progress-100' : 'progress-mid';
+    const plbl = floor.completed ? 'Complete' : pct === 0 ? 'Not started' : pct === 100 ? 'Complete' : `${pct}% done`;
+    const checked = _selectedIds.has(floor.id);
+    if (_selectMode) {
+        return `<div class="floor-card${floor.completed ? ' completed' : ''}${checked ? ' selected' : ''}" onclick="toggleFloorSelect('${floor.id}')">
+            <input type="checkbox" class="floor-card-checkbox" ${checked ? 'checked' : ''} onclick="event.stopPropagation();toggleFloorSelect('${floor.id}')">
+            <div style="flex:1">
+                <div class="floor-card-name">${floor.name}</div>
+                <div class="floor-card-meta">Started ${displayDate(floor.startDate)} &nbsp;·&nbsp; Est. end ${floor.startDate ? displayDate(addWeeks(floor.startDate, 6)) : '—'} &nbsp;·&nbsp; ${hrs} man-hrs</div>
+            </div>
+            <span class="progress-pill ${pcls}">${plbl}</span>
+        </div>`;
+    }
+    return `<div class="floor-card${floor.completed ? ' completed' : ''}" onclick="navigate('floor','${floor.id}')">
+        <div>
+            <div class="floor-card-name">${floor.name}</div>
+            <div class="floor-card-meta">Started ${displayDate(floor.startDate)} &nbsp;·&nbsp; Est. end ${floor.startDate ? displayDate(addWeeks(floor.startDate, 6)) : '—'} &nbsp;·&nbsp; ${hrs} man-hrs</div>
+        </div>
+        <div class="floor-card-right">
+            <span class="progress-pill ${pcls}">${plbl}</span>
+            <span class="floor-card-arrow">›</span>
+        </div>
+    </div>`;
+}
+
+function renderFloors() {
+    let html = '';
+
+    // Backup warning
+    const lastBackup  = localStorage.getItem('hallway_last_backup');
+    const daysSince   = lastBackup ? Math.floor((new Date(today()) - new Date(lastBackup)) / 86400000) : null;
+    if (state.floors.length > 0 && (daysSince === null || daysSince >= 7)) {
+        const msg = lastBackup ? `Last backup was ${daysSince} day${daysSince !== 1 ? 's' : ''} ago.` : "You haven't backed up yet.";
+        html += `<div class="backup-warning">
+            <span>&#9888; ${msg} Back up your data.</span>
+            <button class="backup-warn-btn" onclick="backupData()">Backup Now</button>
+        </div>`;
+    }
+
+    const sortFloors = arr => {
+        if (_floorSort === 'name')    return [...arr].sort((a,b) => a.name.localeCompare(b.name));
+        if (_floorSort === 'date')    return [...arr].sort((a,b) => (a.startDate||'').localeCompare(b.startDate||''));
+        if (_floorSort === 'hours')   return [...arr].sort((a,b) => floorManHours(b) - floorManHours(a));
+        return arr;
+    };
+    const activeFloors    = sortFloors(state.floors.filter(f => !f.completed));
+    const completedFloors = sortFloors(state.floors.filter(f =>  f.completed));
+
+    if (state.floors.length === 0) {
+        html += `<div class="empty-state">No floors yet.<br>Add your first floor below.</div>`;
+    } else {
+        const totalHrs   = state.floors.reduce((s, f) => s + floorManHours(f), 0);
+        const totalItems = state.floors.reduce((s, f) => s + f.items.length, 0);
+
+        html += `<div class="stats-row">
+            <div class="stat-card"><div class="stat-value">${state.floors.length}</div><div class="stat-label">Floors</div></div>
+            <div class="stat-card"><div class="stat-value">${totalItems}</div><div class="stat-label">Items</div></div>
+            <div class="stat-card"><div class="stat-value">${totalHrs}</div><div class="stat-label">Man-Hrs</div></div>
+        </div>`;
+
+        // Overall progress bar
+        const totalItemCount = state.floors.reduce((s, f) => s + (f.items || []).length, 0);
+        const doneItemCount  = state.floors.reduce((s, f) => s + (f.items || []).filter(i => (i.status||'pending') === 'done').length, 0);
+        const overallPct     = totalItemCount > 0 ? Math.round((doneItemCount / totalItemCount) * 100) : 0;
+        html += `<div style="background:white;border-radius:12px;padding:14px 16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.08)">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                <span style="font-size:13px;font-weight:600;color:#1a3a5c">Overall Project Progress</span>
+                <span style="font-size:13px;font-weight:700;color:#1a3a5c">${overallPct}% &nbsp;·&nbsp; ${doneItemCount}/${totalItemCount} items done</span>
+            </div>
+            <div style="background:#e8eef8;border-radius:99px;height:10px;overflow:hidden">
+                <div style="background:${overallPct===100?'#16a34a':'#1a3a5c'};height:100%;width:${overallPct}%;border-radius:99px;transition:width 0.3s"></div>
+            </div>
+        </div>`;
+
+        // Week at a glance
+        const { start: wStart, end: wEnd } = getWeekRange();
+        const inWeek     = d => d >= wStart && d <= wEnd;
+        const weekFloors = state.floors.map(f => ({
+            name: f.name,
+            hrs:  (f.items || []).reduce((s, i) => s + (i.hoursLog || []).filter(h => inWeek(h.date)).reduce((ss, e) => ss + entryManHours(e), 0), 0)
+        })).filter(f => f.hrs > 0);
+        const weekTotal = weekFloors.reduce((s, f) => s + f.hrs, 0);
+
+        html += `<div class="week-summary">
+            <div class="week-summary-title">This Week &nbsp;·&nbsp; ${displayDate(wStart)} – ${displayDate(wEnd)}</div>`;
+        if (weekFloors.length === 0) {
+            html += `<div class="notes-empty">No hours logged this week.</div>`;
+        } else {
+            weekFloors.forEach(f => {
+                html += `<div class="week-floor-row"><span>${f.name}</span><span class="week-floor-total">${f.hrs} man-hrs</span></div>`;
+            });
+            html += `<div class="week-grand">WEEK TOTAL: ${weekTotal} MAN-HOURS</div>`;
+        }
+        html += `</div>`;
+
+        html += `<button class="log-today-btn" onclick="openGlobalLogToday()">+ Log Today's Hours</button>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+            <span style="font-size:13px;color:#999;white-space:nowrap">Sort:</span>
+            <select onchange="_floorSort=this.value;render()" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;background:white">
+                <option value="default" ${_floorSort==='default'?'selected':''}>Default (added order)</option>
+                <option value="name"    ${_floorSort==='name'   ?'selected':''}>Name (A–Z)</option>
+                <option value="date"    ${_floorSort==='date'   ?'selected':''}>Start Date</option>
+                <option value="hours"   ${_floorSort==='hours'  ?'selected':''}>Man-Hours (most first)</option>
+            </select>
+        </div>`;
+
+        const allIds = state.floors.map(f => f.id);
+        const allChecked = allIds.every(id => _selectedIds.has(id));
+        html += `<div class="select-bar">
+            <span class="select-bar-info">${_selectMode ? (_selectedIds.size > 0 ? `${_selectedIds.size} selected` : 'Tap floors to select') : ''}</span>
+            ${_selectMode && _selectedIds.size > 0 ? `<button class="delete-selected-btn" onclick="deleteSelectedFloors()">Delete ${_selectedIds.size}</button>` : ''}
+            ${_selectMode ? `<button class="btn btn-secondary" onclick="toggleSelectAll()">${allChecked ? 'Deselect All' : 'Select All'}</button>` : ''}
+            <button class="btn btn-secondary" onclick="toggleSelectMode()">${_selectMode ? 'Cancel' : 'Select'}</button>
+        </div>`;
+
+        activeFloors.forEach(floor => { html += renderFloorCard(floor); });
+
+        if (completedFloors.length > 0) {
+            html += `<div class="completed-section-header">Completed Floors</div>`;
+            completedFloors.forEach(floor => { html += renderFloorCard(floor); });
+        }
+    }
+
+    if (state.floors.length === 0) {
+        html += `<button class="add-btn" style="background:#1a3a5c;margin-bottom:10px" onclick="loadGeorgetownSchedule()">&#128203; Import Georgetown Plaza Schedule</button>`;
+    } else {
+        const allLoaded = GEORGETOWN_SCHEDULE.every(f => state.floors.some(sf => sf.name === f.name));
+        if (!allLoaded) {
+            html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px;padding:12px" onclick="loadGeorgetownSchedule()">&#128203; Import Georgetown Plaza Schedule</button>`;
+        }
+    }
+    html += `<button class="add-btn" onclick="openAddFloor()">+ Add Floor</button>`;
+    html += `<div class="backup-row">
+        <button class="btn btn-secondary" onclick="backupData()">&#8681; Backup</button>
+        <button class="btn btn-secondary" onclick="document.getElementById('restoreInput').click()">&#8679; Restore</button>
+        <button class="btn btn-secondary" onclick="disconnectSync()" title="Sync code: ${syncCode || '—'}">&#8635; Sync</button>
+    </div>`;
+
+    return html;
+}
+
+// ── Floor screen ──────────────────────────────────────────────────────────────
+const TILE_COLORS = [
+    { bg: '#dbeafe', text: '#1e3a8a' },
+    { bg: '#dcfce7', text: '#14532d' },
+    { bg: '#fef9c3', text: '#713f12' },
+    { bg: '#ffe4e6', text: '#881337' },
+    { bg: '#f3e8ff', text: '#581c87' },
+    { bg: '#ffedd5', text: '#7c2d12' },
+    { bg: '#cffafe', text: '#164e63' },
+    { bg: '#fae8ff', text: '#701a75' },
+    { bg: '#d1fae5', text: '#064e3b' },
+    { bg: '#fee2e2', text: '#7f1d1d' },
+    { bg: '#e0e7ff', text: '#312e81' },
+];
+
+function renderFloor(floor) {
+    const hrs       = floorManHours(floor);
+    const skilledMH = floorSkilledMH(floor);
+    const laborerMH = floorLaborerMH(floor);
+    const sessions  = (floor.items || []).reduce((s, i) => s + (i.hoursLog || []).length, 0);
+    const done      = floor.items.filter(i => (i.status || 'pending') === 'done').length;
+
+    let html = `<div class="stats-row">
+        <div class="stat-card"><div class="stat-value">${hrs}</div><div class="stat-label">Man-Hours</div></div>
+        <div class="stat-card"><div class="stat-value">${sessions}</div><div class="stat-label">Sessions</div></div>
+        <div class="stat-card"><div class="stat-value">${done}/${floor.items.length}</div><div class="stat-label">Done</div></div>
+    </div>
+    <div class="stats-row" style="grid-template-columns:1fr 1fr;margin-bottom:8px">
+        <div class="stat-card"><div class="stat-value">${skilledMH}</div><div class="stat-label">Skilled MH</div></div>
+        <div class="stat-card"><div class="stat-value">${laborerMH}</div><div class="stat-label">Laborer MH</div></div>
+    </div>`;
+
+    // Notes card
+    html += `<div class="notes-card">
+        <div class="notes-card-header">
+            <span class="notes-card-label">Floor Notes</span>
+            <button class="notes-edit-btn" onclick="openEditNotes('${floor.id}')">${floor.notes ? 'Edit' : '+ Add'}</button>
+        </div>
+        ${floor.notes
+            ? `<div class="notes-card-text">${floor.notes.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>')}</div>`
+            : `<div class="notes-empty">No notes yet.</div>`}
+    </div>`;
+
+    html += `<button class="log-today-btn" onclick="openFloorLogToday('${floor.id}')">+ Log Today's Hours</button>`;
+
+    if (floor.items.length === 0) {
+        html += `<div class="card"><div class="empty-state">No work items yet.</div></div>`;
+    } else {
+        html += `<div class="tile-grid">`;
+        floor.items.forEach((item, idx) => {
+            const h      = itemManHours(item);
+            const s      = (item.hoursLog || []).length;
+            const status = item.status || 'pending';
+            const color  = TILE_COLORS[idx % TILE_COLORS.length];
+            html += `<div class="item-tile" style="background:${color.bg};color:${color.text}" onclick="navigate('item','${floor.id}','${item.id}')">
+                <span class="tile-status-dot dot-${status}"></span>
+                <div class="item-tile-name">${item.name}</div>
+                <div class="item-tile-footer">
+                    <div>
+                        <div class="item-tile-hrs">${h}</div>
+                        <div class="item-tile-unit">man-hrs</div>
+                    </div>
+                    <div class="item-tile-sessions">${s} session${s !== 1 ? 's' : ''}</div>
+                </div>
+            </div>`;
+        });
+        html += `</div>`;
+    }
+
+    html += `<button class="add-btn" onclick="openAddItem('${floor.id}')">+ Add Work Item</button>`;
+    html += `<button class="add-btn" onclick="openCopyItemsModal('${floor.id}')">&#8595; Copy Items From Another Floor</button>`;
+    html += `<div class="delete-zone">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-secondary btn-sm" onclick="renameFloor('${floor.id}')">&#9998; Rename Floor</button>
+            <button class="btn btn-secondary btn-sm" onclick="toggleFloorComplete('${floor.id}')">${floor.completed ? '&#8635; Reopen Floor' : '&#10003; Mark Complete'}</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteFloor('${floor.id}')">Delete This Floor</button>
+        </div>
+    </div>`;
+
+    return html;
+}
+
+// ── Item screen ───────────────────────────────────────────────────────────────
+function renderItem(floor, item) {
+    const hrs       = itemManHours(item);
+    const skilledMH = itemSkilledMH(item);
+    const laborerMH = itemLaborerMH(item);
+    const status    = item.status || 'pending';
+    const t         = today();
+    const yes       = yesterday();
+
+    let html = `<div class="stats-row">
+        <div class="stat-card"><div class="stat-value">${hrs}</div><div class="stat-label">Man-Hours</div></div>
+        <div class="stat-card"><div class="stat-value">${item.hoursLog.length}</div><div class="stat-label">Sessions</div></div>
+    </div>
+    <div class="stats-row" style="grid-template-columns:1fr 1fr;margin-bottom:8px">
+        <div class="stat-card"><div class="stat-value">${skilledMH}</div><div class="stat-label">Skilled MH</div></div>
+        <div class="stat-card"><div class="stat-value">${laborerMH}</div><div class="stat-label">Laborer MH</div></div>
+    </div>`;
+
+    // Status toggle
+    html += `<div class="status-toggle">
+        <button class="status-btn ${status==='pending'?'active-pending':''}" onclick="setStatus('${floor.id}','${item.id}','pending')">Not Started</button>
+        <button class="status-btn ${status==='active'?'active-active':''}"  onclick="setStatus('${floor.id}','${item.id}','active')">In Progress</button>
+        <button class="status-btn ${status==='done'?'active-done':''}"    onclick="setStatus('${floor.id}','${item.id}','done')">Done</button>
+    </div>`;
+
+    // Quick log
+    html += `<div class="quick-log-card">
+        <div class="quick-log-date">
+            <button class="date-chip active" id="chip_today"     onclick="setQlDate('${t}')">Today</button>
+            <button class="date-chip"        id="chip_yesterday" onclick="setQlDate('${yes}')">Yesterday</button>
+            <button class="cal-btn" id="chip_other" onclick="toggleDatePicker()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></button>
+        </div>
+        <div class="date-picker-wrap" id="date_picker_wrap">
+            <input type="date" id="ql_date_picker" onchange="setQlDateFromPicker(this.value)" />
+        </div>
+        <input type="hidden" id="ql_date" value="${t}" />
+        <div class="quick-log-inputs">
+            <div class="quick-log-field">
+                <label>Skilled</label>
+                <input type="number" id="ql_skilled" min="0" value="0" oninput="qlPreview()" />
+            </div>
+            <div class="quick-log-field">
+                <label>Skilled Hrs</label>
+                <input type="number" id="ql_skilled_hours" min="0.5" step="0.5" placeholder="${localStorage.getItem('hallway_last_skld_hrs') || '8'}" oninput="qlPreview()" />
+            </div>
+            <div class="quick-log-field">
+                <label>Laborer</label>
+                <input type="number" id="ql_laborer" min="0" value="0" oninput="qlPreview()" />
+            </div>
+            <div class="quick-log-field">
+                <label>Laborer Hrs</label>
+                <input type="number" id="ql_laborer_hours" min="0.5" step="0.5" placeholder="${localStorage.getItem('hallway_last_lab_hrs') || '8'}" oninput="qlPreview()" />
+            </div>
+            <div class="quick-log-field">
+                <label>Man-Hrs</label>
+                <input type="text" id="ql_preview" readonly placeholder="—" style="background:#f5f8ff;color:#1a3a5c;font-weight:700;cursor:default" />
+            </div>
+            <button class="log-btn" onclick="quickLog('${floor.id}','${item.id}')">LOG</button>
+        </div>
+        <div style="margin-top:10px">
+            <input type="text" id="ql_note" placeholder="Note (optional) — e.g. rain delay, short day" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px" maxlength="120" />
+        </div>
+    </div>`;
+
+    // History
+    html += `<div class="section-header">
+        <span class="section-title">History</span>
+        ${item.hoursLog.length > 0 ? `<button class="icon-btn" onclick="exportItemHistory('${floor.id}','${item.id}')">&#8595; Export</button>` : ''}
+    </div>`;
+
+    if (item.hoursLog.length === 0) {
+        html += `<div class="card"><div class="empty-state">No hours logged yet.</div></div>`;
+    } else {
+        html += `<div class="card"><table class="log-table">
+            <thead><tr><th>Date</th><th>Skilled</th><th>Skld Hrs</th><th>Laborer</th><th>Lab Hrs</th><th>Man-Hrs</th><th>Note</th><th></th></tr></thead><tbody>`;
+        item.hoursLog.forEach((entry, idx) => {
+            const d  = entryDisplay(entry);
+            const mh = entryManHours(entry);
+            html += `<tr>
+                <td>${displayDate(entry.date)}</td>
+                <td>${d.skilled}</td>
+                <td>${d.skilledHours}</td>
+                <td>${d.laborer}</td>
+                <td>${d.laborerHours || '—'}</td>
+                <td class="man-hrs-cell">${mh}</td>
+                <td style="color:#888;font-size:12px">${entry.note || ''}</td>
+                <td style="white-space:nowrap">
+                    <button class="edit-row" onclick="editHoursEntry('${floor.id}','${item.id}',${idx})">&#9998;</button>
+                    <button class="delete-row" onclick="deleteHoursEntry('${floor.id}','${item.id}',${idx})">×</button>
+                </td>
+            </tr>`;
+        });
+        html += `</tbody></table></div>`;
+    }
+
+    html += `<div class="delete-zone">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-secondary btn-sm" onclick="renameItem('${floor.id}','${item.id}')">&#9998; Rename Item</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteItem('${floor.id}','${item.id}')">Delete This Item</button>
+        </div>
+    </div>`;
+
+    return html;
+}
+
+// ── Quick log ─────────────────────────────────────────────────────────────────
+function qlPreview() {
+    const s  = parseFloat(document.getElementById('ql_skilled')?.value)       || 0;
+    const sh = parseFloat(document.getElementById('ql_skilled_hours')?.value) || 0;
+    const l  = parseFloat(document.getElementById('ql_laborer')?.value)       || 0;
+    const lh = parseFloat(document.getElementById('ql_laborer_hours')?.value) || 0;
+    const mh = s * sh + l * lh;
+    const el = document.getElementById('ql_preview');
+    if (el) el.value = mh > 0 ? String(mh) : '';
+}
+
+function quickLog(floorId, itemId) {
+    const skilled       = parseFloat(document.getElementById('ql_skilled')?.value)       || 0;
+    const skilledHours  = parseFloat(document.getElementById('ql_skilled_hours')?.value) || 0;
+    const laborer       = parseFloat(document.getElementById('ql_laborer')?.value)       || 0;
+    const laborerHours  = parseFloat(document.getElementById('ql_laborer_hours')?.value) || 0;
+    const date          = document.getElementById('ql_date')?.value;
+    const note          = (document.getElementById('ql_note')?.value || '').trim();
+    if (skilled + laborer < 1) { alert('Enter at least one Skilled or Laborer worker.'); return; }
+    if (skilled > 0 && skilledHours <= 0) { alert('Enter hours for Skilled workers.'); return; }
+    if (laborer > 0 && laborerHours <= 0) { alert('Enter hours for Laborer workers.'); return; }
+    if (skilledHours > 0 && skilled <= 0) { alert('Enter a Skilled worker count.'); return; }
+    if (laborerHours > 0 && laborer <= 0) { alert('Enter a Laborer worker count.'); return; }
+    const floor = state.floors.find(f => f.id === floorId);
+    const item  = floor.items.find(i => i.id === itemId);
+    const entry = { date, skilled, skilledHours, laborer, laborerHours };
+    if (note) entry.note = note;
+    item.hoursLog.push(entry);
+    if ((item.status || 'pending') === 'pending') item.status = 'active';
+    persist();
+    render();
+    if (skilledHours > 0) localStorage.setItem('hallway_last_skld_hrs', String(skilledHours));
+    if (laborerHours > 0) localStorage.setItem('hallway_last_lab_hrs',  String(laborerHours));
+    setTimeout(() => {
+        document.getElementById('ql_skilled').value = '0';
+        document.getElementById('ql_skilled_hours').value = '';
+        document.getElementById('ql_laborer').value = '0';
+        document.getElementById('ql_laborer_hours').value = '';
+        const p = document.getElementById('ql_preview');
+        if (p) p.value = '';
+        const n = document.getElementById('ql_note');
+        if (n) n.value = '';
+        document.getElementById('ql_skilled_hours')?.focus();
+    }, 50);
+}
+
+// ── Date chips ────────────────────────────────────────────────────────────────
+function setQlDate(val) {
+    const input = document.getElementById('ql_date');
+    if (input) input.value = val;
+    const t   = today();
+    const yes = yesterday();
+    document.getElementById('chip_today')?.classList.toggle('active', val === t);
+    document.getElementById('chip_yesterday')?.classList.toggle('active', val === yes);
+    const other = document.getElementById('chip_other');
+    if (val !== t && val !== yes) {
+        other?.classList.add('active');
+    } else {
+        other?.classList.remove('active');
+        document.getElementById('date_picker_wrap')?.classList.remove('open');
+    }
+}
+
+function toggleDatePicker() {
+    const wrap = document.getElementById('date_picker_wrap');
+    if (!wrap) return;
+    wrap.classList.toggle('open');
+    if (wrap.classList.contains('open')) {
+        setTimeout(() => document.getElementById('ql_date_picker')?.showPicker?.(), 50);
+    }
+}
+
+function setQlDateFromPicker(val) {
+    if (!val) return;
+    setQlDate(val);
+    document.getElementById('date_picker_wrap')?.classList.remove('open');
+}
+
+// ── Status ────────────────────────────────────────────────────────────────────
+function setStatus(floorId, itemId, status) {
+    const floor = state.floors.find(f => f.id === floorId);
+    const item  = floor.items.find(i => i.id === itemId);
+    item.status = status;
+    persist();
+    render();
+    setTimeout(() => {
+        const h = document.getElementById('ql_hours');
+        if (h) h.focus();
+    }, 50);
+}
+
+// ── Modal helpers ─────────────────────────────────────────────────────────────
+function openModal(title, bodyHtml, saveFn, hideActions) {
+    document.getElementById('modalTitle').textContent = title;
+    document.getElementById('modalBody').innerHTML    = bodyHtml;
+    document.getElementById('modalOverlay').classList.add('open');
+    document.getElementById('modalActions').style.display = hideActions ? 'none' : 'flex';
+    modalSaveFn = saveFn;
+    setTimeout(() => {
+        const first = document.querySelector('.modal input:not([type=date])');
+        if (first) first.focus();
+    }, 100);
+}
+
+function closeModal() {
+    document.getElementById('modalOverlay').classList.remove('open');
+    modalSaveFn = null;
+}
+
+function saveModal() { if (modalSaveFn) modalSaveFn(); }
+
+document.getElementById('modalOverlay').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+
+// ── Default items ─────────────────────────────────────────────────────────────
+const DEFAULT_ITEMS = [
+    'Demo','Ceiling Skim Coat','Wall Skim Coat','Wall Prime','Ceiling Prime',
+    'Ceiling Paint','Crown/Raceway','Wallcovering','Baseboard Installation',
+    'Door Painting','Electrical','Misc. Laborer','Door ID/Viewer'
+];
+
+// ── Georgetown Plaza schedule ──────────────────────────────────────────────────
+const GEORGETOWN_SCHEDULE = [
+    { name: 'Floor 4',  startDate: '2026-05-11' },
+    { name: 'Floor 5',  startDate: '2026-05-18' },
+    { name: 'Floor 6',  startDate: '2026-05-25' },
+    { name: 'Floor 7',  startDate: '2026-06-01' },
+    { name: 'Floor 8',  startDate: '2026-06-08' },
+    { name: 'Floor 9',  startDate: '2026-06-15' },
+    { name: 'Floor 10', startDate: '2026-06-22' },
+    { name: 'Floor 11', startDate: '2026-06-29' },
+    { name: 'Floor 12', startDate: '2026-07-06' },
+    { name: 'Floor 14', startDate: '2026-07-13' },
+    { name: 'Floor 15', startDate: '2026-07-20' },
+    { name: 'Floor 16', startDate: '2026-07-27' },
+    { name: 'Floor 17', startDate: '2026-08-03' },
+    { name: 'Floor 18', startDate: '2026-08-10' },
+    { name: 'Floor 19', startDate: '2026-08-17' },
+    { name: 'Floor 20', startDate: '2026-08-24' },
+    { name: 'Floor 21', startDate: '2026-08-31' },
+    { name: 'Floor 22', startDate: '2026-09-07' },
+    { name: 'Floor 23', startDate: '2026-09-14' },
+    { name: 'Floor 24', startDate: '2026-09-21' },
+    { name: 'Floor 25', startDate: '2026-09-28' },
+    { name: 'Floor 26', startDate: '2026-10-05' },
+    { name: 'Floor 27', startDate: '2026-10-12' },
+    { name: 'Floor 28', startDate: '2026-10-19' },
+    { name: 'Floor 29', startDate: '2026-10-26' },
+    { name: 'Floor 30', startDate: '2026-11-02' },
+    { name: 'Floor 31', startDate: '2026-11-09' },
+    { name: 'Floor 32', startDate: '2026-11-16' },
+    { name: 'Floor 33', startDate: '2026-11-23' },
+    { name: 'Floor 34', startDate: '2026-11-30' },
+];
+
+function loadGeorgetownSchedule() {
+    const existing = new Set(state.floors.map(f => f.name));
+    const toAdd = GEORGETOWN_SCHEDULE.filter(f => !existing.has(f.name));
+    if (toAdd.length === 0) {
+        alert('All Georgetown Plaza floors are already loaded.');
+        return;
+    }
+    if (!confirm(`This will add ${toAdd.length} floor${toAdd.length !== 1 ? 's' : ''} from the Georgetown Plaza schedule. Continue?`)) return;
+    toAdd.forEach(f => {
+        state.floors.push({
+            id: uid(),
+            name: f.name,
+            startDate: f.startDate,
+            items: DEFAULT_ITEMS.map(n => ({ id: uid(), name: n, hoursLog: [], status: 'pending' }))
+        });
+    });
+    persist(); render();
+}
+
+// ── Add floor ─────────────────────────────────────────────────────────────────
+function openAddFloor() {
+    openModal('Add Floor', `
+        <div class="form-group">
+            <label>Floor Name or Label</label>
+            <input id="f_name" placeholder="e.g. 3rd Floor, Lobby, Basement" />
+        </div>
+        <div class="form-group">
+            <label>Start Date</label>
+            <input id="f_date" type="date" value="${today()}" />
+        </div>
+    `, () => {
+        const name = document.getElementById('f_name').value.trim();
+        if (!name) { alert('Please enter a floor name.'); return; }
+        state.floors.push({
+            id: uid(),
+            name,
+            startDate: document.getElementById('f_date').value,
+            items: DEFAULT_ITEMS.map(n => ({ id: uid(), name: n, hoursLog: [], status: 'pending' }))
+        });
+        persist(); closeModal(); render();
+    });
+}
+
+// ── Add item ──────────────────────────────────────────────────────────────────
+function openAddItem(floorId) {
+    openModal('Add Work Item', `
+        <div class="form-group">
+            <label>Item Name</label>
+            <input id="i_name" placeholder="e.g. Tile Work, Door Frames" />
+        </div>
+    `, () => {
+        const name = document.getElementById('i_name').value.trim();
+        if (!name) { alert('Please enter an item name.'); return; }
+        const floor = state.floors.find(f => f.id === floorId);
+        floor.items.push({ id: uid(), name, hoursLog: [], status: 'pending' });
+        persist(); closeModal(); render();
+    });
+}
+
+// ── Floor Log Today ───────────────────────────────────────────────────────────
+function openFloorLogToday(floorId) {
+    const floor = state.floors.find(f => f.id === floorId);
+    _openLogTodayModal([floor]);
+}
+
+// ── Global Log Today (all floors) ────────────────────────────────────────────
+function openGlobalLogToday() {
+    _openLogTodayModal(state.floors);
+}
+
+function _openLogTodayModal(floors) {
+    const t   = today();
+    const yes = yesterday();
+
+    const calIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
+    let rows = floors.map((floor, fi) => {
+        const itemRows = floor.items.map((item, idx) => `
+            <div class="daily-row">
+                <div class="daily-row-label">${item.name}</div>
+                <div class="form-row">
+                    <div class="form-group" style="margin-bottom:0">
+                        <label>Skilled</label>
+                        <input type="number" min="0" id="lt_s_${fi}_${idx}" placeholder="—" />
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                        <label>Skld Hrs</label>
+                        <input type="number" min="0.5" step="0.5" id="lt_sh_${fi}_${idx}" placeholder="—" />
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                        <label>Laborer</label>
+                        <input type="number" min="0" id="lt_l_${fi}_${idx}" placeholder="—" />
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                        <label>Lab Hrs</label>
+                        <input type="number" min="0.5" step="0.5" id="lt_lh_${fi}_${idx}" placeholder="—" />
+                    </div>
+                </div>
+            </div>`).join('');
+        return `<div class="daily-floor-header">${floor.name}</div>${itemRows}`;
+    }).join('');
+
+    openModal("Log Today's Hours", `
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+            <button class="date-chip active" id="lt_chip_today"     onclick="setLtDate('${t}')">Today</button>
+            <button class="date-chip"        id="lt_chip_yesterday" onclick="setLtDate('${yes}')">Yesterday</button>
+            <button class="cal-btn"          id="lt_chip_other"     onclick="toggleLtPicker()">${calIcon}</button>
+        </div>
+        <div class="date-picker-wrap" id="lt_picker_wrap">
+            <input type="date" id="lt_date_picker" onchange="setLtDateFromPicker(this.value)" style="margin-bottom:10px" />
+        </div>
+        <input type="hidden" id="lt_date" value="${t}" />
+        <p style="font-size:13px;color:#999;margin-bottom:6px">Leave blank for items not worked today.</p>
+        ${rows}
+    `, () => {
+        const date = document.getElementById('lt_date').value;
+        let saved  = 0;
+        floors.forEach((floor, fi) => {
+            floor.items.forEach((item, idx) => {
+                const skilled      = parseFloat(document.getElementById(`lt_s_${fi}_${idx}`)?.value)  || 0;
+                const skilledHours = parseFloat(document.getElementById(`lt_sh_${fi}_${idx}`)?.value) || 0;
+                const laborer      = parseFloat(document.getElementById(`lt_l_${fi}_${idx}`)?.value)  || 0;
+                const laborerHours = parseFloat(document.getElementById(`lt_lh_${fi}_${idx}`)?.value) || 0;
+                const mh = skilled * skilledHours + laborer * laborerHours;
+                if (skilledHours > 0 && skilled <= 0) { alert(`${item.name}: enter a Skilled worker count.`); return; }
+                if (laborerHours > 0 && laborer <= 0) { alert(`${item.name}: enter a Laborer worker count.`); return; }
+                if (skilled > 0 && skilledHours <= 0) { alert(`${item.name}: enter hours for Skilled workers.`); return; }
+                if (laborer > 0 && laborerHours <= 0) { alert(`${item.name}: enter hours for Laborer workers.`); return; }
+                if (mh > 0) {
+                    item.hoursLog.push({ date, skilled, skilledHours, laborer, laborerHours });
+                    if ((item.status || 'pending') === 'pending') item.status = 'active';
+                    saved++;
+                }
+            });
+        });
+        if (saved === 0) { alert('Fill in at least one item.'); return; }
+        persist(); closeModal(); render();
+    });
+}
+
+function setLtDate(val) {
+    const input = document.getElementById('lt_date');
+    if (input) input.value = val;
+    const t   = today();
+    const yes = yesterday();
+    document.getElementById('lt_chip_today')?.classList.toggle('active', val === t);
+    document.getElementById('lt_chip_yesterday')?.classList.toggle('active', val === yes);
+    const other = document.getElementById('lt_chip_other');
+    if (val !== t && val !== yes) {
+        other?.classList.add('active');
+    } else {
+        other?.classList.remove('active');
+        document.getElementById('lt_picker_wrap')?.classList.remove('open');
+    }
+}
+
+function toggleLtPicker() {
+    const wrap = document.getElementById('lt_picker_wrap');
+    if (wrap) wrap.classList.toggle('open');
+}
+
+function setLtDateFromPicker(val) {
+    if (val) { setLtDate(val); document.getElementById('lt_picker_wrap')?.classList.remove('open'); }
+}
+
+// ── Delete ────────────────────────────────────────────────────────────────────
+function deleteHoursEntry(floorId, itemId, idx) {
+    if (!confirm('Delete this entry?')) return;
+    const floor = state.floors.find(f => f.id === floorId);
+    const item  = floor.items.find(i => i.id === itemId);
+    item.hoursLog.splice(idx, 1);
+    persist(); render();
+}
+
+function deleteItem(floorId, itemId) {
+    if (!confirm('Delete this work item and all its hours? This cannot be undone.')) return;
+    const floor = state.floors.find(f => f.id === floorId);
+    floor.items = floor.items.filter(i => i.id !== itemId);
+    persist(); navigate('floor', floorId);
+}
+
+function deleteFloor(floorId) {
+    if (!confirm('Delete this floor and all its data? This cannot be undone.')) return;
+    state.floors = state.floors.filter(f => f.id !== floorId);
+    persist(); navigate('floors');
+}
+
+// ── Multi-select floors ───────────────────────────────────────────────────────
+function toggleSelectMode() {
+    _selectMode = !_selectMode;
+    _selectedIds.clear();
+    render();
+}
+
+function toggleFloorSelect(floorId) {
+    if (_selectedIds.has(floorId)) _selectedIds.delete(floorId);
+    else _selectedIds.add(floorId);
+    render();
+}
+
+function toggleSelectAll() {
+    const allIds = state.floors.map(f => f.id);
+    if (allIds.every(id => _selectedIds.has(id))) {
+        _selectedIds.clear();
+    } else {
+        allIds.forEach(id => _selectedIds.add(id));
+    }
+    render();
+}
+
+function deleteSelectedFloors() {
+    const n = _selectedIds.size;
+    if (!confirm(`Delete ${n} floor${n !== 1 ? 's' : ''} and all their data? This cannot be undone.`)) return;
+    state.floors = state.floors.filter(f => !_selectedIds.has(f.id));
+    _selectedIds.clear();
+    _selectMode = false;
+    persist(); render();
+}
+
+// ── Rename ────────────────────────────────────────────────────────────────────
+function renameFloor(floorId) {
+    const floor = state.floors.find(f => f.id === floorId);
+    openModal('Rename Floor', `
+        <div class="form-group"><label>Floor Name</label><input id="rf_name" value="${floor.name.replace(/"/g,'&quot;')}" /></div>
+    `, () => {
+        const name = document.getElementById('rf_name').value.trim();
+        if (!name) { alert('Please enter a floor name.'); return; }
+        floor.name = name;
+        persist(); closeModal(); render();
+    });
+}
+
+function renameItem(floorId, itemId) {
+    const floor = state.floors.find(f => f.id === floorId);
+    const item  = floor.items.find(i => i.id === itemId);
+    openModal('Rename Item', `
+        <div class="form-group"><label>Item Name</label><input id="ri_name" value="${item.name.replace(/"/g,'&quot;')}" /></div>
+    `, () => {
+        const name = document.getElementById('ri_name').value.trim();
+        if (!name) { alert('Please enter an item name.'); return; }
+        item.name = name;
+        persist(); closeModal(); render();
+    });
+}
+
+// ── Edit log entry ────────────────────────────────────────────────────────────
+function editHoursEntry(floorId, itemId, idx) {
+    const floor = state.floors.find(f => f.id === floorId);
+    const item  = floor.items.find(i => i.id === itemId);
+    const entry = item.hoursLog[idx];
+    const d     = entryDisplay(entry);
+    openModal('Edit Log Entry', `
+        <div class="form-group"><label>Date</label><input type="date" id="ee_date" value="${entry.date}" /></div>
+        <div class="form-row">
+            <div class="form-group"><label>Skilled</label><input type="number" id="ee_s" min="0" value="${d.skilled}" /></div>
+            <div class="form-group"><label>Skilled Hrs</label><input type="number" id="ee_sh" min="0" step="0.5" value="${d.skilledHours}" /></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>Laborer</label><input type="number" id="ee_l" min="0" value="${d.laborer}" /></div>
+            <div class="form-group"><label>Laborer Hrs</label><input type="number" id="ee_lh" min="0" step="0.5" value="${d.laborerHours || 0}" /></div>
+        </div>
+    `, () => {
+        const skilled      = parseFloat(document.getElementById('ee_s').value)  || 0;
+        const skilledHours = parseFloat(document.getElementById('ee_sh').value) || 0;
+        const laborer      = parseFloat(document.getElementById('ee_l').value)  || 0;
+        const laborerHours = parseFloat(document.getElementById('ee_lh').value) || 0;
+        const date         = document.getElementById('ee_date').value;
+        if (skilled + laborer < 1) { alert('Enter at least one worker.'); return; }
+        if (skilled > 0 && skilledHours <= 0) { alert('Enter hours for Skilled workers.'); return; }
+        if (laborer > 0 && laborerHours <= 0) { alert('Enter hours for Laborer workers.'); return; }
+        item.hoursLog[idx] = { date, skilled, skilledHours, laborer, laborerHours };
+        persist(); closeModal(); render();
+    });
+}
+
+// ── Copy items ────────────────────────────────────────────────────────────────
+function openCopyItemsModal(floorId) {
+    const others = state.floors.filter(f => f.id !== floorId);
+    if (others.length === 0) { alert('No other floors to copy from.'); return; }
+    const options = others.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+    openModal('Copy Items From Floor', `
+        <div class="form-group"><label>Copy items from</label><select id="ci_floor">${options}</select></div>
+        <p style="font-size:13px;color:#999;margin-top:4px">Items with the same name are skipped.</p>
+    `, () => {
+        const source   = state.floors.find(f => f.id === document.getElementById('ci_floor').value);
+        const target   = state.floors.find(f => f.id === floorId);
+        const existing = new Set(target.items.map(i => i.name.toLowerCase()));
+        let added = 0;
+        source.items.forEach(item => {
+            if (!existing.has(item.name.toLowerCase())) {
+                target.items.push({ id: uid(), name: item.name, hoursLog: [], status: 'pending' });
+                added++;
+            }
+        });
+        persist(); closeModal(); render();
+        if (added === 0) alert('All items already exist on this floor — nothing added.');
+    });
+}
+
+// ── Mark floor complete ───────────────────────────────────────────────────────
+function toggleFloorComplete(floorId) {
+    const floor = state.floors.find(f => f.id === floorId);
+    floor.completed = !floor.completed;
+    persist(); render();
+}
+
+// ── Floor notes ───────────────────────────────────────────────────────────────
+function openEditNotes(floorId) {
+    const floor = state.floors.find(f => f.id === floorId);
+    openModal('Floor Notes', `
+        <div class="form-group">
+            <label>Notes</label>
+            <textarea id="fn_notes" rows="5" style="width:100%;padding:12px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;resize:vertical;font-family:inherit;outline:none">${(floor.notes || '').replace(/</g,'&lt;')}</textarea>
+        </div>
+    `, () => {
+        floor.notes = document.getElementById('fn_notes').value.trim();
+        persist(); closeModal(); render();
+    });
+    setTimeout(() => document.getElementById('fn_notes')?.focus(), 150);
+}
+
+// ── Backup / Restore ──────────────────────────────────────────────────────────
+function backupData() {
+    const json = JSON.stringify(state, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `hallway_backup_${today()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    localStorage.setItem('hallway_last_backup', today());
+    render();
+}
+
+function restoreData(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (!data.floors) throw new Error('Invalid file');
+            if (!confirm(`This will replace all current data with the backup. Continue?`)) return;
+            state = data;
+            (state.floors || []).forEach(f => { (f.items || []).forEach(i => { if (!i.hoursLog) i.hoursLog = []; }); });
+            persist();
+            render();
+            alert('Data restored successfully.');
+        } catch {
+            alert('Invalid backup file. Please select a valid .json backup.');
+        }
+        input.value = '';
+    };
+    reader.readAsText(file);
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
+function toCSV(rows) {
+    return rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+}
+
+function downloadCSV(csv, filename) {
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+}
+
+function openExportModal() {
+    const floorOptions = state.floors.map(f =>
+        `<option value="${f.id}"${view.floorId === f.id ? ' selected' : ''}>${f.name}</option>`
+    ).join('');
+    const defaultAll = !view.floorId ? ' selected' : '';
+
+    openModal('Export Labor Report', `
+        <div class="form-group">
+            <label>Floor</label>
+            <select id="exp_floor">
+                <option value="all"${defaultAll}>All Floors</option>
+                ${floorOptions}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Format</label>
+            <select id="exp_format">
+                <option value="pdf">PDF (Print / Save)</option>
+                <option value="csv">CSV (Spreadsheet)</option>
+                <option value="summary">Cross-Floor Summary (PDF)</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Report Period</label>
+            <select id="exp_period" onchange="updateExportFields()">
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+            </select>
+        </div>
+        <div id="exp_fields">
+            <div class="form-group"><label>Date</label><input id="exp_date" type="date" value="${today()}" /></div>
+        </div>
+    `, () => {
+        const period = document.getElementById('exp_period').value;
+        let start, end, label;
+
+        if (period === 'daily') {
+            const d = document.getElementById('exp_date').value;
+            start = d; end = d; label = d;
+        } else if (period === 'weekly') {
+            const d   = new Date(document.getElementById('exp_week').value + 'T00:00:00');
+            const day = d.getDay();
+            const mon = new Date(d); mon.setDate(d.getDate() - ((day + 6) % 7));
+            const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+            start = mon.toISOString().slice(0, 10);
+            end   = sun.toISOString().slice(0, 10);
+            label = `week_${start}`;
+        } else {
+            const val = document.getElementById('exp_month').value;
+            start = `${val}-01`;
+            const last = new Date(val.split('-')[0], val.split('-')[1], 0);
+            end   = last.toISOString().slice(0, 10);
+            label = val;
+        }
+
+        const format   = document.getElementById('exp_format').value;
+        const floorSel = document.getElementById('exp_floor').value;
+        const floors   = floorSel === 'all' ? state.floors
+                                             : state.floors.filter(f => f.id === floorSel);
+        const inRange  = d => d >= start && d <= end;
+
+        if (format === 'summary') {
+            let periodLabel;
+            if (period === 'weekly') periodLabel = `Week of ${shortDate(start)} - ${shortDate(end)}`;
+            else if (period === 'monthly') { const [y,m]=start.split('-'); const mo=['January','February','March','April','May','June','July','August','September','October','November','December']; periodLabel=`${mo[parseInt(m)-1]} ${y}`; }
+            else periodLabel = shortDate(start);
+            exportCrossFloorSummary(state.floors, inRange, periodLabel);
+        } else if (format === 'pdf') {
+            exportPDF(floors, inRange, label, start, end, period);
+        } else {
+            const prefix = floorSel === 'all' ? 'all-floors' : floors[0].name.replace(/\s+/g, '-');
+            const rows   = [['FLOOR', 'ITEM', 'DATE', 'SKILLED', 'SKILLED HRS', 'LABORER', 'LABORER HRS', 'MAN-HOURS']];
+            floors.forEach(floor => {
+                floor.items.forEach(item => {
+                    const entries = item.hoursLog.filter(h => inRange(h.date));
+                    if (entries.length === 0) return;
+                    entries.forEach(h => {
+                        const d = entryDisplay(h);
+                        rows.push([floor.name, item.name, displayDate(h.date),
+                            d.skilled, d.skilledHours, d.laborer, d.laborerHours, entryManHours(h)]);
+                    });
+                    const total  = entries.reduce((s, h) => s + entryManHours(h), 0);
+                    const sk = entries.reduce((s, h) => s + entrySkilledMH(h), 0);
+                    const lb = entries.reduce((s, h) => s + entryLaborerMH(h), 0);
+                    rows.push([floor.name, item.name.toUpperCase() + ' — TOTAL', '', '', sk, '', lb, total]);
+                    rows.push(['', '', '', '', '', '', '', '']);
+                });
+            });
+            downloadCSV(toCSV(rows), `${prefix}-labor-${label}.csv`);
+        }
+        closeModal();
+    });
+}
+
+function shortDate(iso) {
+    const [y, m, d] = iso.split('-');
+    return `${m}/${d}/${y.slice(2)}`;
+}
+
+function exportPDF(floors, inRange, label, start, end, period) {
+    let periodLabel;
+    if (period === 'weekly') {
+        periodLabel = `Week of ${shortDate(start)} - ${shortDate(end)}`;
+    } else if (period === 'monthly') {
+        const [y, m] = start.split('-');
+        const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        periodLabel = `${months[parseInt(m)-1]} ${y}`;
+    } else {
+        periodLabel = shortDate(start);
+    }
+
+    const isMulti    = floors.length > 1;
+    const reportTitle = isMulti ? 'All Floors Labor Report' : `${floors[0].name} Labor Report`;
+    let   bodyHtml   = '';
+    let   overallTotal = 0, overallSk = 0, overallLb = 0;
+
+    floors.forEach((floor, fi) => {
+        let tableRows = '';
+        let floorTotal = 0, floorSk = 0, floorLb = 0;
+
+        floor.items.forEach(item => {
+            const entries = item.hoursLog.filter(h => inRange(h.date));
+            if (entries.length === 0) return;
+
+            entries.forEach((h, hi) => {
+                const d  = entryDisplay(h);
+                const mh = entryManHours(h);
+                const firstRow = hi === 0 ? ' class="item-first-row"' : '';
+                tableRows += `<tr${firstRow}>
+                    <td>${item.name}</td>
+                    <td>${displayDate(h.date)}</td>
+                    <td>${d.skilled}</td>
+                    <td>${d.skilledHours}</td>
+                    <td>${d.laborer}</td>
+                    <td>${d.laborerHours || '—'}</td>
+                    <td>${mh}</td>
+                    <td style="color:#666;font-size:10px">${h.note || ''}</td>
+                </tr>`;
+            });
+
+            const total = entries.reduce((s, h) => s + entryManHours(h), 0);
+            const sk    = entries.reduce((s, h) => s + entrySkilledMH(h), 0);
+            const lb    = entries.reduce((s, h) => s + entryLaborerMH(h), 0);
+            floorTotal += total; floorSk += sk; floorLb += lb;
+            tableRows += `<tr class="total-row">
+                <td colspan="2">${item.name.toUpperCase()} — TOTAL</td>
+                <td>—</td>
+                <td>${sk}</td>
+                <td>—</td>
+                <td>${lb}</td>
+                <td>${total}</td>
+                <td></td>
+            </tr>`;
+        });
+
+        if (!tableRows) return;
+        overallTotal += floorTotal; overallSk += floorSk; overallLb += floorLb;
+
+        const pageBreak = (isMulti && fi > 0) ? 'page-break-before:always;padding-top:24px;' : '';
+        bodyHtml += `
+        <div style="${pageBreak}">
+            ${isMulti ? `<div class="floor-heading">${floor.name}</div>` : ''}
+            <table>
+                <thead><tr>
+                    <th>Item</th><th>Date</th><th>Skilled</th><th>Skld Hrs</th><th>Laborer</th><th>Lab Hrs</th><th>Man-Hours</th><th>Note</th>
+                </tr></thead>
+                <tbody>${tableRows}</tbody>
+            </table>
+            <div class="floor-total">FLOOR TOTAL: ${floorTotal} MAN-HOURS &nbsp;·&nbsp; Skilled: ${floorSk} &nbsp;·&nbsp; Laborer: ${floorLb}</div>
+        </div>`;
+    });
+
+    if (!bodyHtml) {
+        alert('No hours logged for this period.');
+        return;
+    }
+
+    const grandLine = isMulti
+        ? `<div class="grand-total">GRAND TOTAL (ALL FLOORS): ${overallTotal} MAN-HOURS &nbsp;·&nbsp; Skilled: ${overallSk} &nbsp;·&nbsp; Laborer: ${overallLb}</div>`
+        : `<div class="grand-total">GRAND TOTAL: ${overallTotal} MAN-HOURS &nbsp;·&nbsp; Skilled: ${overallSk} &nbsp;·&nbsp; Laborer: ${overallLb}</div>`;
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>${reportTitle}</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: Arial, sans-serif; font-size: 12px; color: #111; padding: 32px; }
+        .header { margin-bottom: 24px; }
+        .header h1 { font-size: 20px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #1a3a5c; }
+        .header .meta { font-size: 12px; color: #666; margin-top: 4px; }
+        .floor-heading { font-size: 15px; font-weight: 800; text-transform: uppercase; color: #1a3a5c; margin-bottom: 8px; border-top: 2px solid #1a3a5c; padding-bottom: 4px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+        thead tr { background: #1a3a5c; color: white; }
+        thead th { padding: 9px 10px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+        tbody tr:nth-child(even) { background: #f5f8ff; }
+        tbody td { padding: 8px 10px; border-bottom: 1px solid #eee; }
+        .total-row td { font-weight: 700; text-transform: uppercase; background: #e8eef8 !important; color: #1a3a5c; border-top: 2px solid #1a3a5c; font-size: 11px; }
+        .item-first-row td { border-top: 8px solid #d0d7e3; }
+        .floor-total { margin-top: 12px; text-align: right; font-size: 13px; font-weight: 700; color: #1a3a5c; }
+        .grand-total { margin-top: 20px; text-align: right; font-size: 14px; font-weight: 800; color: #1a3a5c; border-top: 2px solid #1a3a5c; padding-top: 10px; }
+        @media print {
+            body { padding: 16px; }
+            button { display: none; }
+        }
+    </style>
+    </head><body>
+    <div class="header">
+        <h1>Corridor's Plus — ${reportTitle}</h1>
+        <div class="meta">Period: ${periodLabel} &nbsp;|&nbsp; Generated: ${displayDate(today())}</div>
+    </div>
+    ${bodyHtml}
+    ${grandLine}
+    <script>window.onload = () => window.print();<\/script>
+    </body></html>`;
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const url  = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+// ── Export single item history ────────────────────────────────────────────────
+function exportItemHistory(floorId, itemId) {
+    const floor = state.floors.find(f => f.id === floorId);
+    const item  = floor.items.find(i => i.id === itemId);
+    const total      = itemManHours(item);
+    const skilledTot = itemSkilledMH(item);
+    const laborerTot = itemLaborerMH(item);
+
+    let tableRows = '';
+    item.hoursLog.forEach(h => {
+        const d  = entryDisplay(h);
+        const mh = entryManHours(h);
+        tableRows += `<tr>
+            <td>${displayDate(h.date)}</td>
+            <td>${d.skilled}</td><td>${d.skilledHours}</td>
+            <td>${d.laborer}</td><td>${d.laborerHours || '—'}</td>
+            <td>${mh}</td>
+        </tr>`;
+    });
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>${floor.name} — ${item.name}</title>
+    <style>
+        * { box-sizing:border-box; margin:0; padding:0; }
+        body { font-family:Arial,sans-serif; font-size:12px; color:#111; padding:32px; }
+        h1 { font-size:20px; font-weight:800; text-transform:uppercase; letter-spacing:1px; color:#1a3a5c; margin-bottom:4px; }
+        .meta { font-size:12px; color:#666; margin-bottom:20px; }
+        .summary { display:flex; gap:16px; margin-bottom:20px; }
+        .sc { background:#f0f5ff; border-radius:8px; padding:12px 16px; text-align:center; }
+        .sc .val { font-size:22px; font-weight:800; color:#1a3a5c; }
+        .sc .lbl { font-size:10px; color:#888; text-transform:uppercase; letter-spacing:0.5px; margin-top:2px; }
+        table { width:100%; border-collapse:collapse; }
+        thead tr { background:#1a3a5c; color:white; }
+        thead th { padding:9px 10px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; }
+        tbody tr:nth-child(even) { background:#f5f8ff; }
+        tbody td { padding:8px 10px; border-bottom:1px solid #eee; }
+        .total-row td { font-weight:700; background:#e8eef8 !important; color:#1a3a5c; border-top:2px solid #1a3a5c; }
+        @media print { body { padding:16px; } }
+    </style></head><body>
+    <h1>Corridor's Plus — ${floor.name}: ${item.name}</h1>
+    <div class="meta">Full History &nbsp;|&nbsp; Generated: ${displayDate(today())}</div>
+    <div class="summary">
+        <div class="sc"><div class="val">${total}</div><div class="lbl">Total Man-Hrs</div></div>
+        <div class="sc"><div class="val">${skilledTot}</div><div class="lbl">Skilled MH</div></div>
+        <div class="sc"><div class="val">${laborerTot}</div><div class="lbl">Laborer MH</div></div>
+        <div class="sc"><div class="val">${item.hoursLog.length}</div><div class="lbl">Sessions</div></div>
+    </div>
+    <table>
+        <thead><tr><th>Date</th><th>Skilled</th><th>Skld Hrs</th><th>Laborer</th><th>Lab Hrs</th><th>Man-Hours</th></tr></thead>
+        <tbody>
+            ${tableRows}
+            <tr class="total-row"><td colspan="5">TOTAL</td><td>${total}</td></tr>
+        </tbody>
+    </table>
+    <script>window.onload = () => window.print();<\/script>
+    </body></html>`;
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const url  = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+// ── Cross-floor summary ───────────────────────────────────────────────────────
+function exportCrossFloorSummary(floors, inRange, periodLabel) {
+    let tableRows = '';
+    let grandMH = 0, grandSk = 0, grandLb = 0, grandSess = 0;
+
+    floors.forEach(floor => {
+        const entries = floor.items.flatMap(i => i.hoursLog.filter(h => inRange(h.date)));
+        const mh   = entries.reduce((s, e) => s + entryManHours(e), 0);
+        if (mh === 0) return;
+        const sk   = entries.reduce((s, e) => s + entrySkilledMH(e), 0);
+        const lb   = entries.reduce((s, e) => s + entryLaborerMH(e), 0);
+        const sess = entries.length;
+        grandMH += mh; grandSk += sk; grandLb += lb; grandSess += sess;
+        tableRows += `<tr>
+            <td>${floor.name}${floor.completed ? ' ✓' : ''}</td>
+            <td>${mh}</td><td>${sk}</td><td>${lb}</td><td>${sess}</td>
+        </tr>`;
+    });
+
+    if (!tableRows) { alert('No hours logged for this period.'); return; }
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>Cross-Floor Summary</title>
+    <style>
+        * { box-sizing:border-box; margin:0; padding:0; }
+        body { font-family:Arial,sans-serif; font-size:12px; color:#111; padding:32px; }
+        h1 { font-size:20px; font-weight:800; text-transform:uppercase; letter-spacing:1px; color:#1a3a5c; margin-bottom:4px; }
+        .meta { font-size:12px; color:#666; margin-bottom:20px; }
+        table { width:100%; border-collapse:collapse; }
+        thead tr { background:#1a3a5c; color:white; }
+        thead th { padding:9px 10px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; }
+        tbody tr:nth-child(even) { background:#f5f8ff; }
+        tbody td { padding:8px 10px; border-bottom:1px solid #eee; }
+        .total-row td { font-weight:700; background:#e8eef8 !important; color:#1a3a5c; border-top:2px solid #1a3a5c; }
+        @media print { body { padding:16px; } }
+    </style></head><body>
+    <h1>Corridor's Plus — Cross-Floor Summary</h1>
+    <div class="meta">Period: ${periodLabel} &nbsp;|&nbsp; Generated: ${displayDate(today())}</div>
+    <table>
+        <thead><tr><th>Floor</th><th>Man-Hours</th><th>Skilled MH</th><th>Laborer MH</th><th>Sessions</th></tr></thead>
+        <tbody>
+            ${tableRows}
+            <tr class="total-row">
+                <td>GRAND TOTAL</td><td>${grandMH}</td><td>${grandSk}</td><td>${grandLb}</td><td>${grandSess}</td>
+            </tr>
+        </tbody>
+    </table>
+    <script>window.onload = () => window.print();<\/script>
+    </body></html>`;
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const url  = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+function updateExportFields() {
+    const period = document.getElementById('exp_period').value;
+    const fields = document.getElementById('exp_fields');
+    if (period === 'daily') {
+        fields.innerHTML = `<div class="form-group"><label>Date</label><input id="exp_date" type="date" value="${today()}" /></div>`;
+    } else if (period === 'weekly') {
+        fields.innerHTML = `<div class="form-group"><label>Any date in the week</label><input id="exp_week" type="date" value="${today()}" /></div>`;
+    } else {
+        fields.innerHTML = `<div class="form-group"><label>Month</label><input id="exp_month" type="month" value="${today().slice(0,7)}" /></div>`;
+    }
+}
+
+// ── Firebase sync ─────────────────────────────────────────────────────────────
+function initFirebase() {
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.database();
+
+    // Connection status indicator
+    db.ref('.info/connected').on('value', snap => {
+        const el = document.getElementById('syncIndicator');
+        if (!el) return;
+        if (snap.val()) {
+            el.textContent = '● Live';
+            el.style.display = '';
+            el.style.background = 'rgba(34,197,94,0.25)';
+            el.style.color = '#86efac';
+        } else {
+            el.textContent = '○ Offline';
+            el.style.display = '';
+            el.style.background = 'rgba(255,255,255,0.1)';
+            el.style.color = 'rgba(255,255,255,0.5)';
+        }
+    });
+
+    // Real-time listener — updates all devices when anyone saves
+    db.ref('projects/' + syncCode + '/state').on('value', snap => {
+        if (_localWrite) return;
+        const remote = snap.val();
+        if (remote && remote.floors) {
+            state = remote;
+            (state.floors || []).forEach(f => { (f.items || []).forEach(i => { if (!i.hoursLog) i.hoursLog = []; }); });
+            localStorage.setItem('hallway_tracker_v2', JSON.stringify(state));
+            render();
+        } else if (state.floors && state.floors.length > 0) {
+            // First time connecting — push existing local data up
+            db.ref('projects/' + syncCode + '/state').set(state);
+        }
+    });
+}
+
+function joinSync() {
+    const raw = document.getElementById('syncCodeInput').value.trim();
+    if (!raw || raw.length < 3) { alert('Enter a sync code (at least 3 characters).'); return; }
+    syncCode = raw.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    localStorage.setItem('hallway_sync_code', syncCode);
+    document.getElementById('syncOverlay').classList.remove('open');
+    initFirebase();
+    render();
+}
+
+function disconnectSync() {
+    if (!confirm('Disconnect from "' + syncCode + '"? The app will ask for a sync code next time.')) return;
+    if (db) db.ref('projects/' + syncCode + '/state').off();
+    db = null; syncCode = null; _localWrite = false;
+    localStorage.removeItem('hallway_sync_code');
+    const el = document.getElementById('syncIndicator');
+    if (el) el.style.display = 'none';
+    document.getElementById('syncCodeInput').value = '';
+    document.getElementById('syncOverlay').classList.add('open');
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+const _savedCode = localStorage.getItem('hallway_sync_code');
+if (_savedCode) {
+    syncCode = _savedCode;
+    render();          // show local data immediately while Firebase loads
+    initFirebase();    // then connect — listener will re-render when data arrives
+} else {
+    document.getElementById('syncOverlay').classList.add('open');
+}
+</script>
+</body>
+</html>
