@@ -722,10 +722,11 @@ let _selectedIds  = new Set();
 let state = JSON.parse(localStorage.getItem('hallway_tracker_v2') || '{"floors":[],"materials":[]}');
 
 // Normalize missing arrays
-(state.floors || []).forEach(f => {
+if (!state.floors) state.floors = [];
+if (!state.materials) state.materials = [];
+state.floors.forEach(f => {
     (f.items || []).forEach(i => { if (!i.hoursLog) i.hoursLog = []; });
 });
-if (!state.materials) state.materials = [];
 
 
 const DEFAULT_MATERIALS = [
@@ -2474,8 +2475,9 @@ function initFirebase() {
         const remote = snap.val();
         if (remote && remote.floors && remote.floors.length > 0) {
             state = remote;
+            if (!state.floors) state.floors = [];
             if (!state.materials) state.materials = [];
-            (state.floors || []).forEach(f => { (f.items || []).forEach(i => { if (!i.hoursLog) i.hoursLog = []; }); });
+            state.floors.forEach(f => { (f.items || []).forEach(i => { if (!i.hoursLog) i.hoursLog = []; }); });
             // Normalize materials: ensure log array and backfill trade
             const _tradeLookup = {};
             DEFAULT_MATERIALS.forEach(d => { _tradeLookup[d.name.toLowerCase()] = d.trade; });
