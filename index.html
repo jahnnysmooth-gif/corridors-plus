@@ -1037,9 +1037,11 @@ function renderHome() {
 }
 
 function renderFloors() {
-    // Seed Georgetown schedule if floors are empty (guaranteed synchronous, no Firebase timing)
-    if (state.floors.length === 0) {
-        GEORGETOWN_SCHEDULE.forEach(f => {
+    // Add any Georgetown floors not yet present (by name)
+    const existingNames = new Set(state.floors.map(f => f.name));
+    const toAdd = GEORGETOWN_SCHEDULE.filter(f => !existingNames.has(f.name));
+    if (toAdd.length > 0) {
+        toAdd.forEach(f => {
             state.floors.push({
                 id: uid(),
                 name: f.name,
@@ -2505,18 +2507,7 @@ function initFirebase() {
             if (_tradeDirty) persist();
             render();
         } else {
-            // Remote is empty or missing — seed if needed, push local data up, and render
-            if (state.floors.length === 0) {
-                GEORGETOWN_SCHEDULE.forEach(f => {
-                    state.floors.push({
-                        id: uid(),
-                        name: f.name,
-                        startDate: f.startDate,
-                        items: DEFAULT_ITEMS.map(n => ({ id: uid(), name: n, hoursLog: [], status: 'pending' }))
-                    });
-                });
-                localStorage.setItem('hallway_tracker_v2', JSON.stringify(state));
-            }
+            // Remote is empty or missing — push local data up and render
             render();
             db.ref('projects/' + syncCode + '/state').set(state);
         }
@@ -2544,18 +2535,22 @@ function disconnectSync() {
     document.getElementById('syncOverlay').classList.add('open');
 }
 
-// ── Auto-seed Georgetown Plaza schedule on first run ──────────────────────────
-if (state.floors.length === 0) {
-    GEORGETOWN_SCHEDULE.forEach(f => {
-        state.floors.push({
-            id: uid(),
-            name: f.name,
-            startDate: f.startDate,
-            items: DEFAULT_ITEMS.map(n => ({ id: uid(), name: n, hoursLog: [], status: 'pending' }))
+// ── Auto-seed any missing Georgetown Plaza floors ──────────────────────────────
+(function() {
+    const existing = new Set(state.floors.map(f => f.name));
+    const toAdd = GEORGETOWN_SCHEDULE.filter(f => !existing.has(f.name));
+    if (toAdd.length > 0) {
+        toAdd.forEach(f => {
+            state.floors.push({
+                id: uid(),
+                name: f.name,
+                startDate: f.startDate,
+                items: DEFAULT_ITEMS.map(n => ({ id: uid(), name: n, hoursLog: [], status: 'pending' }))
+            });
         });
-    });
-    persist();
-}
+        persist();
+    }
+})();
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 const _savedCode = localStorage.getItem('hallway_sync_code');
