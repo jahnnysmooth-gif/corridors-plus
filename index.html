@@ -759,6 +759,8 @@ const DEFAULT_MATERIALS = [
     { name: 'Device Covers',      unit: 'pcs',   trade: 'Electrical'   },
     { name: 'Sconces',            unit: 'units', trade: 'Electrical'   },
     { name: 'EM Devices',         unit: 'pcs',   trade: 'Electrical'   },
+    { name: 'PL400',              unit: 'tubes', trade: 'Misc.'        },
+    { name: 'Ready Patch',        unit: 'pcs',   trade: 'Misc.'        },
 ];
 
 // Backfill trade onto existing materials that predate the trade field
@@ -1131,9 +1133,9 @@ function renderFloors() {
 }
 
 // ── Materials screen ──────────────────────────────────────────────────────────
-const TRADE_ORDER  = ['Drywall','Paint','Wallcovering','Carpentry','Electrical','Other'];
-const TRADE_ICONS  = { Drywall:'🧱', Paint:'🖌️', Wallcovering:'🌿', Carpentry:'🪚', Electrical:'⚡', Other:'📦' };
-const TRADE_COLORS = { Drywall:'#b45309', Paint:'#1d4ed8', Wallcovering:'#15803d', Carpentry:'#92400e', Electrical:'#7c3aed', Other:'#475569' };
+const TRADE_ORDER  = ['Drywall','Paint','Wallcovering','Carpentry','Electrical','Misc.','Other'];
+const TRADE_ICONS  = { Drywall:'🧱', Paint:'🖌️', Wallcovering:'🌿', Carpentry:'🪚', Electrical:'⚡', 'Misc.':'🔧', Other:'📦' };
+const TRADE_COLORS = { Drywall:'#b45309', Paint:'#1d4ed8', Wallcovering:'#15803d', Carpentry:'#92400e', Electrical:'#7c3aed', 'Misc.':'#0891b2', Other:'#475569' };
 
 function renderMaterials() {
     const mats = state.materials || [];
@@ -2663,6 +2665,11 @@ function initFirebase() {
             // Patch Joint Compound unit
             const _jc = (state.materials || []).find(m => m.name === 'Joint Compound' && m.unit === 'bags');
             if (_jc) { _jc.unit = 'buckets'; _tradeDirty = true; }
+            // Add PL400 and Ready Patch if missing
+            const _matNames = new Set((state.materials || []).map(m => m.name));
+            [{ name: 'PL400', unit: 'tubes', trade: 'Misc.' }, { name: 'Ready Patch', unit: 'pcs', trade: 'Misc.' }].forEach(m => {
+                if (!_matNames.has(m.name)) { state.materials.push({ id: uid(), ...m, log: [] }); _tradeDirty = true; }
+            });
             localStorage.setItem('hallway_tracker_v2', JSON.stringify(state));
             if (_tradeDirty) persist();
             render();
@@ -2704,6 +2711,11 @@ function disconnectSync() {
     // Patch Joint Compound unit from bags → buckets
     const jc = (state.materials || []).find(m => m.name === 'Joint Compound' && m.unit === 'bags');
     if (jc) { jc.unit = 'buckets'; dirty = true; }
+    // Add PL400 and Ready Patch if missing
+    const matNames = new Set((state.materials || []).map(m => m.name));
+    [{ name: 'PL400', unit: 'tubes', trade: 'Misc.' }, { name: 'Ready Patch', unit: 'pcs', trade: 'Misc.' }].forEach(m => {
+        if (!matNames.has(m.name)) { state.materials.push({ id: uid(), ...m, log: [] }); dirty = true; }
+    });
 
     const existing = new Set(state.floors.map(f => f.name));
     const toAdd = GEORGETOWN_SCHEDULE.filter(f => !existing.has(f.name));
