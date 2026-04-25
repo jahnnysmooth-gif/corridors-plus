@@ -2586,10 +2586,37 @@ function disconnectSync() {
     ctx.fillRect(0, 0, 180, 180);
 
     // Hammer — rotated, large
-    ctx.font = '80px serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('🏗️', 90, 72);
+    // Building silhouette — drawn with canvas shapes for crisp rendering
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.shadowColor = 'rgba(0,0,0,0.2)';
+    ctx.shadowBlur = 6;
+
+    // Left wing
+    ctx.fillRect(30, 80, 32, 52);
+    // Center tower
+    ctx.fillRect(68, 44, 44, 88);
+    // Right wing
+    ctx.fillRect(118, 72, 32, 60);
+
+    // Windows on center tower (gradient-colored cutouts)
+    ctx.shadowBlur = 0;
+    const winColor = 'rgba(255,140,60,0.7)';
+    ctx.fillStyle = winColor;
+    for (let row = 0; row < 4; row++) {
+        for (let col = 0; col < 2; col++) {
+            ctx.fillRect(75 + col * 18, 54 + row * 17, 10, 10);
+        }
+    }
+    // Windows on left wing
+    for (let row = 0; row < 2; row++) {
+        ctx.fillRect(37, 88 + row * 17, 10, 10);
+        ctx.fillRect(51, 88 + row * 17, 4, 10);
+    }
+    // Windows on right wing
+    for (let row = 0; row < 2; row++) {
+        ctx.fillRect(125, 80 + row * 17, 10, 10);
+        ctx.fillRect(139, 80 + row * 17, 4, 10);
+    }
 
     // CP — bold white with deep shadow
     ctx.textAlign = 'center';
