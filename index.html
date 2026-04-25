@@ -1264,7 +1264,10 @@ function renderMaterialDetail(mat) {
                 <td>${d.delivered > 0 ? `+${d.delivered}` : '—'}</td>
                 <td>${d.eodQty} ${mat.unit}</td>
                 <td class="usage-used">${d.used} ${mat.unit}</td>
-                <td><button onclick="editMatDay('${mat.id}','${d.date}')" style="background:none;border:none;font-size:15px;cursor:pointer;color:#aaa;padding:2px 4px">✏️</button></td>
+                <td style="white-space:nowrap">
+                    <button onclick="editMatDay('${mat.id}','${d.date}')" style="background:none;border:none;font-size:15px;cursor:pointer;color:#aaa;padding:2px 4px">✏️</button>
+                    <button onclick="deleteMatDay('${mat.id}','${d.date}')" style="background:none;border:none;font-size:15px;cursor:pointer;color:#aaa;padding:2px 4px">🗑️</button>
+                </td>
             </tr>`;
         });
         html += `</tbody></table></div>`;
@@ -1868,6 +1871,13 @@ function editMatDay(matId, date) {
         mat.log.push({ id: uid(), date, type: 'eod', qty: newEod });
         persist(); closeModal(); render();
     });
+}
+
+function deleteMatDay(matId, date) {
+    if (!confirm(`Delete all entries for ${displayDate(date)}? This cannot be undone.`)) return;
+    const mat = state.materials.find(m => m.id === matId);
+    mat.log = (mat.log||[]).filter(e => e.date !== date);
+    persist(); render();
 }
 
 function setReorderQty(matId) {
