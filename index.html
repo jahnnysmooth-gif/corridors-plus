@@ -1038,6 +1038,7 @@ function renderHome() {
 
 function renderFloors() {
     // Add any Georgetown floors not yet present (by name)
+    let _seedDirty = false;
     const existingNames = new Set(state.floors.map(f => f.name));
     const toAdd = GEORGETOWN_SCHEDULE.filter(f => !existingNames.has(f.name));
     if (toAdd.length > 0) {
@@ -1049,8 +1050,9 @@ function renderFloors() {
                 items: DEFAULT_ITEMS.map(n => ({ id: uid(), name: n, hoursLog: [], status: 'pending' }))
             });
         });
-        persist();
+        _seedDirty = true;
     }
+    if (_seedDirty) persist();
 
     let html = '';
 
@@ -1550,7 +1552,7 @@ const DEFAULT_ITEMS = [
 
 // ── Georgetown Plaza schedule ──────────────────────────────────────────────────
 const GEORGETOWN_SCHEDULE = [
-    { name: 'Floor 4',  startDate: '2026-05-11' },
+    { name: 'Floor 4',  startDate: '2026-05-04' },
     { name: 'Floor 5',  startDate: '2026-05-18' },
     { name: 'Floor 6',  startDate: '2026-05-25' },
     { name: 'Floor 7',  startDate: '2026-06-01' },
@@ -2535,8 +2537,13 @@ function disconnectSync() {
     document.getElementById('syncOverlay').classList.add('open');
 }
 
-// ── Auto-seed any missing Georgetown Plaza floors ──────────────────────────────
+// ── Auto-seed any missing Georgetown Plaza floors + patch start dates ──────────
 (function() {
+    let dirty = false;
+    // Patch Floor 4 start date to 2026-05-04
+    const f4 = state.floors.find(f => f.name === 'Floor 4');
+    if (f4 && f4.startDate !== '2026-05-04') { f4.startDate = '2026-05-04'; dirty = true; }
+
     const existing = new Set(state.floors.map(f => f.name));
     const toAdd = GEORGETOWN_SCHEDULE.filter(f => !existing.has(f.name));
     if (toAdd.length > 0) {
@@ -2548,8 +2555,9 @@ function disconnectSync() {
                 items: DEFAULT_ITEMS.map(n => ({ id: uid(), name: n, hoursLog: [], status: 'pending' }))
             });
         });
-        persist();
+        dirty = true;
     }
+    if (dirty) persist();
 })();
 
 // ── Init ──────────────────────────────────────────────────────────────────────
