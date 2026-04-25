@@ -730,6 +730,20 @@ const DEFAULT_MATERIALS = [
     { name: 'EM Devices',         unit: 'pcs',   trade: 'Electrical'   },
 ];
 
+// Backfill trade onto existing materials that predate the trade field
+(function migrateTrades() {
+    const lookup = {};
+    DEFAULT_MATERIALS.forEach(d => { lookup[d.name.toLowerCase()] = d.trade; });
+    let dirty = false;
+    (state.materials || []).forEach(m => {
+        if (!m.trade && lookup[m.name.toLowerCase()]) {
+            m.trade = lookup[m.name.toLowerCase()];
+            dirty = true;
+        }
+    });
+    if (dirty) persist();
+})();
+
 function matCurrentStock(mat) {
     const log = mat.log || [];
     const eodEntries = log.filter(e => e.type === 'eod').sort((a,b) => b.date.localeCompare(a.date));
