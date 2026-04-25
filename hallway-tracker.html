@@ -567,6 +567,27 @@
         .home-tile-sub { font-size: 12px; color: #999; margin-top: 4px; }
         .home-tile.labor { border-top: 4px solid #1a3a5c; }
         .home-tile.materials { border-top: 4px solid #16a34a; }
+        .trade-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            margin-top: 16px;
+        }
+        .trade-tile {
+            background: white;
+            border-radius: 16px;
+            padding: 22px 16px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+            border: none;
+            width: 100%;
+        }
+        .trade-tile:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.13); }
+        .trade-tile-icon { font-size: 36px; margin-bottom: 10px; display: block; }
+        .trade-tile-label { font-size: 14px; font-weight: 700; color: #1a3a5c; }
+        .trade-tile-sub { font-size: 11px; color: #999; margin-top: 3px; }
         .home-subtitle { text-align:center; font-size:13px; color:#aaa; margin-top:32px; }
 
         /* ── Materials screen ── */
@@ -892,9 +913,9 @@ function hasUnsavedHours() {
     return (s + l + sh + lh) > 0;
 }
 
-function navigate(screen, floorId, itemId, matId) {
+function navigate(screen, floorId, itemId, matId, matTrade) {
     if (hasUnsavedHours() && !confirm('You have unsaved hours. Leave without logging?')) return;
-    view = { screen, floorId: floorId || null, itemId: itemId || null, matId: matId || null };
+    view = { screen, floorId: floorId || null, itemId: itemId || null, matId: matId || null, matTrade: matTrade || null };
     render();
 }
 
@@ -939,13 +960,18 @@ function render() {
 
     } else if (view.screen === 'materials') {
         back.style.display = 'block';
-        back.onclick = () => navigate('home');
-        title.textContent = 'Material Inventory';
+        if (view.matTrade) {
+            back.onclick = () => navigate('materials');
+            title.textContent = view.matTrade;
+        } else {
+            back.onclick = () => navigate('home');
+            title.textContent = 'Material Inventory';
+        }
         app.innerHTML = renderMaterials();
 
     } else if (view.screen === 'material') {
         back.style.display = 'block';
-        back.onclick = () => navigate('materials');
+        back.onclick = () => navigate('materials', null, null, null, view.matTrade);
         const mat = state.materials.find(m => m.id === view.matId);
         title.textContent = mat ? mat.name : 'Material';
         app.innerHTML = renderMaterialDetail(mat);
@@ -1123,6 +1149,10 @@ function renderFloors() {
 }
 
 // ── Materials screen ──────────────────────────────────────────────────────────
+const TRADE_ORDER  = ['Drywall','Paint','Wallcovering','Carpentry','Electrical','Other'];
+const TRADE_ICONS  = { Drywall:'🧱', Paint:'🖌️', Wallcovering:'🌿', Carpentry:'🪚', Electrical:'⚡', Other:'📦' };
+const TRADE_COLORS = { Drywall:'#b45309', Paint:'#1d4ed8', Wallcovering:'#15803d', Carpentry:'#92400e', Electrical:'#7c3aed', Other:'#475569' };
+
 function renderMaterials() {
     const mats = state.materials || [];
     let html = '';
@@ -1130,52 +1160,74 @@ function renderMaterials() {
     if (mats.length === 0) {
         html += `<div class="empty-state">No materials yet.<br>Load defaults or add manually.</div>`;
         html += `<button class="add-btn" style="background:#1a3a5c;margin-bottom:10px" onclick="loadDefaultMaterials()">&#128230; Load Default Materials</button>`;
-    } else {
-        const totalDeliveriesToday = mats.reduce((s, m) => s + (m.log||[]).filter(e => e.type==='delivery' && e.date===today()).reduce((ss,e) => ss+e.qty, 0), 0);
-        html += `<div class="stats-row" style="grid-template-columns:1fr 1fr">
-            <div class="stat-card"><div class="stat-value">${mats.length}</div><div class="stat-label">Materials</div></div>
-            <div class="stat-card"><div class="stat-value">${totalDeliveriesToday}</div><div class="stat-label">Delivered Today</div></div>
-        </div>`;
-
-        html += `<div class="mat-action-row">
-            <button class="mat-action-btn mat-delivery-btn" onclick="openLogDelivery()">&#128666; Log Delivery</button>
-            <button class="mat-action-btn mat-eod-btn" onclick="openLogEod()">&#128337; Log EOD Count</button>
-        </div>`;
-
-        const TRADE_ORDER = ['Drywall','Paint','Wallcovering','Carpentry','Electrical','Other'];
-        const byTrade = {};
-        mats.forEach(mat => {
-            const t = mat.trade || 'Other';
-            if (!byTrade[t]) byTrade[t] = [];
-            byTrade[t].push(mat);
-        });
-        const tradeKeys = TRADE_ORDER.filter(t => byTrade[t]);
-        Object.keys(byTrade).forEach(t => { if (!TRADE_ORDER.includes(t)) tradeKeys.push(t); });
-
-        tradeKeys.forEach(trade => {
-            html += `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#64748b;margin:18px 0 6px 2px">${trade}</div>`;
-            byTrade[trade].forEach(mat => {
-                const stock    = matCurrentStock(mat);
-                const lastDate = matLastEodDate(mat);
-                const delivToday = (mat.log||[]).filter(e => e.type==='delivery' && e.date===today()).reduce((s,e) => s+e.qty, 0);
-                html += `<div class="mat-card" onclick="navigate('material',null,null,'${mat.id}')">
-                    <div>
-                        <div class="mat-name">${mat.name}</div>
-                        <div class="mat-meta">${mat.unit}${delivToday > 0 ? ` &nbsp;·&nbsp; <span style="color:#16a34a;font-weight:600">+${delivToday} delivered today</span>` : ''}</div>
-                        ${lastDate ? `<div class="mat-meta">Last count: ${displayDate(lastDate)}</div>` : ''}
-                    </div>
-                    <div class="mat-stock">
-                        ${stock !== null
-                            ? `<div class="mat-stock-num">${stock}</div><div class="mat-stock-unit">${mat.unit}</div>`
-                            : `<div class="mat-stock-none">No count yet</div>`}
-                    </div>
-                </div>`;
-            });
-        });
-
-        html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px;margin-top:4px" onclick="exportMaterialsReport()">&#8681; Export Usage Report</button>`;
+        html += `<button class="add-btn" onclick="openAddMaterial()">+ Add Material</button>`;
+        return html;
     }
 
+    // Group by trade
+    const byTrade = {};
+    mats.forEach(mat => {
+        const t = mat.trade || 'Other';
+        if (!byTrade[t]) byTrade[t] = [];
+        byTrade[t].push(mat);
+    });
+    const tradeKeys = TRADE_ORDER.filter(t => byTrade[t]);
+    Object.keys(byTrade).forEach(t => { if (!TRADE_ORDER.includes(t)) tradeKeys.push(t); });
+
+    // If a trade is selected, show that trade's material list
+    if (view.matTrade) {
+        const tradeMats = byTrade[view.matTrade] || [];
+        const delivToday = tradeMats.reduce((s,m) => s + (m.log||[]).filter(e => e.type==='delivery' && e.date===today()).reduce((ss,e) => ss+e.qty, 0), 0);
+        html += `<div class="stats-row" style="grid-template-columns:1fr 1fr">
+            <div class="stat-card"><div class="stat-value">${tradeMats.length}</div><div class="stat-label">Materials</div></div>
+            <div class="stat-card"><div class="stat-value">${delivToday}</div><div class="stat-label">Delivered Today</div></div>
+        </div>`;
+        html += `<div class="mat-action-row">
+            <button class="mat-action-btn mat-delivery-btn" onclick="openLogDeliveryForTrade('${view.matTrade}')">&#128666; Log Delivery</button>
+            <button class="mat-action-btn mat-eod-btn" onclick="openLogEodForTrade('${view.matTrade}')">&#128337; Log EOD Count</button>
+        </div>`;
+        tradeMats.forEach(mat => {
+            const stock    = matCurrentStock(mat);
+            const lastDate = matLastEodDate(mat);
+            const deliv    = (mat.log||[]).filter(e => e.type==='delivery' && e.date===today()).reduce((s,e) => s+e.qty, 0);
+            html += `<div class="mat-card" onclick="navigate('material',null,null,'${mat.id}','${view.matTrade}')">
+                <div>
+                    <div class="mat-name">${mat.name}</div>
+                    <div class="mat-meta">${mat.unit}${deliv > 0 ? ` &nbsp;·&nbsp; <span style="color:#16a34a;font-weight:600">+${deliv} delivered today</span>` : ''}</div>
+                    ${lastDate ? `<div class="mat-meta">Last count: ${displayDate(lastDate)}</div>` : ''}
+                </div>
+                <div class="mat-stock">
+                    ${stock !== null
+                        ? `<div class="mat-stock-num">${stock}</div><div class="mat-stock-unit">${mat.unit}</div>`
+                        : `<div class="mat-stock-none">No count yet</div>`}
+                </div>
+            </div>`;
+        });
+        html += `<button class="add-btn" onclick="openAddMaterial()">+ Add Material</button>`;
+        return html;
+    }
+
+    // Trade tile grid
+    const totalDeliveriesToday = mats.reduce((s, m) => s + (m.log||[]).filter(e => e.type==='delivery' && e.date===today()).reduce((ss,e) => ss+e.qty, 0), 0);
+    html += `<div class="stats-row" style="grid-template-columns:1fr 1fr">
+        <div class="stat-card"><div class="stat-value">${mats.length}</div><div class="stat-label">Materials</div></div>
+        <div class="stat-card"><div class="stat-value">${totalDeliveriesToday}</div><div class="stat-label">Delivered Today</div></div>
+    </div>`;
+    html += `<div class="trade-grid">`;
+    tradeKeys.forEach(trade => {
+        const tradeMats = byTrade[trade];
+        const color = TRADE_COLORS[trade] || '#475569';
+        const icon  = TRADE_ICONS[trade]  || '📦';
+        const deliv = tradeMats.reduce((s,m) => s + (m.log||[]).filter(e => e.type==='delivery' && e.date===today()).reduce((ss,e) => ss+e.qty, 0), 0);
+        const sub   = deliv > 0 ? `+${deliv} delivered today` : `${tradeMats.length} item${tradeMats.length !== 1 ? 's' : ''}`;
+        html += `<button class="trade-tile" style="border-top:4px solid ${color}" onclick="navigate('materials',null,null,null,'${trade}')">
+            <span class="trade-tile-icon">${icon}</span>
+            <div class="trade-tile-label">${trade}</div>
+            <div class="trade-tile-sub">${sub}</div>
+        </button>`;
+    });
+    html += `</div>`;
+    html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px;margin-top:20px" onclick="exportMaterialsReport()">&#8681; Export Usage Report</button>`;
     html += `<button class="add-btn" onclick="openAddMaterial()">+ Add Material</button>`;
     return html;
 }
@@ -1797,7 +1849,11 @@ function deleteMaterial(matId) {
 }
 
 function _buildMatLogModal(title, type, matId) {
-    const mats = matId ? state.materials.filter(m => m.id === matId) : state.materials;
+    const mats = Array.isArray(matId)
+        ? state.materials.filter(m => matId.includes(m.id))
+        : matId
+            ? state.materials.filter(m => m.id === matId)
+            : state.materials;
     const t = today(), yes = yesterday();
     const rows = mats.map((mat, i) => `
         <div class="daily-row">
@@ -1830,10 +1886,18 @@ function _buildMatLogModal(title, type, matId) {
     });
 }
 
-function openLogDelivery()        { _buildMatLogModal('Log Delivery',  'delivery', null); }
-function openLogEod()             { _buildMatLogModal('Log EOD Count', 'eod',      null); }
-function openLogDeliveryFor(id)   { _buildMatLogModal('Log Delivery',  'delivery', id);   }
-function openLogEodFor(id)        { _buildMatLogModal('Log EOD Count', 'eod',      id);   }
+function openLogDelivery()              { _buildMatLogModal('Log Delivery',  'delivery', null); }
+function openLogEod()                   { _buildMatLogModal('Log EOD Count', 'eod',      null); }
+function openLogDeliveryFor(id)         { _buildMatLogModal('Log Delivery',  'delivery', id);   }
+function openLogEodFor(id)              { _buildMatLogModal('Log EOD Count', 'eod',      id);   }
+function openLogDeliveryForTrade(trade) {
+    const ids = (state.materials||[]).filter(m => (m.trade||'Other') === trade).map(m => m.id);
+    _buildMatLogModal('Log Delivery', 'delivery', ids);
+}
+function openLogEodForTrade(trade) {
+    const ids = (state.materials||[]).filter(m => (m.trade||'Other') === trade).map(m => m.id);
+    _buildMatLogModal('Log EOD Count', 'eod', ids);
+}
 
 function setMatDate(val) {
     const el = document.getElementById('mat_date');
