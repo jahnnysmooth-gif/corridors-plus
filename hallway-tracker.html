@@ -543,6 +543,32 @@
         /* ── Quick log grid (2-col) ── */
         .quick-log-inputs { grid-template-columns: 1fr 1fr; }
 
+        /* ── Home screen tiles ── */
+        .home-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-top: 24px;
+        }
+        .home-tile {
+            background: white;
+            border-radius: 18px;
+            padding: 28px 20px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+            border: none;
+            width: 100%;
+        }
+        .home-tile:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.14); }
+        .home-tile-icon { font-size: 48px; margin-bottom: 14px; display: block; }
+        .home-tile-label { font-size: 15px; font-weight: 700; color: #1a3a5c; }
+        .home-tile-sub { font-size: 12px; color: #999; margin-top: 4px; }
+        .home-tile.labor { border-top: 4px solid #1a3a5c; }
+        .home-tile.materials { border-top: 4px solid #16a34a; }
+        .home-subtitle { text-align:center; font-size:13px; color:#aaa; margin-top:32px; }
+
         /* ── Materials screen ── */
         .mat-card {
             background: white;
@@ -767,7 +793,7 @@ function addWeeks(iso, weeks) {
 }
 
 // ── View ──────────────────────────────────────────────────────────────────────
-let view = { screen: 'floors', floorId: null, itemId: null };
+let view = { screen: 'home', floorId: null, itemId: null, matId: null };
 let modalSaveFn = null;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -862,8 +888,14 @@ function render() {
     back.style.display = 'none';
     exp.style.display  = 'none';
 
-    if (view.screen === 'floors') {
+    if (view.screen === 'home') {
         title.innerHTML = `Corridor's Plus <span style="filter:brightness(0) invert(1)">➕</span>`;
+        app.innerHTML = renderHome();
+
+    } else if (view.screen === 'floors') {
+        back.style.display = 'block';
+        back.onclick = () => navigate('home');
+        title.textContent = 'Labor Tracking';
         exp.style.display = state.floors.length > 0 ? 'block' : 'none';
         app.innerHTML = renderFloors();
 
@@ -886,8 +918,7 @@ function render() {
 
     } else if (view.screen === 'materials') {
         back.style.display = 'block';
-        exp.style.display  = 'block';
-        back.onclick = () => navigate('floors');
+        back.onclick = () => navigate('home');
         title.textContent = 'Material Inventory';
         app.innerHTML = renderMaterials();
 
@@ -927,6 +958,31 @@ function renderFloorCard(floor) {
             <span class="floor-card-arrow">›</span>
         </div>
     </div>`;
+}
+
+// ── Home screen ───────────────────────────────────────────────────────────────
+function renderHome() {
+    const totalFloors  = state.floors.length;
+    const totalHrs     = state.floors.reduce((s,f) => s + floorManHours(f), 0);
+    const matCount     = state.materials.length;
+    const lastEod      = state.materials.reduce((latest, m) => {
+        const d = matLastEodDate(m); return d && d > latest ? d : latest;
+    }, '');
+
+    return `
+        <div class="home-grid">
+            <button class="home-tile labor" onclick="navigate('floors')">
+                <span class="home-tile-icon">👷</span>
+                <div class="home-tile-label">Labor Tracking</div>
+                <div class="home-tile-sub">${totalFloors} floor${totalFloors !== 1 ? 's' : ''} · ${totalHrs} man-hrs</div>
+            </button>
+            <button class="home-tile materials" onclick="navigate('materials')">
+                <span class="home-tile-icon">🧰</span>
+                <div class="home-tile-label">Material Inventory</div>
+                <div class="home-tile-sub">${matCount} material${matCount !== 1 ? 's' : ''}${lastEod ? ' · last count ' + displayDate(lastEod) : ''}</div>
+            </button>
+        </div>
+        <div class="home-subtitle">Georgetown Plaza · Corridor Renovation</div>`;
 }
 
 function renderFloors() {
@@ -1036,7 +1092,6 @@ function renderFloors() {
         }
     }
     html += `<button class="add-btn" onclick="openAddFloor()">+ Add Floor</button>`;
-    html += `<button class="btn btn-secondary" style="width:100%;padding:13px;margin-bottom:10px;font-size:14px;font-weight:600" onclick="navigate('materials')">&#128230; Material Inventory</button>`;
     html += `<div class="backup-row">
         <button class="btn btn-secondary" onclick="backupData()">&#8681; Backup</button>
         <button class="btn btn-secondary" onclick="document.getElementById('restoreInput').click()">&#8679; Restore</button>
