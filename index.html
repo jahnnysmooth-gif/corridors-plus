@@ -1035,6 +1035,19 @@ function renderHome() {
 }
 
 function renderFloors() {
+    // Seed Georgetown schedule if floors are empty (guaranteed synchronous, no Firebase timing)
+    if (state.floors.length === 0) {
+        GEORGETOWN_SCHEDULE.forEach(f => {
+            state.floors.push({
+                id: uid(),
+                name: f.name,
+                startDate: f.startDate,
+                items: DEFAULT_ITEMS.map(n => ({ id: uid(), name: n, hoursLog: [], status: 'pending' }))
+            });
+        });
+        persist();
+    }
+
     let html = '';
 
     // Backup warning
