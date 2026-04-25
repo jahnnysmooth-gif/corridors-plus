@@ -2505,6 +2505,9 @@ function initFirebase() {
                 if (!m.log) m.log = [];
                 if (!m.trade && _tradeLookup[m.name.toLowerCase()]) { m.trade = _tradeLookup[m.name.toLowerCase()]; _tradeDirty = true; }
             });
+            // Patch Floor 4 start date
+            const _f4 = state.floors.find(f => f.name === 'Floor 4');
+            if (_f4 && _f4.startDate !== '2026-05-04') { _f4.startDate = '2026-05-04'; _tradeDirty = true; }
             localStorage.setItem('hallway_tracker_v2', JSON.stringify(state));
             if (_tradeDirty) persist();
             render();
