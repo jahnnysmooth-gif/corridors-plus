@@ -739,7 +739,7 @@ state.floors.forEach(f => {
 
 
 const DEFAULT_MATERIALS = [
-    { name: 'Joint Compound',     unit: 'bags',  trade: 'Drywall'      },
+    { name: 'Joint Compound',     unit: 'buckets', trade: 'Drywall'    },
     { name: 'Mesh Tape',          unit: 'rolls', trade: 'Drywall'      },
     { name: 'Corner Bead',        unit: 'pcs',   trade: 'Drywall'      },
     { name: 'Sandpaper',          unit: 'sheets',trade: 'Drywall'      },
@@ -1206,7 +1206,7 @@ function renderMaterials() {
         </button>`;
     });
     html += `</div>`;
-    html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px;margin-top:20px" onclick="exportMaterialsReport()">&#8681; Export Usage Report</button>`;
+    html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px;margin-top:20px" onclick="openMaterialsExportModal()">&#8681; Export Usage Report</button>`;
     html += `<button class="add-btn" onclick="openAddMaterial()">+ Add Material</button>`;
     return html;
 }
@@ -2408,27 +2408,88 @@ function exportCrossFloorSummary(floors, inRange, periodLabel) {
 }
 
 // ── Materials export ──────────────────────────────────────────────────────────
-function exportMaterialsReport() {
-    const mats = state.materials.filter(m => matDailyUsage(m).length > 0);
-    if (mats.length === 0) { alert('No EOD counts logged yet — nothing to export.'); return; }
+function openMaterialsExportModal() {
+    openModal('Export Materials Report', `
+        <div class="form-group">
+            <label>Format</label>
+            <select id="mexp_format">
+                <option value="pdf">PDF (Print / Save)</option>
+                <option value="csv">CSV (Spreadsheet)</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Report Period</label>
+            <select id="mexp_period" onchange="updateMatExportFields()">
+                <option value="all">All Time</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+            </select>
+        </div>
+        <div id="mexp_fields"></div>
+    `, () => {
+        const format = document.getElementById('mexp_format').value;
+        const period = document.getElementById('mexp_period').value;
+        let start, end, label;
+
+        if (period === 'daily') {
+            const d = document.getElementById('mexp_date').value;
+            start = d; end = d; label = displayDate(d);
+        } else if (period === 'weekly') {
+            const d   = new Date(document.getElementById('mexp_week').value + 'T00:00:00');
+            const day = d.getDay();
+            const mon = new Date(d); mon.setDate(d.getDate() - ((day + 6) % 7));
+            const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+            start = mon.toISOString().slice(0,10);
+            end   = sun.toISOString().slice(0,10);
+            label = `${displayDate(start)} – ${displayDate(end)}`;
+        } else if (period === 'monthly') {
+            const val = document.getElementById('mexp_month').value;
+            start = `${val}-01`;
+            const last = new Date(val.split('-')[0], val.split('-')[1], 0);
+            end   = last.toISOString().slice(0,10);
+            const mo = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+            label = `${mo[parseInt(val.split('-')[1])-1]} ${val.split('-')[0]}`;
+        } else {
+            start = '2000-01-01'; end = '2099-12-31'; label = 'All Time';
+        }
+
+        const inRange = d => d >= start && d <= end;
+        if (format === 'pdf') exportMaterialsPDF(inRange, label);
+        else exportMaterialsCSV(inRange, label);
+    });
+}
+
+function updateMatExportFields() {
+    const period = document.getElementById('mexp_period').value;
+    const el = document.getElementById('mexp_fields');
+    if (period === 'daily')   el.innerHTML = `<div class="form-group"><label>Date</label><input id="mexp_date" type="date" value="${today()}" /></div>`;
+    else if (period === 'weekly')  el.innerHTML = `<div class="form-group"><label>Any date in the week</label><input id="mexp_week" type="date" value="${today()}" /></div>`;
+    else if (period === 'monthly') el.innerHTML = `<div class="form-group"><label>Month</label><input id="mexp_month" type="month" value="${today().slice(0,7)}" /></div>`;
+    else el.innerHTML = '';
+}
+
+function exportMaterialsPDF(inRange, label) {
+    const mats = state.materials.filter(m => matDailyUsage(m).some(d => inRange(d.date)));
+    if (mats.length === 0) { alert('No data in this period.'); return; }
 
     let bodyHtml = '';
     mats.forEach(mat => {
-        const usage = matDailyUsage(mat);
+        const usage = matDailyUsage(mat).filter(d => inRange(d.date));
         if (usage.length === 0) return;
         const totalUsed = usage.reduce((s,d) => s + d.used, 0);
         const totalDel  = usage.reduce((s,d) => s + d.delivered, 0);
-        let rows = usage.map(d => `<tr>
+        const rows = [...usage].reverse().map(d => `<tr>
             <td>${displayDate(d.date)}</td>
             <td>${d.delivered > 0 ? '+'+d.delivered : '—'}</td>
             <td>${d.onSite}</td>
             <td>${d.eodQty}</td>
             <td style="font-weight:700;color:#1a3a5c">${d.used}</td>
-        </tr>`).reverse().join('');
-        bodyHtml += `
-        <div style="margin-bottom:32px">
+        </tr>`).join('');
+        bodyHtml += `<div style="margin-bottom:32px">
             <div style="font-size:15px;font-weight:800;text-transform:uppercase;color:#1a3a5c;border-top:2px solid #1a3a5c;padding-top:6px;margin-bottom:8px">
                 ${mat.name} <span style="font-weight:400;font-size:12px;color:#666">(${mat.unit})</span>
+                ${mat.trade ? `<span style="font-weight:400;font-size:12px;color:#999"> · ${mat.trade}</span>` : ''}
             </div>
             <table style="width:100%;border-collapse:collapse;font-size:12px">
                 <thead><tr style="background:#1a3a5c;color:white">
@@ -2446,25 +2507,34 @@ function exportMaterialsReport() {
         </div>`;
     });
 
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
-    <title>Material Inventory Report</title>
-    <style>
-        * { box-sizing:border-box; margin:0; padding:0; }
-        body { font-family:Arial,sans-serif; font-size:12px; color:#111; padding:32px; }
-        h1 { font-size:20px; font-weight:800; text-transform:uppercase; letter-spacing:1px; color:#1a3a5c; margin-bottom:4px; }
-        .meta { font-size:12px; color:#666; margin-bottom:24px; }
-        tbody tr:nth-child(even) { background:#f5f8ff; }
-        tbody td { padding:7px 10px; border-bottom:1px solid #eee; }
-        @media print { body { padding:16px; } }
-    </style></head><body>
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Material Report</title>
+    <style>* { box-sizing:border-box; margin:0; padding:0; } body { font-family:Arial,sans-serif; font-size:12px; color:#111; padding:32px; }
+    h1 { font-size:20px; font-weight:800; text-transform:uppercase; letter-spacing:1px; color:#1a3a5c; margin-bottom:4px; }
+    .meta { font-size:12px; color:#666; margin-bottom:24px; }
+    tbody tr:nth-child(even) { background:#f5f8ff; } tbody td { padding:7px 10px; border-bottom:1px solid #eee; }
+    @media print { body { padding:16px; } }</style></head><body>
     <h1>Corridor's Plus — Material Inventory Report</h1>
-    <div class="meta">Generated: ${displayDate(today())}</div>
+    <div class="meta">Period: ${label} &nbsp;·&nbsp; Generated: ${displayDate(today())}</div>
     ${bodyHtml}
-    <script>window.onload = () => window.print();<\/script>
-    </body></html>`;
+    <script>window.onload = () => window.print();<\/script></body></html>`;
 
-    const blob = new Blob([html], { type: 'text/html' });
-    window.open(URL.createObjectURL(blob), '_blank');
+    window.open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank');
+}
+
+function exportMaterialsCSV(inRange, label) {
+    const rows = [['MATERIAL', 'UNIT', 'TRADE', 'DATE', 'DELIVERED', 'ON SITE', 'EOD COUNT', 'USED']];
+    state.materials.forEach(mat => {
+        matDailyUsage(mat).filter(d => inRange(d.date)).forEach(d => {
+            rows.push([mat.name, mat.unit, mat.trade || '', displayDate(d.date), d.delivered, d.onSite, d.eodQty, d.used]);
+        });
+    });
+    if (rows.length === 1) { alert('No data in this period.'); return; }
+    const csv  = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const name = `materials_${label.replace(/[^a-z0-9]/gi,'_')}.csv`;
+    const a    = document.createElement('a');
+    a.href     = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = name;
+    a.click();
 }
 
 function updateExportFields() {
@@ -2521,6 +2591,9 @@ function initFirebase() {
             // Patch Floor 4 start date
             const _f4 = state.floors.find(f => f.name === 'Floor 4');
             if (_f4 && _f4.startDate !== '2026-05-04') { _f4.startDate = '2026-05-04'; _tradeDirty = true; }
+            // Patch Joint Compound unit
+            const _jc = (state.materials || []).find(m => m.name === 'Joint Compound' && m.unit === 'bags');
+            if (_jc) { _jc.unit = 'buckets'; _tradeDirty = true; }
             localStorage.setItem('hallway_tracker_v2', JSON.stringify(state));
             if (_tradeDirty) persist();
             render();
@@ -2559,6 +2632,9 @@ function disconnectSync() {
     // Patch Floor 4 start date to 2026-05-04
     const f4 = state.floors.find(f => f.name === 'Floor 4');
     if (f4 && f4.startDate !== '2026-05-04') { f4.startDate = '2026-05-04'; dirty = true; }
+    // Patch Joint Compound unit from bags → buckets
+    const jc = (state.materials || []).find(m => m.name === 'Joint Compound' && m.unit === 'bags');
+    if (jc) { jc.unit = 'buckets'; dirty = true; }
 
     const existing = new Set(state.floors.map(f => f.name));
     const toAdd = GEORGETOWN_SCHEDULE.filter(f => !existing.has(f.name));
