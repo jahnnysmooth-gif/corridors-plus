@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Corridor's Plus</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧰</text></svg>">
+    <link rel="icon" id="favicon" href="">
+    <link rel="apple-touch-icon" id="appIcon" href="">
 
     <!-- PWA / Add to Home Screen -->
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2561,6 +2562,33 @@ function disconnectSync() {
         dirty = true;
     }
     if (dirty) persist();
+})();
+
+// ── App icon (canvas-generated for PWA + favicon) ─────────────────────────────
+(function() {
+    const c = document.createElement('canvas');
+    c.width = c.height = 180;
+    const ctx = c.getContext('2d');
+
+    // Navy background
+    ctx.fillStyle = '#1a3a5c';
+    ctx.fillRect(0, 0, 180, 180);
+
+    // Hammer emoji
+    ctx.font = '76px serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText('🔨', 90, 100);
+
+    // CP text
+    ctx.font = 'bold 52px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText('CP', 90, 162);
+
+    const url = c.toDataURL('image/png');
+    document.getElementById('appIcon').href = url;
+    document.getElementById('favicon').href = url;
 })();
 
 // ── Init ──────────────────────────────────────────────────────────────────────
