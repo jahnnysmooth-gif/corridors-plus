@@ -611,6 +611,13 @@
         .mat-stock-num { font-size: 24px; font-weight: 800; color: #1a3a5c; line-height: 1; }
         .mat-stock-unit { font-size: 12px; color: #999; text-transform: uppercase; letter-spacing: 0.4px; }
         .mat-stock-none { font-size: 13px; color: #ccc; font-style: italic; }
+        .mat-card.low-stock { border-left: 4px solid #dc2626; background: #fff5f5; }
+        .mat-stock-num.low { color: #dc2626; }
+        .low-badge { display:inline-block; background:#dc2626; color:white; font-size:10px; font-weight:700; padding:2px 6px; border-radius:99px; margin-left:6px; vertical-align:middle; letter-spacing:0.4px; }
+        .trade-tile-low { position:absolute; top:8px; right:8px; width:10px; height:10px; background:#dc2626; border-radius:50%; }
+        .trade-tile { position: relative; }
+        .low-stock-bar { background:#fff1f1; border:1.5px solid #fca5a5; border-radius:10px; padding:10px 14px; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+        .low-stock-bar-text { font-size:13px; font-weight:600; color:#dc2626; flex:1; }
         .mat-action-row { display: flex; gap: 10px; margin-bottom: 14px; }
         .mat-action-btn { flex: 1; padding: 13px; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; }
         .mat-delivery-btn { background: #1a3a5c; color: white; }
@@ -1154,15 +1161,16 @@ function renderMaterials() {
             const stock    = matCurrentStock(mat);
             const lastDate = matLastEodDate(mat);
             const deliv    = (mat.log||[]).filter(e => e.type==='delivery' && e.date===today()).reduce((s,e) => s+e.qty, 0);
-            html += `<div class="mat-card" onclick="navigate('material',null,null,'${mat.id}','${view.matTrade}')">
+            const low      = stock !== null && mat.parQty > 0 && stock < mat.parQty;
+            html += `<div class="mat-card${low ? ' low-stock' : ''}" onclick="navigate('material',null,null,'${mat.id}','${view.matTrade}')">
                 <div>
-                    <div class="mat-name">${mat.name}</div>
-                    <div class="mat-meta">${mat.unit}${deliv > 0 ? ` &nbsp;·&nbsp; <span style="color:#16a34a;font-weight:600">+${deliv} delivered today</span>` : ''}</div>
+                    <div class="mat-name">${mat.name}${low ? `<span class="low-badge">⚠ LOW</span>` : ''}</div>
+                    <div class="mat-meta">${mat.unit}${deliv > 0 ? ` &nbsp;·&nbsp; <span style="color:#16a34a;font-weight:600">+${deliv} delivered today</span>` : ''}${mat.parQty > 0 ? ` &nbsp;·&nbsp; min: ${mat.parQty}` : ''}</div>
                     ${lastDate ? `<div class="mat-meta">Last count: ${displayDate(lastDate)}</div>` : ''}
                 </div>
                 <div class="mat-stock">
                     ${stock !== null
-                        ? `<div class="mat-stock-num">${stock}</div><div class="mat-stock-unit">${mat.unit}</div>`
+                        ? `<div class="mat-stock-num${low ? ' low' : ''}">${stock}</div><div class="mat-stock-unit">${mat.unit}</div>`
                         : `<div class="mat-stock-none">No count yet</div>`}
                 </div>
             </div>`;
@@ -1172,7 +1180,12 @@ function renderMaterials() {
     }
 
     // Trade tile grid
+    const isLow = m => { const s = matCurrentStock(m); return s !== null && m.parQty > 0 && s < m.parQty; };
     const totalDeliveriesToday = mats.reduce((s, m) => s + (m.log||[]).filter(e => e.type==='delivery' && e.date===today()).reduce((ss,e) => ss+e.qty, 0), 0);
+    const lowCount = mats.filter(isLow).length;
+    if (lowCount > 0) {
+        html += `<div class="low-stock-bar"><span style="font-size:18px">⚠️</span><span class="low-stock-bar-text">${lowCount} material${lowCount !== 1 ? 's' : ''} below minimum stock</span></div>`;
+    }
     html += `<div class="stats-row" style="grid-template-columns:1fr 1fr">
         <div class="stat-card"><div class="stat-value">${mats.length}</div><div class="stat-label">Materials</div></div>
         <div class="stat-card"><div class="stat-value">${totalDeliveriesToday}</div><div class="stat-label">Delivered Today</div></div>
@@ -1184,7 +1197,9 @@ function renderMaterials() {
         const icon  = TRADE_ICONS[trade]  || '📦';
         const deliv = tradeMats.reduce((s,m) => s + (m.log||[]).filter(e => e.type==='delivery' && e.date===today()).reduce((ss,e) => ss+e.qty, 0), 0);
         const sub   = deliv > 0 ? `+${deliv} delivered today` : `${tradeMats.length} item${tradeMats.length !== 1 ? 's' : ''}`;
+        const hasLow = tradeMats.some(isLow);
         html += `<button class="trade-tile" style="border-top:4px solid ${color}" onclick="navigate('materials',null,null,null,'${trade}')">
+            ${hasLow ? `<div class="trade-tile-low"></div>` : ''}
             <span class="trade-tile-icon">${icon}</span>
             <div class="trade-tile-label">${trade}</div>
             <div class="trade-tile-sub">${sub}</div>
@@ -1232,9 +1247,15 @@ function renderMaterialDetail(mat) {
         html += `</tbody></table></div>`;
     }
 
+    const low = stock !== null && mat.parQty > 0 && stock < mat.parQty;
+    if (low) {
+        html += `<div class="low-stock-bar"><span style="font-size:18px">⚠️</span><span class="low-stock-bar-text">Below minimum — order more ${mat.name}</span></div>`;
+    }
+
     html += `<div class="delete-zone">
         <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn btn-secondary btn-sm" onclick="renameMaterial('${mat.id}')">&#9998; Rename</button>
+            <button class="btn btn-secondary btn-sm" onclick="setParQty('${mat.id}')">&#9651; Min Stock${mat.parQty > 0 ? ': ' + mat.parQty : ''}</button>
             <button class="btn btn-danger btn-sm" onclick="deleteMaterial('${mat.id}')">Delete Material</button>
         </div>
     </div>`;
@@ -1801,6 +1822,21 @@ function renameMaterial(matId) {
         const name = document.getElementById('mat_rename').value.trim();
         if (!name) { alert('Enter a name.'); return; }
         mat.name = name;
+        persist(); closeModal(); render();
+    });
+}
+
+function setParQty(matId) {
+    const mat = state.materials.find(m => m.id === matId);
+    openModal('Set Minimum Stock', `
+        <div class="form-group">
+            <label>Minimum quantity (${mat.unit})</label>
+            <input id="par_qty" type="number" min="0" step="1" value="${mat.parQty || ''}" placeholder="e.g. 10" />
+        </div>
+        <p style="font-size:13px;color:#999;margin-top:4px">When EOD count drops below this number the item will be flagged red.</p>
+    `, () => {
+        const val = parseFloat(document.getElementById('par_qty').value);
+        mat.parQty = isNaN(val) || val < 0 ? 0 : val;
         persist(); closeModal(); render();
     });
 }
