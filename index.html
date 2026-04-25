@@ -802,6 +802,17 @@ function matDailyUsage(mat) {
     return result;
 }
 
+function matDaysRemaining(mat) {
+    const stock = matCurrentStock(mat);
+    if (stock === null || stock === 0) return null;
+    const usage = matDailyUsage(mat);
+    if (usage.length === 0) return null;
+    const totalUsed = usage.reduce((s, d) => s + d.used, 0);
+    if (totalUsed === 0) return null;
+    const avgDaily = totalUsed / usage.length;
+    return Math.max(0, Math.round(stock / avgDaily));
+}
+
 function persist() {
     localStorage.setItem('hallway_tracker_v2', JSON.stringify(state));
     if (db && syncCode) {
@@ -1162,11 +1173,12 @@ function renderMaterials() {
             const lastDate = matLastEodDate(mat);
             const deliv    = (mat.log||[]).filter(e => e.type==='delivery' && e.date===today()).reduce((s,e) => s+e.qty, 0);
             const low      = stock !== null && mat.parQty > 0 && stock < mat.parQty;
+            const days     = matDaysRemaining(mat);
             html += `<div class="mat-card${low ? ' low-stock' : ''}" onclick="navigate('material',null,null,'${mat.id}','${view.matTrade}')">
                 <div>
                     <div class="mat-name">${mat.name}${low ? `<span class="low-badge">⚠ LOW</span>` : ''}</div>
-                    <div class="mat-meta">${mat.unit}${deliv > 0 ? ` &nbsp;·&nbsp; <span style="color:#16a34a;font-weight:600">+${deliv} delivered today</span>` : ''}${mat.parQty > 0 ? ` &nbsp;·&nbsp; min: ${mat.parQty}` : ''}</div>
-                    ${lastDate ? `<div class="mat-meta">Last count: ${displayDate(lastDate)}</div>` : ''}
+                    <div class="mat-meta">${mat.unit}${deliv > 0 ? ` &nbsp;·&nbsp; <span style="color:#16a34a;font-weight:600">+${deliv} today</span>` : ''}${mat.parQty > 0 ? ` &nbsp;·&nbsp; min: ${mat.parQty}` : ''}${mat.reorderQty > 0 && low ? ` &nbsp;·&nbsp; <span style="color:#dc2626;font-weight:600">order: ${mat.reorderQty}</span>` : ''}</div>
+                    ${days !== null ? `<div class="mat-meta" style="color:${days <= 2 ? '#dc2626' : days <= 5 ? '#d97706' : '#16a34a'};font-weight:600">~${days} day${days !== 1 ? 's' : ''} of stock remaining</div>` : ''}
                 </div>
                 <div class="mat-stock">
                     ${stock !== null
@@ -1183,13 +1195,17 @@ function renderMaterials() {
     const isLow = m => { const s = matCurrentStock(m); return s !== null && m.parQty > 0 && s < m.parQty; };
     const totalDeliveriesToday = mats.reduce((s, m) => s + (m.log||[]).filter(e => e.type==='delivery' && e.date===today()).reduce((ss,e) => ss+e.qty, 0), 0);
     const lowCount = mats.filter(isLow).length;
-    if (lowCount > 0) {
-        html += `<div class="low-stock-bar"><span style="font-size:18px">⚠️</span><span class="low-stock-bar-text">${lowCount} material${lowCount !== 1 ? 's' : ''} below minimum stock</span></div>`;
-    }
     html += `<div class="stats-row" style="grid-template-columns:1fr 1fr">
         <div class="stat-card"><div class="stat-value">${mats.length}</div><div class="stat-label">Materials</div></div>
         <div class="stat-card"><div class="stat-value">${totalDeliveriesToday}</div><div class="stat-label">Delivered Today</div></div>
     </div>`;
+    html += `<div class="mat-action-row">
+        <button class="mat-action-btn mat-delivery-btn" onclick="openLogDelivery()">&#128666; Log Delivery</button>
+        <button class="mat-action-btn mat-eod-btn" onclick="openLogEod()">&#128337; Log EOD Count</button>
+    </div>`;
+    if (lowCount > 0) {
+        html += `<div class="low-stock-bar"><span style="font-size:18px">⚠️</span><span class="low-stock-bar-text">${lowCount} material${lowCount !== 1 ? 's' : ''} below minimum stock</span></div>`;
+    }
     html += `<div class="trade-grid">`;
     tradeKeys.forEach(trade => {
         const tradeMats = byTrade[trade];
@@ -1213,16 +1229,23 @@ function renderMaterials() {
 
 function renderMaterialDetail(mat) {
     if (!mat) return `<div class="empty-state">Material not found.</div>`;
-    const usage  = matDailyUsage(mat);
-    const stock  = matCurrentStock(mat);
+    const usage    = matDailyUsage(mat);
+    const stock    = matCurrentStock(mat);
+    const days     = matDaysRemaining(mat);
     const totalUsed = usage.reduce((s, d) => s + d.used, 0);
     const totalDel  = (mat.log||[]).filter(e => e.type==='delivery').reduce((s,e) => s+e.qty, 0);
+    const low = stock !== null && mat.parQty > 0 && stock < mat.parQty;
 
     let html = `<div class="stats-row">
         <div class="stat-card"><div class="stat-value">${stock !== null ? stock : '—'}</div><div class="stat-label">In Stock</div></div>
-        <div class="stat-card"><div class="stat-value">${totalDel}</div><div class="stat-label">Total Delivered</div></div>
+        <div class="stat-card"><div class="stat-value">${days !== null ? days : '—'}</div><div class="stat-label">Days Left</div></div>
         <div class="stat-card"><div class="stat-value">${totalUsed}</div><div class="stat-label">Total Used</div></div>
     </div>`;
+
+    if (low) {
+        const orderNote = mat.reorderQty > 0 ? ` — order ${mat.reorderQty} ${mat.unit}` : '';
+        html += `<div class="low-stock-bar"><span style="font-size:18px">⚠️</span><span class="low-stock-bar-text">Below minimum${orderNote}</span></div>`;
+    }
 
     html += `<div class="mat-action-row">
         <button class="mat-action-btn mat-delivery-btn" onclick="openLogDeliveryFor('${mat.id}')">&#128666; Log Delivery</button>
@@ -1233,30 +1256,26 @@ function renderMaterialDetail(mat) {
         html += `<div class="card"><div class="empty-state">No EOD counts logged yet.</div></div>`;
     } else {
         html += `<div class="card"><table class="usage-table">
-            <thead><tr><th>Date</th><th>Delivered</th><th>On Site</th><th>EOD Count</th><th>Used</th></tr></thead>
+            <thead><tr><th>Date</th><th>Delivered</th><th>EOD Count</th><th>Used</th><th></th></tr></thead>
             <tbody>`;
         [...usage].reverse().forEach(d => {
             html += `<tr>
                 <td>${displayDate(d.date)}</td>
                 <td>${d.delivered > 0 ? `+${d.delivered}` : '—'}</td>
-                <td>${d.onSite} ${mat.unit}</td>
                 <td>${d.eodQty} ${mat.unit}</td>
                 <td class="usage-used">${d.used} ${mat.unit}</td>
+                <td><button onclick="editMatDay('${mat.id}','${d.date}')" style="background:none;border:none;font-size:15px;cursor:pointer;color:#aaa;padding:2px 4px">✏️</button></td>
             </tr>`;
         });
         html += `</tbody></table></div>`;
     }
 
-    const low = stock !== null && mat.parQty > 0 && stock < mat.parQty;
-    if (low) {
-        html += `<div class="low-stock-bar"><span style="font-size:18px">⚠️</span><span class="low-stock-bar-text">Below minimum — order more ${mat.name}</span></div>`;
-    }
-
     html += `<div class="delete-zone">
         <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn btn-secondary btn-sm" onclick="renameMaterial('${mat.id}')">&#9998; Rename</button>
-            <button class="btn btn-secondary btn-sm" onclick="setParQty('${mat.id}')">&#9651; Min Stock${mat.parQty > 0 ? ': ' + mat.parQty : ''}</button>
-            <button class="btn btn-danger btn-sm" onclick="deleteMaterial('${mat.id}')">Delete Material</button>
+            <button class="btn btn-secondary btn-sm" onclick="setParQty('${mat.id}')">&#9651; Min${mat.parQty > 0 ? ': ' + mat.parQty : ''}</button>
+            <button class="btn btn-secondary btn-sm" onclick="setReorderQty('${mat.id}')">&#128666; Reorder${mat.reorderQty > 0 ? ': ' + mat.reorderQty : ''}</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteMaterial('${mat.id}')">Delete</button>
         </div>
     </div>`;
 
@@ -1822,6 +1841,46 @@ function renameMaterial(matId) {
         const name = document.getElementById('mat_rename').value.trim();
         if (!name) { alert('Enter a name.'); return; }
         mat.name = name;
+        persist(); closeModal(); render();
+    });
+}
+
+function editMatDay(matId, date) {
+    const mat = state.materials.find(m => m.id === matId);
+    const delivQty = (mat.log||[]).filter(e => e.type === 'delivery' && e.date === date).reduce((s,e) => s+e.qty, 0);
+    const eodQty   = (mat.log||[]).filter(e => e.type === 'eod'      && e.date === date).reduce((s,e) => s+e.qty, 0);
+    openModal(`Edit ${displayDate(date)} — ${mat.name}`, `
+        <div class="form-group">
+            <label>Delivery (${mat.unit})</label>
+            <input id="edit_deliv" type="number" min="0" step="1" value="${delivQty}" placeholder="0" />
+        </div>
+        <div class="form-group">
+            <label>EOD Count (${mat.unit})</label>
+            <input id="edit_eod" type="number" min="0" step="1" value="${eodQty}" />
+        </div>
+        <p style="font-size:12px;color:#999;margin-top:4px">Existing entries for this date will be replaced.</p>
+    `, () => {
+        const newDeliv = parseFloat(document.getElementById('edit_deliv').value);
+        const newEod   = parseFloat(document.getElementById('edit_eod').value);
+        if (isNaN(newEod)) { alert('Enter an EOD count.'); return; }
+        mat.log = (mat.log||[]).filter(e => e.date !== date);
+        if (!isNaN(newDeliv) && newDeliv > 0) mat.log.push({ id: uid(), date, type: 'delivery', qty: newDeliv });
+        mat.log.push({ id: uid(), date, type: 'eod', qty: newEod });
+        persist(); closeModal(); render();
+    });
+}
+
+function setReorderQty(matId) {
+    const mat = state.materials.find(m => m.id === matId);
+    openModal('Set Reorder Quantity', `
+        <div class="form-group">
+            <label>How much to order (${mat.unit})</label>
+            <input id="reorder_qty" type="number" min="0" step="1" value="${mat.reorderQty || ''}" placeholder="e.g. 20" />
+        </div>
+        <p style="font-size:13px;color:#999;margin-top:4px">Shown on the card when stock is low so you know exactly what to put on the order.</p>
+    `, () => {
+        const val = parseFloat(document.getElementById('reorder_qty').value);
+        mat.reorderQty = isNaN(val) || val < 0 ? 0 : val;
         persist(); closeModal(); render();
     });
 }
