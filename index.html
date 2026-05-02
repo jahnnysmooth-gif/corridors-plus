@@ -739,30 +739,62 @@ state.floors.forEach(f => {
 
 
 const DEFAULT_MATERIALS = [
-    { name: 'Joint Compound',     unit: 'buckets', trade: 'Plaster'      },
-    { name: 'Mesh Tape',          unit: 'rolls',   trade: 'Plaster'      },
-    { name: 'Corner Bead',        unit: 'pcs',     trade: 'Plaster'      },
-    { name: 'Sandpaper',          unit: 'sheets',  trade: 'Plaster'      },
-    { name: 'Plaster Weld',       unit: 'gal',     trade: 'Plaster'      },
-    { name: 'Primer',             unit: 'buckets', trade: 'Paint'        },
-    { name: 'Stix Primer',        unit: 'gal',     trade: 'Paint'        },
-    { name: 'Ceiling Paint',      unit: 'gal',     trade: 'Paint'        },
-    { name: 'Door/Frame Paint',   unit: 'gal',     trade: 'Paint'        },
-    { name: 'Frog Tape',          unit: 'rolls',   trade: 'Paint'        },
-    { name: 'Masking Tape',       unit: 'rolls',   trade: 'Paint'        },
-    { name: 'Wallcovering',       unit: 'rolls',   trade: 'Wallcovering' },
-    { name: 'Wallcovering Paste', unit: 'gal',     trade: 'Wallcovering' },
-    { name: 'Baseboard',          unit: 'pcs',     trade: 'Carpentry'    },
-    { name: 'Blocking',           unit: 'pcs',     trade: 'Carpentry'    },
-    { name: 'Raceway',            unit: 'pcs',     trade: 'Carpentry'    },
-    { name: 'Light Retrofit Kits',unit: 'units',   trade: 'Electrical'   },
-    { name: 'Outlets',            unit: 'pcs',     trade: 'Electrical'   },
-    { name: 'Device Covers',      unit: 'pcs',     trade: 'Electrical'   },
-    { name: 'Sconces',            unit: 'units',   trade: 'Electrical'   },
-    { name: 'EM Devices',         unit: 'pcs',     trade: 'Electrical'   },
-    { name: 'PL400',              unit: 'tubes',   trade: 'Misc.'        },
-    { name: 'Ready Patch',        unit: 'pcs',     trade: 'Misc.'        },
-    { name: 'Garbage Bags',       unit: 'boxes',   trade: 'Misc.'        },
+    // Plaster
+    { name: 'Sealer/Primer',           unit: 'buckets', trade: 'Plaster',    startQty: 5   },
+    { name: 'Joint Compound AP',       unit: 'buckets', trade: 'Plaster',    startQty: 20  },
+    { name: 'Joint Compound LW',       unit: 'buckets', trade: 'Plaster',    startQty: 30  },
+    { name: 'Plaster of Paris',        unit: 'bags',    trade: 'Plaster',    startQty: 10  },
+    { name: 'Sandpaper',               unit: 'packs',   trade: 'Plaster',    startQty: 10  },
+    { name: 'Drywall Sanding Screen',  unit: 'packs',   trade: 'Plaster',    startQty: 5   },
+    { name: 'Roller Covers 3/4"',      unit: 'packs',   trade: 'Plaster',    startQty: 12  },
+    { name: 'Roller Covers 1/2"',      unit: 'packs',   trade: 'Plaster',    startQty: 12  },
+    { name: 'Skim Rollers',            unit: 'pcs',     trade: 'Plaster',    startQty: 5   },
+    { name: 'PlasterWeld',             unit: 'gal',     trade: 'Plaster',    startQty: 15  },
+    // Paint
+    { name: 'Primer (Ceiling)',        unit: 'buckets', trade: 'Paint',      startQty: 5   },
+    { name: 'Primer (Walls)',          unit: 'buckets', trade: 'Paint',      startQty: 5   },
+    { name: 'Door Paint',              unit: 'gal',     trade: 'Paint',      startQty: 25  },
+    { name: 'Ceiling Paint',           unit: 'buckets', trade: 'Paint',      startQty: 5   },
+    { name: 'Raceway Paint',           unit: 'buckets', trade: 'Paint',      startQty: 5   },
+    { name: 'Stix Primer',             unit: 'gal',     trade: 'Paint',      startQty: 15  },
+    { name: 'Painting Trays',          unit: 'pcs',     trade: 'Paint',      startQty: 8   },
+    { name: 'Painting Tray Liners',    unit: 'packs',   trade: 'Paint',      startQty: 10  },
+    { name: 'Ready Patch',             unit: 'gal',     trade: 'Paint',      startQty: 5   },
+    { name: 'Caulk',                   unit: 'boxes',   trade: 'Paint',      startQty: 5   },
+    { name: 'Roller Covers 1/4"',      unit: 'packs',   trade: 'Paint',      startQty: 12  },
+    // Wallcovering
+    { name: 'Wallcovering',            unit: 'rolls',   trade: 'Wallcovering'               },
+    { name: 'Wallcovering Paste',      unit: 'gal',     trade: 'Wallcovering'               },
+    // Carpentry
+    { name: 'Baseboard',               unit: 'pcs',     trade: 'Carpentry'                  },
+    { name: 'Blocking',                unit: 'pcs',     trade: 'Carpentry'                  },
+    { name: 'Raceway',                 unit: 'pcs',     trade: 'Carpentry'                  },
+    // Electrical
+    { name: 'Wire Nuts',               unit: 'packs',   trade: 'Electrical', startQty: 3   },
+    { name: 'MC Cable',                unit: 'ft',      trade: 'Electrical', startQty: 500 },
+    { name: 'MC Connectors',           unit: 'packs',   trade: 'Electrical', startQty: 100 },
+    { name: '1900 Box',                unit: 'pcs',     trade: 'Electrical', startQty: 30  },
+    { name: 'Octagon Boxes',           unit: 'pcs',     trade: 'Electrical', startQty: 60  },
+    { name: 'Mud Plates',              unit: 'pcs',     trade: 'Electrical', startQty: 30  },
+    { name: 'Blank Covers',            unit: 'pcs',     trade: 'Electrical', startQty: 30  },
+    { name: 'Light Retrofit Kits',     unit: 'units',   trade: 'Electrical'                 },
+    { name: 'Outlets',                 unit: 'pcs',     trade: 'Electrical'                 },
+    { name: 'Device Covers',           unit: 'pcs',     trade: 'Electrical'                 },
+    { name: 'Sconces',                 unit: 'units',   trade: 'Electrical'                 },
+    { name: 'EM Devices',              unit: 'pcs',     trade: 'Electrical'                 },
+    // Misc.
+    { name: 'Garbage Bags',            unit: 'boxes',   trade: 'Misc.',      startQty: 20  },
+    { name: "Painter's Plastic",       unit: 'boxes',   trade: 'Misc.',      startQty: 10  },
+    { name: 'Masking Tape',            unit: 'packs',   trade: 'Misc.',      startQty: 15  },
+    { name: 'Frog Tape',               unit: 'packs',   trade: 'Misc.',      startQty: 15  },
+    { name: 'Drop Cloths',             unit: 'packs',   trade: 'Misc.',      startQty: 10  },
+    { name: 'N95 Masks',               unit: 'boxes',   trade: 'Misc.',      startQty: 3   },
+    { name: 'Zipties',                 unit: 'boxes',   trade: 'Misc.',      startQty: 1   },
+    { name: 'PL400',                   unit: 'boxes',   trade: 'Misc.',      startQty: 3   },
+    { name: 'Painting Rags',           unit: 'boxes',   trade: 'Misc.',      startQty: 3   },
+    { name: 'Microfiber Rags',         unit: 'packs',   trade: 'Misc.',      startQty: 2   },
+    { name: 'Finish Nails',            unit: 'boxes',   trade: 'Misc.',      startQty: 5   },
+    { name: 'Bulbs',                   unit: 'packs',   trade: 'Misc.',      startQty: 5   },
 ];
 
 // Backfill trade onto existing materials that predate the trade field
@@ -781,27 +813,62 @@ const DEFAULT_MATERIALS = [
 
 function matCurrentStock(mat) {
     const log = mat.log || [];
-    const eodEntries = log.filter(e => e.type === 'eod').sort((a,b) => b.date.localeCompare(a.date));
-    return eodEntries.length > 0 ? eodEntries[0].qty : null;
+    // Legacy EOD model: no startQty set
+    if (mat.startQty === undefined || mat.startQty === null) {
+        const eodEntries = log.filter(e => e.type === 'eod').sort((a,b) => b.date.localeCompare(a.date));
+        return eodEntries.length > 0 ? eodEntries[0].qty : null;
+    }
+    // New model: startQty + deliveries - usages
+    const delivered = log.filter(e => e.type === 'delivery').reduce((s,e) => s + e.qty, 0);
+    const used      = log.filter(e => e.type === 'usage').reduce((s,e) => s + e.qty, 0);
+    return mat.startQty + delivered - used;
 }
 
-function matLastEodDate(mat) {
-    const eodEntries = (mat.log || []).filter(e => e.type === 'eod').sort((a,b) => b.date.localeCompare(a.date));
-    return eodEntries.length > 0 ? eodEntries[0].date : null;
+function matLastActivityDate(mat) {
+    const dates = (mat.log || [])
+        .filter(e => e.type === 'usage' || e.type === 'eod' || e.type === 'delivery')
+        .map(e => e.date).sort();
+    return dates.length > 0 ? dates[dates.length - 1] : null;
 }
+// backward-compat alias
+function matLastEodDate(mat) { return matLastActivityDate(mat); }
 
 function matDailyUsage(mat) {
     const log = mat.log || [];
-    const days = [...new Set(log.filter(e => e.type === 'eod').map(e => e.date))].sort();
+    // Legacy EOD model
+    if (mat.startQty === undefined || mat.startQty === null) {
+        const days = [...new Set(log.filter(e => e.type === 'eod').map(e => e.date))].sort();
+        const result = [];
+        days.forEach((date, i) => {
+            const eodQty    = log.filter(e => e.type === 'eod'      && e.date === date).reduce((s,e) => s + e.qty, 0);
+            const delivered = log.filter(e => e.type === 'delivery' && e.date === date).reduce((s,e) => s + e.qty, 0);
+            const prevDate  = i > 0 ? days[i-1] : null;
+            const opening   = prevDate ? log.filter(e => e.type === 'eod' && e.date === prevDate).reduce((s,e) => s + e.qty, 0) : 0;
+            const onSite    = opening + delivered;
+            const used      = Math.max(0, onSite - eodQty);
+            result.push({ date, delivered, used, balance: eodQty, floors: [] });
+        });
+        return result;
+    }
+    // New model: usage-based with running balance
+    const allDates = [...new Set(
+        log.filter(e => e.type === 'delivery' || e.type === 'usage').map(e => e.date)
+    )].sort();
+    if (allDates.length === 0) return [];
     const result = [];
-    days.forEach((date, i) => {
-        const eodQty  = log.filter(e => e.type === 'eod' && e.date === date).reduce((s,e) => s + e.qty, 0);
-        const delivered = log.filter(e => e.type === 'delivery' && e.date === date).reduce((s,e) => s + e.qty, 0);
-        const prevDate  = i > 0 ? days[i-1] : null;
-        const openingStock = prevDate ? log.filter(e => e.type === 'eod' && e.date === prevDate).reduce((s,e) => s + e.qty, 0) : 0;
-        const onSite = openingStock + delivered;
-        const used = Math.max(0, onSite - eodQty);
-        result.push({ date, delivered, onSite, eodQty, used });
+    let balance = mat.startQty;
+    allDates.forEach(date => {
+        const delivered    = log.filter(e => e.type === 'delivery' && e.date === date).reduce((s,e) => s + e.qty, 0);
+        const usageEntries = log.filter(e => e.type === 'usage'    && e.date === date);
+        const used         = usageEntries.reduce((s,e) => s + e.qty, 0);
+        const floorNames   = [...new Set(
+            usageEntries.filter(e => e.floorId).map(e => {
+                const f = (state.floors || []).find(f => f.id === e.floorId);
+                return f ? f.name : null;
+            }).filter(Boolean)
+        )];
+        balance = balance + delivered - used;
+        result.push({ date, delivered, used, balance, floors: floorNames });
     });
     return result;
 }
@@ -1052,7 +1119,7 @@ function renderHome() {
             <button class="home-tile materials" onclick="navigate('materials')">
                 <span class="home-tile-icon">🧰</span>
                 <div class="home-tile-label">Material Inventory</div>
-                <div class="home-tile-sub">${matCount} material${matCount !== 1 ? 's' : ''}${lastEod ? ' · last count ' + displayDate(lastEod) : ''}</div>
+                <div class="home-tile-sub">${matCount} material${matCount !== 1 ? 's' : ''}${lastEod ? ' · last updated ' + displayDate(lastEod) : ''}</div>
             </button>
         </div>
         <div class="home-subtitle">Georgetown Plaza · Corridor Renovation</div>
@@ -1170,7 +1237,7 @@ function renderMaterials() {
         </div>`;
         html += `<div class="mat-action-row">
             <button class="mat-action-btn mat-delivery-btn" onclick="openLogDeliveryForTrade('${view.matTrade}')">&#128666; Log Delivery</button>
-            <button class="mat-action-btn mat-eod-btn" onclick="openLogEodForTrade('${view.matTrade}')">&#128337; Log EOD Count</button>
+            <button class="mat-action-btn mat-eod-btn" onclick="openLogUsageForTrade('${view.matTrade}')">&#9999; Log Daily Usage</button>
         </div>`;
         tradeMats.forEach(mat => {
             const stock    = matCurrentStock(mat);
@@ -1205,7 +1272,7 @@ function renderMaterials() {
     </div>`;
     html += `<div class="mat-action-row">
         <button class="mat-action-btn mat-delivery-btn" onclick="openLogDelivery()">&#128666; Log Delivery</button>
-        <button class="mat-action-btn mat-eod-btn" onclick="openLogEod()">&#128337; Log EOD Count</button>
+        <button class="mat-action-btn mat-eod-btn" onclick="openLogUsage()">&#9999; Log Daily Usage</button>
     </div>`;
     if (lowCount > 0) {
         html += `<div class="low-stock-bar"><span style="font-size:18px">⚠️</span><span class="low-stock-bar-text">${lowCount} material${lowCount !== 1 ? 's' : ''} below minimum stock</span></div>`;
@@ -1240,9 +1307,10 @@ function renderMaterialDetail(mat) {
     const totalDel  = (mat.log||[]).filter(e => e.type==='delivery').reduce((s,e) => s+e.qty, 0);
     const low = stock !== null && mat.parQty > 0 && stock < mat.parQty;
 
+    const startedWith = mat.startQty !== undefined && mat.startQty !== null ? mat.startQty : null;
     let html = `<div class="stats-row">
+        <div class="stat-card"><div class="stat-value">${startedWith !== null ? startedWith : '—'}</div><div class="stat-label">Started With</div></div>
         <div class="stat-card"><div class="stat-value">${stock !== null ? stock : '—'}</div><div class="stat-label">In Stock</div></div>
-        <div class="stat-card"><div class="stat-value">${days !== null ? days : '—'}</div><div class="stat-label">Days Left</div></div>
         <div class="stat-card"><div class="stat-value">${totalUsed}</div><div class="stat-label">Total Used</div></div>
     </div>`;
 
@@ -1253,21 +1321,22 @@ function renderMaterialDetail(mat) {
 
     html += `<div class="mat-action-row">
         <button class="mat-action-btn mat-delivery-btn" onclick="openLogDeliveryFor('${mat.id}')">&#128666; Log Delivery</button>
-        <button class="mat-action-btn mat-eod-btn" onclick="openLogEodFor('${mat.id}')">&#128337; Log EOD Count</button>
+        <button class="mat-action-btn mat-eod-btn" onclick="openLogUsageFor('${mat.id}')">&#9999; Log Daily Usage</button>
     </div>`;
 
     if (usage.length === 0) {
-        html += `<div class="card"><div class="empty-state">No EOD counts logged yet.</div></div>`;
+        html += `<div class="card"><div class="empty-state">No activity logged yet.</div></div>`;
     } else {
         html += `<div class="card"><table class="usage-table">
-            <thead><tr><th>Date</th><th>Delivered</th><th>EOD Count</th><th>Used</th><th></th></tr></thead>
+            <thead><tr><th>Date</th><th>Delivered</th><th>Used</th><th>Floor</th><th>Balance</th><th></th></tr></thead>
             <tbody>`;
         [...usage].reverse().forEach(d => {
             html += `<tr>
                 <td>${displayDate(d.date)}</td>
-                <td>${d.delivered > 0 ? `+${d.delivered}` : '—'}</td>
-                <td>${d.eodQty} ${mat.unit}</td>
-                <td class="usage-used">${d.used} ${mat.unit}</td>
+                <td>${d.delivered > 0 ? `<span style="color:#16a34a;font-weight:600">+${d.delivered}</span>` : '—'}</td>
+                <td class="usage-used">${d.used > 0 ? d.used + ' ' + mat.unit : '—'}</td>
+                <td style="font-size:12px;color:#666">${d.floors && d.floors.length > 0 ? d.floors.join(', ') : '—'}</td>
+                <td style="font-weight:700;color:${d.balance <= (mat.parQty || 0) && mat.parQty > 0 ? '#dc2626' : '#1a3a5c'}">${d.balance} ${mat.unit}</td>
                 <td style="white-space:nowrap">
                     <button onclick="editMatDay('${mat.id}','${d.date}')" style="background:none;border:none;font-size:15px;cursor:pointer;color:#aaa;padding:2px 4px">✏️</button>
                     <button onclick="deleteMatDay('${mat.id}','${d.date}')" style="background:none;border:none;font-size:15px;cursor:pointer;color:#aaa;padding:2px 4px">🗑️</button>
@@ -1280,6 +1349,7 @@ function renderMaterialDetail(mat) {
     html += `<div class="delete-zone">
         <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn btn-secondary btn-sm" onclick="renameMaterial('${mat.id}')">&#9998; Rename</button>
+            <button class="btn btn-secondary btn-sm" onclick="setStartQty('${mat.id}')">&#128230; Start${startedWith !== null ? ': ' + startedWith : ''}</button>
             <button class="btn btn-secondary btn-sm" onclick="setParQty('${mat.id}')">&#9651; Min${mat.parQty > 0 ? ': ' + mat.parQty : ''}</button>
             <button class="btn btn-secondary btn-sm" onclick="setReorderQty('${mat.id}')">&#128666; Reorder${mat.reorderQty > 0 ? ': ' + mat.reorderQty : ''}</button>
             <button class="btn btn-danger btn-sm" onclick="deleteMaterial('${mat.id}')">Delete</button>
@@ -1822,7 +1892,7 @@ function loadDefaultMaterials() {
     if (!confirm('Load default materials list? This will add any that aren\'t already here.')) return;
     const existing = new Set(state.materials.map(m => m.name));
     DEFAULT_MATERIALS.filter(m => !existing.has(m.name)).forEach(m => {
-        state.materials.push({ id: uid(), name: m.name, unit: m.unit, log: [] });
+        state.materials.push({ id: uid(), name: m.name, unit: m.unit, trade: m.trade, startQty: m.startQty !== undefined ? m.startQty : 0, log: [] });
     });
     persist(); render();
 }
@@ -1835,15 +1905,18 @@ function openAddMaterial() {
     openModal('Add Material', `
         <div class="form-group"><label>Material Name</label><input id="mat_name" placeholder="e.g. Skim Coat" /></div>
         <div class="form-group"><label>Unit</label><input id="mat_unit" placeholder="e.g. bags, gal, rolls, pcs" /></div>
+        <div class="form-group"><label>Starting Quantity on Site</label><input id="mat_start_qty" type="number" min="0" step="1" placeholder="e.g. 20" /></div>
         <div class="form-group"><label>Category</label>
             <select id="mat_trade">${tradeOptions}</select>
         </div>
     `, () => {
-        const name  = document.getElementById('mat_name').value.trim();
-        const unit  = document.getElementById('mat_unit').value.trim();
-        const trade = document.getElementById('mat_trade').value;
+        const name     = document.getElementById('mat_name').value.trim();
+        const unit     = document.getElementById('mat_unit').value.trim();
+        const trade    = document.getElementById('mat_trade').value;
+        const startRaw = parseFloat(document.getElementById('mat_start_qty').value);
+        const startQty = isNaN(startRaw) || startRaw < 0 ? 0 : startRaw;
         if (!name || !unit) { alert('Enter name and unit.'); return; }
-        state.materials.push({ id: uid(), name, unit, trade, log: [] });
+        state.materials.push({ id: uid(), name, unit, trade, startQty, log: [] });
         persist(); closeModal(); render();
     });
 }
@@ -1861,26 +1934,33 @@ function renameMaterial(matId) {
 }
 
 function editMatDay(matId, date) {
-    const mat = state.materials.find(m => m.id === matId);
+    const mat      = state.materials.find(m => m.id === matId);
     const delivQty = (mat.log||[]).filter(e => e.type === 'delivery' && e.date === date).reduce((s,e) => s+e.qty, 0);
-    const eodQty   = (mat.log||[]).filter(e => e.type === 'eod'      && e.date === date).reduce((s,e) => s+e.qty, 0);
+    const usageQty = (mat.log||[]).filter(e => e.type === 'usage'    && e.date === date).reduce((s,e) => s+e.qty, 0);
+    const floorId  = (mat.log||[]).find(e => e.type === 'usage' && e.date === date && e.floorId)?.floorId || '';
+    const floorOpts = `<option value="">General / All Floors</option>` +
+        (state.floors||[]).map(f => `<option value="${f.id}"${f.id === floorId ? ' selected' : ''}>${f.name}</option>`).join('');
     openModal(`Edit ${displayDate(date)} — ${mat.name}`, `
         <div class="form-group">
             <label>Delivery (${mat.unit})</label>
-            <input id="edit_deliv" type="number" min="0" step="1" value="${delivQty}" placeholder="0" />
+            <input id="edit_deliv" type="number" min="0" step="1" value="${delivQty || ''}" placeholder="0" />
         </div>
         <div class="form-group">
-            <label>EOD Count (${mat.unit})</label>
-            <input id="edit_eod" type="number" min="0" step="1" value="${eodQty}" />
+            <label>Used (${mat.unit})</label>
+            <input id="edit_usage" type="number" min="0" step="1" value="${usageQty || ''}" placeholder="0" />
+        </div>
+        <div class="form-group">
+            <label>Floor</label>
+            <select id="edit_floor">${floorOpts}</select>
         </div>
         <p style="font-size:12px;color:#999;margin-top:4px">Existing entries for this date will be replaced.</p>
     `, () => {
         const newDeliv = parseFloat(document.getElementById('edit_deliv').value);
-        const newEod   = parseFloat(document.getElementById('edit_eod').value);
-        if (isNaN(newEod)) { alert('Enter an EOD count.'); return; }
+        const newUsage = parseFloat(document.getElementById('edit_usage').value);
+        const newFloor = document.getElementById('edit_floor').value || undefined;
         mat.log = (mat.log||[]).filter(e => e.date !== date);
         if (!isNaN(newDeliv) && newDeliv > 0) mat.log.push({ id: uid(), date, type: 'delivery', qty: newDeliv });
-        mat.log.push({ id: uid(), date, type: 'eod', qty: newEod });
+        if (!isNaN(newUsage) && newUsage > 0) mat.log.push({ id: uid(), date, type: 'usage', qty: newUsage, floorId: newFloor });
         persist(); closeModal(); render();
     });
 }
@@ -1914,10 +1994,26 @@ function setParQty(matId) {
             <label>Minimum quantity (${mat.unit})</label>
             <input id="par_qty" type="number" min="0" step="1" value="${mat.parQty || ''}" placeholder="e.g. 10" />
         </div>
-        <p style="font-size:13px;color:#999;margin-top:4px">When EOD count drops below this number the item will be flagged red.</p>
+        <p style="font-size:13px;color:#999;margin-top:4px">When stock drops below this number the item will be flagged red.</p>
     `, () => {
         const val = parseFloat(document.getElementById('par_qty').value);
         mat.parQty = isNaN(val) || val < 0 ? 0 : val;
+        persist(); closeModal(); render();
+    });
+}
+
+function setStartQty(matId) {
+    const mat = state.materials.find(m => m.id === matId);
+    openModal('Set Starting Inventory', `
+        <div class="form-group">
+            <label>Quantity on site when tracking began (${mat.unit})</label>
+            <input id="start_qty" type="number" min="0" step="1" value="${mat.startQty !== undefined && mat.startQty !== null ? mat.startQty : ''}" placeholder="e.g. 20" />
+        </div>
+        <p style="font-size:13px;color:#999;margin-top:4px">Future deliveries add to this. Daily usage subtracts from it.</p>
+    `, () => {
+        const val = parseFloat(document.getElementById('start_qty').value);
+        if (isNaN(val) || val < 0) { alert('Enter a valid quantity.'); return; }
+        mat.startQty = val;
         persist(); closeModal(); render();
     });
 }
@@ -1942,22 +2038,34 @@ function _buildMatLogModal(title, type, matId) {
                 <input type="number" min="0" step="1" id="mat_qty_${i}" placeholder="qty" style="width:100%" />
             </div>
         </div>`).join('');
+    const floorSelector = type === 'usage' ? `
+        <div class="form-group" style="margin-bottom:12px">
+            <label style="font-size:13px;font-weight:600;color:#555">Floor</label>
+            <select id="mat_floor_sel">
+                <option value="">General / All Floors</option>
+                ${(state.floors||[]).map(f => `<option value="${f.id}">${f.name}</option>`).join('')}
+            </select>
+        </div>` : '';
     openModal(title, `
         <div style="display:flex;gap:8px;margin-bottom:12px">
             <button class="date-chip active" id="mchip_today" onclick="setMatDate('${t}')">Today</button>
             <button class="date-chip" id="mchip_yesterday" onclick="setMatDate('${yes}')">Yesterday</button>
         </div>
         <input type="hidden" id="mat_date" value="${t}" />
+        ${floorSelector}
         <p style="font-size:13px;color:#999;margin-bottom:10px">Leave blank for materials not affected.</p>
         ${rows}
     `, () => {
-        const date = document.getElementById('mat_date').value;
+        const date    = document.getElementById('mat_date').value;
+        const floorId = type === 'usage' ? (document.getElementById('mat_floor_sel')?.value || undefined) : undefined;
         let saved = 0;
         mats.forEach((mat, i) => {
             const val = parseFloat(document.getElementById(`mat_qty_${i}`)?.value);
-            if (!isNaN(val) && val >= 0) {
+            if (!isNaN(val) && val > 0) {
                 if (!mat.log) mat.log = [];
-                mat.log.push({ id: uid(), date, type, qty: val });
+                const entry = { id: uid(), date, type, qty: val };
+                if (floorId) entry.floorId = floorId;
+                mat.log.push(entry);
                 saved++;
             }
         });
@@ -1966,17 +2074,17 @@ function _buildMatLogModal(title, type, matId) {
     });
 }
 
-function openLogDelivery()              { _buildMatLogModal('Log Delivery',  'delivery', null); }
-function openLogEod()                   { _buildMatLogModal('Log EOD Count', 'eod',      null); }
-function openLogDeliveryFor(id)         { _buildMatLogModal('Log Delivery',  'delivery', id);   }
-function openLogEodFor(id)              { _buildMatLogModal('Log EOD Count', 'eod',      id);   }
+function openLogDelivery()               { _buildMatLogModal('Log Delivery',    'delivery', null); }
+function openLogUsage()                  { _buildMatLogModal('Log Daily Usage', 'usage',    null); }
+function openLogDeliveryFor(id)          { _buildMatLogModal('Log Delivery',    'delivery', id);   }
+function openLogUsageFor(id)             { _buildMatLogModal('Log Daily Usage', 'usage',    id);   }
 function openLogDeliveryForTrade(trade) {
     const ids = (state.materials||[]).filter(m => (m.trade||'Other') === trade).map(m => m.id);
     _buildMatLogModal('Log Delivery', 'delivery', ids);
 }
-function openLogEodForTrade(trade) {
+function openLogUsageForTrade(trade) {
     const ids = (state.materials||[]).filter(m => (m.trade||'Other') === trade).map(m => m.id);
-    _buildMatLogModal('Log EOD Count', 'eod', ids);
+    _buildMatLogModal('Log Daily Usage', 'usage', ids);
 }
 
 function setMatDate(val) {
@@ -2563,9 +2671,9 @@ function exportMaterialsPDF(inRange, label) {
         const rows = [...usage].reverse().map(d => `<tr>
             <td>${displayDate(d.date)}</td>
             <td>${d.delivered > 0 ? '+'+d.delivered : '—'}</td>
-            <td>${d.onSite}</td>
-            <td>${d.eodQty}</td>
-            <td style="font-weight:700;color:#1a3a5c">${d.used}</td>
+            <td style="font-weight:700;color:#1a3a5c">${d.used > 0 ? d.used : '—'}</td>
+            <td style="font-size:11px;color:#666">${d.floors && d.floors.length > 0 ? d.floors.join(', ') : '—'}</td>
+            <td>${d.balance}</td>
         </tr>`).join('');
         bodyHtml += `<div style="margin-bottom:32px">
             <div style="font-size:15px;font-weight:800;text-transform:uppercase;color:#1a3a5c;border-top:2px solid #1a3a5c;padding-top:6px;margin-bottom:8px">
@@ -2576,9 +2684,9 @@ function exportMaterialsPDF(inRange, label) {
                 <thead><tr style="background:#1a3a5c;color:white">
                     <th style="padding:8px 10px;text-align:left">Date</th>
                     <th style="padding:8px 10px;text-align:left">Delivered</th>
-                    <th style="padding:8px 10px;text-align:left">On Site</th>
-                    <th style="padding:8px 10px;text-align:left">EOD Count</th>
                     <th style="padding:8px 10px;text-align:left">Used</th>
+                    <th style="padding:8px 10px;text-align:left">Floor</th>
+                    <th style="padding:8px 10px;text-align:left">Balance</th>
                 </tr></thead>
                 <tbody>${rows}</tbody>
             </table>
@@ -2603,10 +2711,10 @@ function exportMaterialsPDF(inRange, label) {
 }
 
 function exportMaterialsCSV(inRange, label) {
-    const rows = [['MATERIAL', 'UNIT', 'TRADE', 'DATE', 'DELIVERED', 'ON SITE', 'EOD COUNT', 'USED']];
+    const rows = [['MATERIAL', 'UNIT', 'TRADE', 'DATE', 'DELIVERED', 'USED', 'FLOOR', 'BALANCE']];
     state.materials.forEach(mat => {
         matDailyUsage(mat).filter(d => inRange(d.date)).forEach(d => {
-            rows.push([mat.name, mat.unit, mat.trade || '', displayDate(d.date), d.delivered, d.onSite, d.eodQty, d.used]);
+            rows.push([mat.name, mat.unit, mat.trade || '', displayDate(d.date), d.delivered, d.used, (d.floors||[]).join('; '), d.balance]);
         });
     });
     if (rows.length === 1) { alert('No data in this period.'); return; }
@@ -2688,16 +2796,18 @@ function initFirebase() {
             }
             if (_wallP) { state.materials = state.materials.filter(m => m.name !== 'Wall Primer'); _tradeDirty = true; }
             if (_ceilP) { state.materials = state.materials.filter(m => m.name !== 'Ceiling Primer'); _tradeDirty = true; }
-            // Add new materials if missing
-            const _matNames = new Set((state.materials || []).map(m => m.name));
-            [
-                { name: 'Plaster Weld', unit: 'gal',   trade: 'Plaster' },
-                { name: 'Stix Primer',  unit: 'gal',   trade: 'Paint'   },
-                { name: 'PL400',        unit: 'tubes', trade: 'Misc.'   },
-                { name: 'Ready Patch',  unit: 'pcs',   trade: 'Misc.'   },
-                { name: 'Garbage Bags', unit: 'boxes', trade: 'Misc.'   },
-            ].forEach(m => {
-                if (!_matNames.has(m.name)) { state.materials.push({ id: uid(), ...m, log: [] }); _tradeDirty = true; }
+            // Add / backfill Georgetown materials
+            const _matByName = {};
+            (state.materials || []).forEach(m => { _matByName[m.name] = m; });
+            DEFAULT_MATERIALS.forEach(dm => {
+                if (!_matByName[dm.name]) {
+                    state.materials.push({ id: uid(), name: dm.name, unit: dm.unit, trade: dm.trade, startQty: dm.startQty !== undefined ? dm.startQty : 0, log: [] });
+                    _tradeDirty = true;
+                } else {
+                    const _ex = _matByName[dm.name];
+                    if ((_ex.startQty === undefined || _ex.startQty === null) && dm.startQty !== undefined) { _ex.startQty = dm.startQty; _tradeDirty = true; }
+                    if (!_ex.trade && dm.trade) { _ex.trade = dm.trade; _tradeDirty = true; }
+                }
             });
             localStorage.setItem('hallway_tracker_v2', JSON.stringify(state));
             if (_tradeDirty) persist();
@@ -2737,15 +2847,15 @@ function disconnectSync() {
     // Patch Floor 4 start date to 2026-05-04
     const f4 = state.floors.find(f => f.name === 'Floor 4');
     if (f4 && f4.startDate !== '2026-05-04') { f4.startDate = '2026-05-04'; dirty = true; }
-    // Patch Joint Compound unit from bags → buckets
+    // Patch Joint Compound unit from bags → buckets (legacy)
     const jc = (state.materials || []).find(m => m.name === 'Joint Compound' && m.unit === 'bags');
     if (jc) { jc.unit = 'buckets'; dirty = true; }
     // Rename Drywall trade → Plaster
     (state.materials || []).forEach(m => { if (m.trade === 'Drywall') { m.trade = 'Plaster'; dirty = true; } });
-    // Merge Wall Primer + Ceiling Primer → Primer (buckets)
-    const wallPrimer    = (state.materials || []).find(m => m.name === 'Wall Primer');
-    const ceilPrimer    = (state.materials || []).find(m => m.name === 'Ceiling Primer');
-    const primerExists  = (state.materials || []).find(m => m.name === 'Primer');
+    // Merge Wall Primer + Ceiling Primer → Primer (legacy)
+    const wallPrimer   = (state.materials || []).find(m => m.name === 'Wall Primer');
+    const ceilPrimer   = (state.materials || []).find(m => m.name === 'Ceiling Primer');
+    const primerExists = (state.materials || []).find(m => m.name === 'Primer');
     if ((wallPrimer || ceilPrimer) && !primerExists) {
         const mergedLog = [...(wallPrimer ? wallPrimer.log || [] : []), ...(ceilPrimer ? ceilPrimer.log || [] : [])];
         state.materials.push({ id: uid(), name: 'Primer', unit: 'buckets', trade: 'Paint', log: mergedLog });
@@ -2753,16 +2863,25 @@ function disconnectSync() {
     }
     if (wallPrimer) { state.materials = state.materials.filter(m => m.name !== 'Wall Primer'); dirty = true; }
     if (ceilPrimer) { state.materials = state.materials.filter(m => m.name !== 'Ceiling Primer'); dirty = true; }
-    // Add new materials if missing
-    const matNames = new Set((state.materials || []).map(m => m.name));
-    [
-        { name: 'Plaster Weld',  unit: 'gal',     trade: 'Plaster' },
-        { name: 'Stix Primer',   unit: 'gal',     trade: 'Paint'   },
-        { name: 'PL400',         unit: 'tubes',   trade: 'Misc.'   },
-        { name: 'Ready Patch',   unit: 'pcs',     trade: 'Misc.'   },
-        { name: 'Garbage Bags',  unit: 'boxes',   trade: 'Misc.'   },
-    ].forEach(m => {
-        if (!matNames.has(m.name)) { state.materials.push({ id: uid(), ...m, log: [] }); dirty = true; }
+
+    // Add / backfill Georgetown materials from DEFAULT_MATERIALS
+    const matByName = {};
+    (state.materials || []).forEach(m => { matByName[m.name] = m; });
+    DEFAULT_MATERIALS.forEach(dm => {
+        if (!matByName[dm.name]) {
+            // Add missing material
+            state.materials.push({ id: uid(), name: dm.name, unit: dm.unit, trade: dm.trade, startQty: dm.startQty !== undefined ? dm.startQty : 0, log: [] });
+            dirty = true;
+        } else {
+            const existing = matByName[dm.name];
+            // Backfill startQty if not yet set
+            if ((existing.startQty === undefined || existing.startQty === null) && dm.startQty !== undefined) {
+                existing.startQty = dm.startQty;
+                dirty = true;
+            }
+            // Backfill trade if missing
+            if (!existing.trade && dm.trade) { existing.trade = dm.trade; dirty = true; }
+        }
     });
 
     const existing = new Set(state.floors.map(f => f.name));
