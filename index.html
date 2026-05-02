@@ -2004,15 +2004,22 @@ function setParQty(matId) {
 
 function setStartQty(matId) {
     const mat = state.materials.find(m => m.id === matId);
-    openModal('Set Starting Inventory', `
+    openModal('Edit Starting Inventory', `
         <div class="form-group">
-            <label>Quantity on site when tracking began (${mat.unit})</label>
+            <label>Unit (what you're counting)</label>
+            <input id="start_unit" value="${mat.unit}" placeholder="e.g. bags, gal, pcs, boxes" />
+        </div>
+        <div class="form-group">
+            <label>Quantity on site when tracking began</label>
             <input id="start_qty" type="number" min="0" step="1" value="${mat.startQty !== undefined && mat.startQty !== null ? mat.startQty : ''}" placeholder="e.g. 20" />
         </div>
         <p style="font-size:13px;color:#999;margin-top:4px">Future deliveries add to this. Daily usage subtracts from it.</p>
     `, () => {
-        const val = parseFloat(document.getElementById('start_qty').value);
+        const unit = document.getElementById('start_unit').value.trim();
+        const val  = parseFloat(document.getElementById('start_qty').value);
+        if (!unit) { alert('Enter a unit.'); return; }
         if (isNaN(val) || val < 0) { alert('Enter a valid quantity.'); return; }
+        mat.unit     = unit;
         mat.startQty = val;
         persist(); closeModal(); render();
     });
