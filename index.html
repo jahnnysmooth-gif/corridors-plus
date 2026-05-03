@@ -873,14 +873,21 @@ function matDailyUsage(mat) {
         const delivered    = log.filter(e => e.type === 'delivery' && e.date === date).reduce((s,e) => s + e.qty, 0);
         const usageEntries = log.filter(e => e.type === 'usage'    && e.date === date);
         const used         = usageEntries.reduce((s,e) => s + e.qty, 0);
-        const floorNames   = [...new Set(
+        const floorNames = [...new Set(
             usageEntries.filter(e => e.floorId).map(e => {
                 const f = (state.floors || []).find(f => f.id === e.floorId);
                 return f ? f.name : null;
             }).filter(Boolean)
         )];
+        const itemNames = [...new Set(
+            usageEntries.filter(e => e.itemId).map(e => {
+                const f = (state.floors || []).find(f => f.id === e.floorId);
+                const item = f ? (f.items || []).find(i => i.id === e.itemId) : null;
+                return item ? item.name : null;
+            }).filter(Boolean)
+        )];
         balance = balance + delivered - used;
-        result.push({ date, delivered, used, balance, floors: floorNames });
+        result.push({ date, delivered, used, balance, floors: floorNames, items: itemNames });
     });
     return result;
 }
@@ -1143,6 +1150,7 @@ function renderHome() {
             </button>
         </div>
         <div class="home-subtitle">Georgetown Plaza · Corridor Renovation</div>
+        <button class="btn btn-secondary" style="width:100%;margin-top:20px" onclick="exportWeeklySummary()">&#128196; Weekly Summary</button>
         <div style="text-align:center;font-size:10px;color:#bbb;margin-top:8px">build 20260425-6</div>`;
 }
 
@@ -1381,7 +1389,7 @@ function renderMaterialDetail(mat) {
                 <td>${displayDate(d.date)}</td>
                 <td>${d.delivered > 0 ? `<span style="color:#16a34a;font-weight:600">+${d.delivered}</span>` : '—'}</td>
                 <td class="usage-used">${d.used > 0 ? d.used + ' ' + mat.unit : '—'}</td>
-                <td style="font-size:12px;color:#666">${d.floors && d.floors.length > 0 ? d.floors.join(', ') : '—'}</td>
+                <td style="font-size:12px;color:#666">${d.floors && d.floors.length > 0 ? d.floors.join(', ') : '—'}${d.items && d.items.length > 0 ? `<br><span style="color:#aaa;font-size:11px">${d.items.join(', ')}</span>` : ''}</td>
                 <td style="font-weight:700;color:${d.balance <= (mat.parQty || 0) && mat.parQty > 0 ? '#dc2626' : '#1a3a5c'}">${d.balance} ${mat.unit}</td>
                 <td style="white-space:nowrap">
                     <button onclick="editMatDay('${mat.id}','${d.date}')" style="background:none;border:none;font-size:15px;cursor:pointer;color:#aaa;padding:2px 4px">✏️</button>
@@ -1391,6 +1399,17 @@ function renderMaterialDetail(mat) {
         });
         html += `</tbody></table></div>`;
     }
+
+    // Notes
+    html += `<div class="notes-card" style="margin-bottom:12px">
+        <div class="notes-card-header">
+            <span class="notes-card-label">Notes</span>
+            <button class="notes-edit-btn" onclick="editMatNotes('${mat.id}')">${mat.notes ? 'Edit' : '+ Add'}</button>
+        </div>
+        ${mat.notes
+            ? `<div class="notes-card-text">${mat.notes.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>')}</div>`
+            : `<div class="notes-empty">Vendor, SKU, contact info…</div>`}
+    </div>`;
 
     html += `<div class="delete-zone">
         <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -1441,11 +1460,17 @@ function renderReorderList() {
         const color = TRADE_COLORS[trade] || '#475569';
         html += `<div class="reorder-trade-header" style="color:${color}">${TRADE_ICONS[trade] || '📦'} ${trade}</div>`;
         byTrade[trade].forEach(mat => {
-            const stock    = matCurrentStock(mat);
-            const shortage = mat.parQty - stock;
+            const stock       = matCurrentStock(mat);
+            const shortage    = mat.parQty - stock;
+            const deliveries  = (mat.log||[]).filter(e => e.type === 'delivery').sort((a,b) => b.date.localeCompare(a.date));
+            const lastDeliv   = deliveries[0];
+            const delivMeta   = lastDeliv
+                ? `Last delivery: ${displayDate(lastDeliv.date)} &nbsp;·&nbsp; ${lastDeliv.qty} ${mat.unit}`
+                : 'No deliveries recorded';
             html += `<div class="reorder-card" style="border-left-color:${color}" onclick="navigate('material',null,null,'${mat.id}','${mat.trade||'Other'}')">
                 <div class="reorder-name">${mat.name}</div>
                 <div class="reorder-meta">In stock: <strong>${stock} ${mat.unit}</strong> &nbsp;·&nbsp; Min: ${mat.parQty} &nbsp;·&nbsp; Short by: ${shortage}</div>
+                <div class="reorder-meta" style="margin-top:3px;color:#b45309">&#128666; ${delivMeta}</div>
                 <div class="reorder-order${mat.reorderQty > 0 ? '' : ' unset'}">
                     ${mat.reorderQty > 0 ? `&#128666; Order ${mat.reorderQty} ${mat.unit}` : 'Order qty not set — tap to add'}
                 </div>
@@ -1475,12 +1500,15 @@ function printReorderList() {
     tradeKeys.forEach(trade => {
         bodyHtml += `<div style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#7c3aed;margin:20px 0 8px;border-top:1px solid #e5e7eb;padding-top:16px">${trade}</div>`;
         byTrade[trade].forEach(m => {
-            const stock    = matCurrentStock(m);
-            const shortage = m.parQty - stock;
+            const stock      = matCurrentStock(m);
+            const shortage   = m.parQty - stock;
+            const lastDeliv  = (m.log||[]).filter(e => e.type==='delivery').sort((a,b) => b.date.localeCompare(a.date))[0];
+            const delivNote  = lastDeliv ? `Last delivery: ${displayDate(lastDeliv.date)} (${lastDeliv.qty} ${m.unit})` : 'No deliveries recorded';
             bodyHtml += `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0f0f0">
                 <div>
                     <div style="font-size:15px;font-weight:700;color:#1a1a2e">${m.name}</div>
                     <div style="font-size:12px;color:#888;margin-top:2px">In stock: ${stock} ${m.unit} &nbsp;·&nbsp; Min: ${m.parQty} &nbsp;·&nbsp; Short by: ${shortage}</div>
+                    <div style="font-size:11px;color:#b45309;margin-top:2px">${delivNote}</div>
                 </div>
                 <div style="font-size:15px;font-weight:800;color:#7c3aed;white-space:nowrap;margin-left:16px">
                     ${m.reorderQty > 0 ? `Order ${m.reorderQty} ${m.unit}` : '<span style="color:#aaa;font-weight:400;font-style:italic">Qty TBD</span>'}
@@ -1716,6 +1744,32 @@ function renderItem(floor, item) {
             </tr>`;
         });
         html += `</tbody></table></div>`;
+    }
+
+    // Materials Used on this item
+    const itemMatUsage = [];
+    (state.materials || []).forEach(mat => {
+        const entries = (mat.log || []).filter(e => e.type === 'usage' && e.itemId === item.id);
+        if (entries.length > 0) {
+            const total = entries.reduce((s, e) => s + e.qty, 0);
+            itemMatUsage.push({ name: mat.name, unit: mat.unit, trade: mat.trade || 'Other', total, matId: mat.id });
+        }
+    });
+    if (itemMatUsage.length > 0) {
+        const byTrade = {};
+        itemMatUsage.forEach(m => { (byTrade[m.trade] = byTrade[m.trade] || []).push(m); });
+        html += `<div class="section-header"><span class="section-title">Materials Used</span></div>
+        <div class="card">`;
+        Object.entries(byTrade).forEach(([trade, mats]) => {
+            html += `<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#888;letter-spacing:.05em;margin:10px 0 6px">${trade}</div>`;
+            mats.forEach(m => {
+                html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f0f0f0">
+                    <span style="font-size:14px">${m.name}</span>
+                    <span style="font-weight:700;font-size:14px;color:#1a3a5c">${m.total} ${m.unit}</span>
+                </div>`;
+            });
+        });
+        html += `</div>`;
     }
 
     html += `<div class="delete-zone">
@@ -2116,13 +2170,33 @@ function renameMaterial(matId) {
     });
 }
 
+function editMatNotes(matId) {
+    const mat = state.materials.find(m => m.id === matId);
+    openModal('Material Notes', `
+        <div class="form-group">
+            <label>Notes</label>
+            <textarea id="mat_notes" rows="5" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;resize:vertical">${mat.notes ? mat.notes.replace(/</g,'&lt;') : ''}</textarea>
+        </div>
+        <p style="font-size:12px;color:#999;margin-top:4px">Vendor, SKU, contact info, links, anything useful.</p>
+    `, () => {
+        mat.notes = document.getElementById('mat_notes').value.trim();
+        persist(); closeModal(); render();
+    });
+}
+
 function editMatDay(matId, date) {
-    const mat      = state.materials.find(m => m.id === matId);
-    const delivQty = (mat.log||[]).filter(e => e.type === 'delivery' && e.date === date).reduce((s,e) => s+e.qty, 0);
-    const usageQty = (mat.log||[]).filter(e => e.type === 'usage'    && e.date === date).reduce((s,e) => s+e.qty, 0);
-    const floorId  = (mat.log||[]).find(e => e.type === 'usage' && e.date === date && e.floorId)?.floorId || '';
+    const mat       = state.materials.find(m => m.id === matId);
+    const delivQty  = (mat.log||[]).filter(e => e.type === 'delivery' && e.date === date).reduce((s,e) => s+e.qty, 0);
+    const usageQty  = (mat.log||[]).filter(e => e.type === 'usage'    && e.date === date).reduce((s,e) => s+e.qty, 0);
+    const usageEntry = (mat.log||[]).find(e => e.type === 'usage' && e.date === date);
+    const floorId   = usageEntry?.floorId || '';
+    const itemId    = usageEntry?.itemId  || '';
+    const selFloor  = (state.floors||[]).find(f => f.id === floorId);
     const floorOpts = `<option value="">General / All Floors</option>` +
         (state.floors||[]).map(f => `<option value="${f.id}"${f.id === floorId ? ' selected' : ''}>${f.name}</option>`).join('');
+    const itemOpts  = selFloor
+        ? `<option value="">No specific item</option>` + (selFloor.items||[]).map(i => `<option value="${i.id}"${i.id === itemId ? ' selected' : ''}>${i.name}</option>`).join('')
+        : `<option value="">— select floor first —</option>`;
     openModal(`Edit ${displayDate(date)} — ${mat.name}`, `
         <div class="form-group">
             <label>Delivery (${mat.unit})</label>
@@ -2134,18 +2208,38 @@ function editMatDay(matId, date) {
         </div>
         <div class="form-group">
             <label>Floor</label>
-            <select id="edit_floor">${floorOpts}</select>
+            <select id="edit_floor" onchange="updateEditItemSel()">${floorOpts}</select>
+        </div>
+        <div class="form-group">
+            <label>Work Item <span style="font-weight:400;color:#aaa">(optional)</span></label>
+            <select id="edit_item">${itemOpts}</select>
         </div>
         <p style="font-size:12px;color:#999;margin-top:4px">Existing entries for this date will be replaced.</p>
     `, () => {
         const newDeliv = parseFloat(document.getElementById('edit_deliv').value);
         const newUsage = parseFloat(document.getElementById('edit_usage').value);
         const newFloor = document.getElementById('edit_floor').value || undefined;
+        const newItem  = document.getElementById('edit_item').value  || undefined;
         mat.log = (mat.log||[]).filter(e => e.date !== date);
         if (!isNaN(newDeliv) && newDeliv > 0) mat.log.push({ id: uid(), date, type: 'delivery', qty: newDeliv });
-        if (!isNaN(newUsage) && newUsage > 0) mat.log.push({ id: uid(), date, type: 'usage', qty: newUsage, floorId: newFloor });
+        if (!isNaN(newUsage) && newUsage > 0) {
+            const entry = { id: uid(), date, type: 'usage', qty: newUsage };
+            if (newFloor) entry.floorId = newFloor;
+            if (newItem)  entry.itemId  = newItem;
+            mat.log.push(entry);
+        }
         persist(); closeModal(); render();
     });
+}
+
+function updateEditItemSel() {
+    const floorId = document.getElementById('edit_floor')?.value;
+    const itemSel = document.getElementById('edit_item');
+    if (!itemSel) return;
+    const floor = (state.floors || []).find(f => f.id === floorId);
+    if (!floor) { itemSel.innerHTML = `<option value="">— select floor first —</option>`; return; }
+    itemSel.innerHTML = `<option value="">No specific item</option>` +
+        (floor.items || []).map(i => `<option value="${i.id}">${i.name}</option>`).join('');
 }
 
 function deleteMatDay(matId, date) {
@@ -2228,12 +2322,19 @@ function _buildMatLogModal(title, type, matId) {
                 <input type="number" min="0" step="1" id="mat_qty_${i}" placeholder="qty" style="width:100%" />
             </div>
         </div>`).join('');
+    const floorOpts = `<option value="">General / All Floors</option>` +
+        (state.floors||[]).map(f => `<option value="${f.id}">${f.name}</option>`).join('');
     const floorSelector = type === 'usage' ? `
-        <div class="form-group" style="margin-bottom:12px">
+        <div class="form-group" style="margin-bottom:8px">
             <label style="font-size:13px;font-weight:600;color:#555">Floor</label>
-            <select id="mat_floor_sel">
-                <option value="">General / All Floors</option>
-                ${(state.floors||[]).map(f => `<option value="${f.id}">${f.name}</option>`).join('')}
+            <select id="mat_floor_sel" onchange="updateMatItemSel()">
+                ${floorOpts}
+            </select>
+        </div>
+        <div class="form-group" style="margin-bottom:12px">
+            <label style="font-size:13px;font-weight:600;color:#555">Work Item <span style="font-weight:400;color:#aaa">(optional)</span></label>
+            <select id="mat_item_sel">
+                <option value="">— select floor first —</option>
             </select>
         </div>` : '';
     openModal(title, `
@@ -2248,6 +2349,7 @@ function _buildMatLogModal(title, type, matId) {
     `, () => {
         const date    = document.getElementById('mat_date').value;
         const floorId = type === 'usage' ? (document.getElementById('mat_floor_sel')?.value || undefined) : undefined;
+        const itemId  = type === 'usage' ? (document.getElementById('mat_item_sel')?.value  || undefined) : undefined;
         let saved = 0;
         mats.forEach((mat, i) => {
             const val = parseFloat(document.getElementById(`mat_qty_${i}`)?.value);
@@ -2255,6 +2357,7 @@ function _buildMatLogModal(title, type, matId) {
                 if (!mat.log) mat.log = [];
                 const entry = { id: uid(), date, type, qty: val };
                 if (floorId) entry.floorId = floorId;
+                if (itemId)  entry.itemId  = itemId;
                 mat.log.push(entry);
                 saved++;
             }
@@ -2262,6 +2365,19 @@ function _buildMatLogModal(title, type, matId) {
         if (saved === 0) { alert('Enter at least one quantity.'); return; }
         persist(); closeModal(); render();
     });
+}
+
+function updateMatItemSel() {
+    const floorId = document.getElementById('mat_floor_sel')?.value;
+    const itemSel = document.getElementById('mat_item_sel');
+    if (!itemSel) return;
+    const floor = (state.floors || []).find(f => f.id === floorId);
+    if (!floor) {
+        itemSel.innerHTML = `<option value="">— select floor first —</option>`;
+        return;
+    }
+    itemSel.innerHTML = `<option value="">No specific item</option>` +
+        (floor.items || []).map(i => `<option value="${i.id}">${i.name}</option>`).join('');
 }
 
 function openLogDelivery()               { _buildMatLogModal('Log Delivery',    'delivery', null); }
@@ -2825,6 +2941,114 @@ function exportCrossFloorSummary(floors, inRange, periodLabel) {
     const url  = URL.createObjectURL(blob);
     window.open(url, '_blank');
     setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+// ── Weekly summary export ─────────────────────────────────────────────────────
+function exportWeeklySummary() {
+    const { start, end } = getWeekRange();
+    const inRange = d => d >= start && d <= end;
+    const label   = `${displayDate(start)} – ${displayDate(end)}`;
+
+    // ── Labor: man-hours per floor for entries in this week ──────────────────
+    let laborHtml = '';
+    let grandSkilled = 0, grandLaborer = 0;
+    (state.floors || []).forEach(floor => {
+        let fSkilled = 0, fLaborer = 0;
+        (floor.items || []).forEach(item => {
+            (item.hoursLog || []).filter(e => e.date >= start && e.date <= end).forEach(e => {
+                fSkilled += entrySkilledMH(e);
+                fLaborer += entryLaborerMH(e);
+            });
+        });
+        if (fSkilled + fLaborer === 0) return;
+        grandSkilled += fSkilled; grandLaborer += fLaborer;
+        laborHtml += `<tr>
+            <td style="padding:8px 10px;border-bottom:1px solid #eee;font-weight:600">${floor.name}</td>
+            <td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:right">${fSkilled}</td>
+            <td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:right">${fLaborer}</td>
+            <td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:right;font-weight:700;color:#1a3a5c">${fSkilled + fLaborer}</td>
+        </tr>`;
+    });
+    if (!laborHtml) laborHtml = `<tr><td colspan="4" style="padding:12px 10px;color:#aaa;font-style:italic">No hours logged this week.</td></tr>`;
+    const laborSection = `
+        <h2 style="font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#1a3a5c;margin:24px 0 10px;border-top:2px solid #1a3a5c;padding-top:10px">Labor — Man-Hours by Floor</h2>
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead><tr style="background:#1a3a5c;color:white">
+                <th style="padding:8px 10px;text-align:left">Floor</th>
+                <th style="padding:8px 10px;text-align:right">Skilled MH</th>
+                <th style="padding:8px 10px;text-align:right">Laborer MH</th>
+                <th style="padding:8px 10px;text-align:right">Total MH</th>
+            </tr></thead>
+            <tbody>${laborHtml}
+                <tr style="background:#f0f4ff">
+                    <td style="padding:8px 10px;font-weight:800">Total</td>
+                    <td style="padding:8px 10px;text-align:right;font-weight:700">${grandSkilled}</td>
+                    <td style="padding:8px 10px;text-align:right;font-weight:700">${grandLaborer}</td>
+                    <td style="padding:8px 10px;text-align:right;font-weight:800;color:#1a3a5c">${grandSkilled + grandLaborer}</td>
+                </tr>
+            </tbody>
+        </table>`;
+
+    // ── Materials: usage by trade this week ──────────────────────────────────
+    const byTrade = {};
+    (state.materials || []).forEach(mat => {
+        const weekUsage = (mat.log || []).filter(e => e.type === 'usage' && inRange(e.date));
+        if (weekUsage.length === 0) return;
+        const total = weekUsage.reduce((s, e) => s + e.qty, 0);
+        const trade = mat.trade || 'Other';
+        if (!byTrade[trade]) byTrade[trade] = [];
+        byTrade[trade].push({ name: mat.name, unit: mat.unit, total });
+    });
+    const tradeKeys = TRADE_ORDER.filter(t => byTrade[t]);
+    Object.keys(byTrade).forEach(t => { if (!TRADE_ORDER.includes(t)) tradeKeys.push(t); });
+    let matHtml = '';
+    tradeKeys.forEach(trade => {
+        matHtml += `<tr style="background:#f5f5f5"><td colspan="3" style="padding:6px 10px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.6px;color:#555">${trade}</td></tr>`;
+        byTrade[trade].forEach(m => {
+            matHtml += `<tr><td style="padding:7px 10px 7px 18px;border-bottom:1px solid #eee">${m.name}</td><td style="padding:7px 10px;border-bottom:1px solid #eee;text-align:right;font-weight:700;color:#1a3a5c">${m.total}</td><td style="padding:7px 10px;border-bottom:1px solid #eee;color:#999">${m.unit}</td></tr>`;
+        });
+    });
+    if (!matHtml) matHtml = `<tr><td colspan="3" style="padding:12px 10px;color:#aaa;font-style:italic">No material usage logged this week.</td></tr>`;
+    const matSection = `
+        <h2 style="font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#1a3a5c;margin:24px 0 10px;border-top:2px solid #1a3a5c;padding-top:10px">Materials Used This Week</h2>
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead><tr style="background:#1a3a5c;color:white">
+                <th style="padding:8px 10px;text-align:left">Material</th>
+                <th style="padding:8px 10px;text-align:right">Used</th>
+                <th style="padding:8px 10px;text-align:left">Unit</th>
+            </tr></thead>
+            <tbody>${matHtml}</tbody>
+        </table>`;
+
+    // ── Low stock ────────────────────────────────────────────────────────────
+    const isLow = m => { const s = matCurrentStock(m); return s !== null && m.parQty > 0 && s < m.parQty; };
+    const lowMats = (state.materials || []).filter(isLow);
+    let lowHtml = lowMats.length === 0
+        ? `<p style="color:#aaa;font-style:italic;font-size:13px">All materials above minimum stock.</p>`
+        : lowMats.map(m => {
+            const s = matCurrentStock(m);
+            return `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f0f0f0;font-size:13px">
+                <span style="font-weight:600;color:#1a1a2e">${m.name} <span style="font-weight:400;color:#888">(${m.trade||''})</span></span>
+                <span style="color:#dc2626;font-weight:700">${s} / ${m.parQty} ${m.unit}${m.reorderQty > 0 ? ' — order ' + m.reorderQty : ''}</span>
+            </div>`;
+          }).join('');
+    const lowSection = `
+        <h2 style="font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#dc2626;margin:24px 0 10px;border-top:2px solid #dc2626;padding-top:10px">⚠ Low Stock</h2>
+        ${lowHtml}`;
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Weekly Summary</title>
+    <style>* { box-sizing:border-box; margin:0; padding:0; } body { font-family:Arial,sans-serif; font-size:13px; color:#111; padding:28px; max-width:700px; margin:0 auto; }
+    h1 { font-size:20px; font-weight:800; text-transform:uppercase; letter-spacing:1px; color:#1a3a5c; margin-bottom:4px; }
+    .meta { font-size:12px; color:#666; margin-bottom:8px; }
+    tbody tr:nth-child(even) td { background:#f9fbff; }
+    @media print { body { padding:16px; } }</style></head><body>
+    <h1>Corridor's Plus — Weekly Summary</h1>
+    <div class="meta">Week of ${label}</div>
+    <div class="meta">Generated: ${displayDate(today())}</div>
+    ${laborSection}${matSection}${lowSection}
+    <script>window.onload = () => window.print();<\/script></body></html>`;
+
+    window.open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank');
 }
 
 // ── Materials export ──────────────────────────────────────────────────────────
