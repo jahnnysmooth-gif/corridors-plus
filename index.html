@@ -622,6 +622,11 @@
         .mat-action-btn { flex: 1; padding: 13px; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; }
         .mat-delivery-btn { background: #1a3a5c; color: white; }
         .mat-eod-btn { background: #16a34a; color: white; }
+        .mat-search-wrap { position: relative; margin-bottom: 14px; }
+        .mat-search-input { width: 100%; padding: 11px 38px 11px 14px; border: 1.5px solid #e5e7eb; border-radius: 10px; font-size: 15px; outline: none; background: white; box-sizing: border-box; }
+        .mat-search-input:focus { border-color: #1a3a5c; }
+        .mat-search-clear { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 20px; color: #aaa; cursor: pointer; line-height: 1; padding: 0; }
+        .mat-trade-badge { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; padding: 2px 7px; border-radius: 99px; margin-left: 6px; vertical-align: middle; background: #e5e7eb; color: #555; }
 
         /* Material detail screen */
         .usage-table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -726,6 +731,7 @@ let syncCode   = null;
 let _localWrite = false;
 let _selectMode   = false;
 let _selectedIds  = new Set();
+let _matSearch    = '';
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 let state = JSON.parse(localStorage.getItem('hallway_tracker_v2') || '{"floors":[],"materials":[]}');
@@ -1008,6 +1014,7 @@ function hasUnsavedHours() {
 
 function navigate(screen, floorId, itemId, matId, matTrade) {
     if (hasUnsavedHours() && !confirm('You have unsaved hours. Leave without logging?')) return;
+    if (screen !== 'materials') _matSearch = '';
     view = { screen, floorId: floorId || null, itemId: itemId || null, matId: matId || null, matTrade: matTrade || null };
     render();
 }
@@ -1061,6 +1068,7 @@ function render() {
             title.textContent = 'Material Inventory';
         }
         app.innerHTML = renderMaterials();
+        applyMatFilter();
 
     } else if (view.screen === 'material') {
         back.style.display = 'block';
@@ -1206,6 +1214,34 @@ const TRADE_ORDER  = ['Plaster','Paint','Wallcovering','Carpentry','Electrical',
 const TRADE_ICONS  = { Plaster:'🧱', Paint:'🖌️', Wallcovering:'🌿', Carpentry:'🪚', Electrical:'⚡', 'Misc.':'🔧', Other:'📦' };
 const TRADE_COLORS = { Plaster:'#b45309', Paint:'#1d4ed8', Wallcovering:'#15803d', Carpentry:'#92400e', Electrical:'#7c3aed', 'Misc.':'#0891b2', Other:'#475569' };
 
+function _matSearchBar() {
+    return `<div class="mat-search-wrap">
+        <input id="mat_search" class="mat-search-input" type="search" placeholder="Search materials…"
+               value="${_matSearch.replace(/"/g,'&quot;')}" oninput="setMatSearch(this.value)" />
+        ${_matSearch ? `<button class="mat-search-clear" onclick="setMatSearch('')">×</button>` : ''}
+    </div>`;
+}
+
+function _matCardHtml(mat, tradeBadge) {
+    const stock = matCurrentStock(mat);
+    const low   = stock !== null && mat.parQty > 0 && stock < mat.parQty;
+    const deliv = (mat.log||[]).filter(e => e.type==='delivery' && e.date===today()).reduce((s,e) => s+e.qty, 0);
+    const days  = matDaysRemaining(mat);
+    const trade = mat.trade || 'Other';
+    return `<div class="mat-card${low ? ' low-stock' : ''}" data-mat-name="${mat.name.toLowerCase()}" onclick="navigate('material',null,null,'${mat.id}','${trade}')">
+        <div>
+            <div class="mat-name">${mat.name}${low ? `<span class="low-badge">⚠ LOW</span>` : ''}${tradeBadge ? `<span class="mat-trade-badge">${trade}</span>` : ''}</div>
+            <div class="mat-meta">${mat.unit}${deliv > 0 ? ` &nbsp;·&nbsp; <span style="color:#16a34a;font-weight:600">+${deliv} today</span>` : ''}${mat.parQty > 0 ? ` &nbsp;·&nbsp; min: ${mat.parQty}` : ''}${mat.reorderQty > 0 && low ? ` &nbsp;·&nbsp; <span style="color:#dc2626;font-weight:600">order: ${mat.reorderQty}</span>` : ''}</div>
+            ${days !== null ? `<div class="mat-meta" style="color:${days <= 2 ? '#dc2626' : days <= 5 ? '#d97706' : '#16a34a'};font-weight:600">~${days} day${days !== 1 ? 's' : ''} remaining</div>` : ''}
+        </div>
+        <div class="mat-stock">
+            ${stock !== null
+                ? `<div class="mat-stock-num${low ? ' low' : ''}">${stock}</div><div class="mat-stock-unit">${mat.unit}</div>`
+                : `<div class="mat-stock-none">No count yet</div>`}
+        </div>
+    </div>`;
+}
+
 function renderMaterials() {
     const mats = state.materials || [];
     let html = '';
@@ -1227,6 +1263,9 @@ function renderMaterials() {
     const tradeKeys = TRADE_ORDER.filter(t => byTrade[t]);
     Object.keys(byTrade).forEach(t => { if (!TRADE_ORDER.includes(t)) tradeKeys.push(t); });
 
+    // Search bar always at top
+    html += _matSearchBar();
+
     // If a trade is selected, show that trade's material list
     if (view.matTrade) {
         const tradeMats = byTrade[view.matTrade] || [];
@@ -1239,30 +1278,14 @@ function renderMaterials() {
             <button class="mat-action-btn mat-delivery-btn" onclick="openLogDeliveryForTrade('${view.matTrade}')">&#128666; Log Delivery</button>
             <button class="mat-action-btn mat-eod-btn" onclick="openLogUsageForTrade('${view.matTrade}')">&#9999; Log Daily Usage</button>
         </div>`;
-        tradeMats.forEach(mat => {
-            const stock    = matCurrentStock(mat);
-            const lastDate = matLastEodDate(mat);
-            const deliv    = (mat.log||[]).filter(e => e.type==='delivery' && e.date===today()).reduce((s,e) => s+e.qty, 0);
-            const low      = stock !== null && mat.parQty > 0 && stock < mat.parQty;
-            const days     = matDaysRemaining(mat);
-            html += `<div class="mat-card${low ? ' low-stock' : ''}" onclick="navigate('material',null,null,'${mat.id}','${view.matTrade}')">
-                <div>
-                    <div class="mat-name">${mat.name}${low ? `<span class="low-badge">⚠ LOW</span>` : ''}</div>
-                    <div class="mat-meta">${mat.unit}${deliv > 0 ? ` &nbsp;·&nbsp; <span style="color:#16a34a;font-weight:600">+${deliv} today</span>` : ''}${mat.parQty > 0 ? ` &nbsp;·&nbsp; min: ${mat.parQty}` : ''}${mat.reorderQty > 0 && low ? ` &nbsp;·&nbsp; <span style="color:#dc2626;font-weight:600">order: ${mat.reorderQty}</span>` : ''}</div>
-                    ${days !== null ? `<div class="mat-meta" style="color:${days <= 2 ? '#dc2626' : days <= 5 ? '#d97706' : '#16a34a'};font-weight:600">~${days} day${days !== 1 ? 's' : ''} of stock remaining</div>` : ''}
-                </div>
-                <div class="mat-stock">
-                    ${stock !== null
-                        ? `<div class="mat-stock-num${low ? ' low' : ''}">${stock}</div><div class="mat-stock-unit">${mat.unit}</div>`
-                        : `<div class="mat-stock-none">No count yet</div>`}
-                </div>
-            </div>`;
-        });
+        html += `<div id="mat_card_list">`;
+        tradeMats.forEach(mat => { html += _matCardHtml(mat, false); });
+        html += `</div>`;
         html += `<button class="add-btn" onclick="openAddMaterial()">+ Add Material</button>`;
         return html;
     }
 
-    // Trade tile grid
+    // Trade tile grid (main screen)
     const isLow = m => { const s = matCurrentStock(m); return s !== null && m.parQty > 0 && s < m.parQty; };
     const totalDeliveriesToday = mats.reduce((s, m) => s + (m.log||[]).filter(e => e.type==='delivery' && e.date===today()).reduce((ss,e) => ss+e.qty, 0), 0);
     const lowCount = mats.filter(isLow).length;
@@ -1277,7 +1300,9 @@ function renderMaterials() {
     if (lowCount > 0) {
         html += `<div class="low-stock-bar"><span style="font-size:18px">⚠️</span><span class="low-stock-bar-text">${lowCount} material${lowCount !== 1 ? 's' : ''} below minimum stock</span></div>`;
     }
-    html += `<div class="trade-grid">`;
+
+    // Trade tile grid — hidden when searching
+    html += `<div id="mat_trade_grid"><div class="trade-grid">`;
     tradeKeys.forEach(trade => {
         const tradeMats = byTrade[trade];
         const color = TRADE_COLORS[trade] || '#475569';
@@ -1295,6 +1320,14 @@ function renderMaterials() {
     html += `</div>`;
     html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px;margin-top:20px" onclick="openMaterialsExportModal()">&#8681; Export Usage Report</button>`;
     html += `<button class="add-btn" onclick="openAddMaterial()">+ Add Material</button>`;
+    html += `</div>`;
+
+    // Search results — all materials as cards, shown when searching
+    html += `<div id="mat_search_results" style="display:none">`;
+    html += `<div id="mat_no_results" class="empty-state" style="display:none">No materials found.</div>`;
+    mats.forEach(mat => { html += _matCardHtml(mat, true); });
+    html += `</div>`;
+
     return html;
 }
 
@@ -2092,6 +2125,47 @@ function openLogDeliveryForTrade(trade) {
 function openLogUsageForTrade(trade) {
     const ids = (state.materials||[]).filter(m => (m.trade||'Other') === trade).map(m => m.id);
     _buildMatLogModal('Log Daily Usage', 'usage', ids);
+}
+
+function setMatSearch(q) {
+    _matSearch = q;
+    applyMatFilter();
+}
+
+function applyMatFilter() {
+    const q = _matSearch.trim().toLowerCase();
+    // Update clear button visibility
+    const clearBtn = document.querySelector('.mat-search-clear');
+    if (clearBtn) clearBtn.style.display = q ? '' : 'none';
+
+    const tradeGrid     = document.getElementById('mat_trade_grid');
+    const searchResults = document.getElementById('mat_search_results');
+    const cardList      = document.getElementById('mat_card_list');
+
+    if (tradeGrid) {
+        // Main view: toggle trade grid vs flat search results
+        if (q) {
+            tradeGrid.style.display = 'none';
+            searchResults.style.display = '';
+            const cards = searchResults.querySelectorAll('.mat-card[data-mat-name]');
+            let visible = 0;
+            cards.forEach(c => {
+                const show = c.dataset.matName.includes(q);
+                c.style.display = show ? '' : 'none';
+                if (show) visible++;
+            });
+            const noRes = document.getElementById('mat_no_results');
+            if (noRes) noRes.style.display = visible === 0 ? '' : 'none';
+        } else {
+            tradeGrid.style.display = '';
+            searchResults.style.display = 'none';
+        }
+    } else if (cardList) {
+        // Trade drill-down: filter visible cards
+        cardList.querySelectorAll('.mat-card[data-mat-name]').forEach(c => {
+            c.style.display = !q || c.dataset.matName.includes(q) ? '' : 'none';
+        });
+    }
 }
 
 function setMatDate(val) {
