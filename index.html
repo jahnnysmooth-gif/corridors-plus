@@ -3779,6 +3779,64 @@ function deleteAttendanceDay(date) {
     document.getElementById('app').innerHTML = renderAttendance();
 }
 
+function exportWeeklyAttendancePDF() {
+    const { start, end } = getWeekRange();
+    const crew = state.crew || [];
+    const weekDays = [];
+    for (let d = new Date(start + 'T12:00:00'); d.toISOString().slice(0,10) <= end; d.setDate(d.getDate()+1)) {
+        weekDays.push(d.toISOString().slice(0,10));
+    }
+    const dayLabels = weekDays.map(d => new Date(d+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'numeric',day:'numeric'}));
+    const label = `${displayDate(start)} – ${displayDate(end)}`;
+
+    // Build per-worker data
+    const rows = crew.map(w => {
+        const dayData = weekDays.map(date => {
+            const att = (state.attendance||[]).find(a=>a.date===date);
+            const detail = att ? (att.details||{})[w.id] : null;
+            const present = att && (att.workerIds||[]).includes(w.id);
+            return { present, hours: detail?.hours || 0 };
+        });
+        const totalHours = dayData.reduce((s,d)=>s+(d.hours||0),0);
+        const daysWorked = dayData.filter(d=>d.present).length;
+        if (daysWorked === 0) return null;
+        return { w, dayData, totalHours, daysWorked };
+    }).filter(Boolean).sort((a,b) => crewSortOrder(a.w.trade) - crewSortOrder(b.w.trade));
+
+    const headerCells = dayLabels.map(l=>`<th style="padding:7px 8px;text-align:center;font-size:10px">${l}</th>`).join('');
+    const bodyRows = rows.map(({w, dayData, totalHours}) => {
+        const dayCells = dayData.map(d => d.present
+            ? `<td style="padding:7px 8px;text-align:center;border-bottom:1px solid #eee;color:#1a3a5c;font-weight:700">${d.hours||'✓'}</td>`
+            : `<td style="padding:7px 8px;text-align:center;border-bottom:1px solid #eee;color:#ddd">—</td>`
+        ).join('');
+        return `<tr>
+            <td style="padding:7px 8px;border-bottom:1px solid #eee;font-weight:700">${w.name}</td>
+            <td style="padding:7px 8px;border-bottom:1px solid #eee;color:#888;font-size:12px">${w.trade||'—'}</td>
+            ${dayCells}
+            <td style="padding:7px 8px;border-bottom:1px solid #eee;text-align:center;font-weight:800;color:#1a3a5c;background:#f0f4ff">${totalHours||'—'}</td>
+        </tr>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Weekly Attendance</title>
+    <style>* { box-sizing:border-box; margin:0; padding:0; } body { font-family:Arial,sans-serif; font-size:13px; color:#111; padding:28px; }
+    h1 { font-size:18px; font-weight:800; color:#1a3a5c; margin-bottom:4px; }
+    .meta { font-size:12px; color:#666; margin-bottom:20px; }
+    table { width:100%; border-collapse:collapse; }
+    th { background:#1a3a5c; color:white; padding:8px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.4px; }
+    @media print { body { padding:16px; } }</style></head><body>
+    <h1>Corridor's Plus — Weekly Attendance</h1>
+    <div class="meta">Week of ${label} &nbsp;·&nbsp; Generated ${displayDate(today())}</div>
+    <table>
+        <thead><tr>
+            <th>Name</th><th>Trade</th>${headerCells}<th style="text-align:center;background:#0d2d4a">Total Hrs</th>
+        </tr></thead>
+        <tbody>${bodyRows || '<tr><td colspan="' + (weekDays.length+3) + '" style="padding:12px;color:#aaa;font-style:italic">No attendance this week.</td></tr>'}</tbody>
+    </table>
+    <script>window.onload=()=>window.print();<\/script></body></html>`;
+    const win = window.open('','_blank');
+    if (win) { win.document.write(html); win.document.close(); }
+}
+
 function submitAttendanceToday() {
     persist();
     const btn = document.getElementById('att_submit_btn');
@@ -3858,6 +3916,7 @@ function renderAttendance() {
         // Action buttons
         if (isToday) {
             html += `<button id="att_submit_btn" class="btn btn-primary" style="width:100%;margin-top:8px;padding:14px;font-size:15px;font-weight:700" onclick="submitAttendanceToday()">✓ Submit Today's Attendance</button>`;
+            html += `<button class="btn btn-secondary" style="width:100%;margin-top:6px" onclick="exportWeeklyAttendancePDF()">&#8681; Weekly Attendance PDF</button>`;
         } else {
             if (presentCount > 0) html += `<button class="btn btn-secondary" style="width:100%;margin-top:8px" onclick="exportAttendancePDF('${_attendanceDate}')">&#8681; Export PDF</button>`;
             html += `<button class="btn btn-danger" style="width:100%;margin-top:6px" onclick="deleteAttendanceDay('${_attendanceDate}')">Delete This Day</button>`;
