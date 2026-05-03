@@ -1074,7 +1074,7 @@ function render() {
     } else if (view.screen === 'floors') {
         back.style.display = 'block';
         back.onclick = () => navigate('home');
-        title.textContent = 'Labor Tracking';
+        title.textContent = 'Floor Management';
         exp.style.display = state.floors.length > 0 ? 'block' : 'none';
         app.innerHTML = renderFloors();
 
@@ -1198,7 +1198,7 @@ function renderHome() {
         <div class="home-grid">
             <button class="home-tile labor" onclick="navigate('floors')">
                 <span class="home-tile-icon">👷</span>
-                <div class="home-tile-label">Labor Tracking</div>
+                <div class="home-tile-label">Floor Management</div>
                 <div class="home-tile-sub">${totalFloors} floor${totalFloors !== 1 ? 's' : ''} · ${totalHrs} man-hrs</div>
             </button>
             <button class="home-tile materials" onclick="navigate('materials')" style="position:relative">
