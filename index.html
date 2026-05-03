@@ -676,6 +676,84 @@
             white-space: nowrap;
             letter-spacing: 0.3px;
         }
+
+        /* ── Dark mode ── */
+        body.dark { background: #0d1117; color: #e2e8f0; }
+        body.dark .card,
+        body.dark .stat-card,
+        body.dark .floor-card,
+        body.dark .home-tile,
+        body.dark .trade-tile,
+        body.dark .quick-log-card,
+        body.dark .week-summary,
+        body.dark .reorder-card,
+        body.dark .mat-card,
+        body.dark .modal,
+        body.dark .sync-card { background: #1c2333; color: #e2e8f0; }
+        body.dark .status-btn { background: #1c2333; border-color: #374151; color: #6b7280; }
+        body.dark .status-btn.active-pending { background: #2d3748; border-color: #6b7280; color: #cbd5e1; }
+        body.dark .notes-card { background: #1a1500; border-color: #854d0e; }
+        body.dark .notes-card-label { color: #fbbf24; }
+        body.dark .notes-card-text { color: #e2e8f0; }
+        body.dark .notes-edit-btn { color: #fbbf24; }
+        body.dark .notes-edit-btn:hover { background: #2d1d00; }
+        body.dark .floor-card.selected { background: #1e3a5c; }
+        body.dark .mat-card.low-stock { background: #2d1515; }
+        body.dark .backup-warning { background: #1a1000; border-color: #854d0e; color: #fbbf24; }
+        body.dark .low-stock-bar { background: #2d1515; border-color: #7f1d1d; }
+        body.dark input,
+        body.dark select,
+        body.dark textarea { background: #161d2e; color: #e2e8f0; border-color: #374151; }
+        body.dark input:focus,
+        body.dark select:focus,
+        body.dark textarea:focus { border-color: #60a5fa; }
+        body.dark .quick-log-field input { background: #161d2e; color: #e2e8f0; border-color: #374151; }
+        body.dark .quick-log-field input[readonly] { background: #1a2235; color: #93c5fd; }
+        body.dark .date-picker-wrap input[type=date] { background: #161d2e; color: #e2e8f0; border-color: #374151; }
+        body.dark .btn-secondary { background: #2d3748; color: #e2e8f0; }
+        body.dark .btn-danger { background: #3b1919; color: #fca5a5; }
+        body.dark .log-table th { color: #6b7280; border-color: #2d3748; }
+        body.dark .log-table td { border-color: #2d3748; color: #e2e8f0; }
+        body.dark .usage-table td { border-color: #2d3748; }
+        body.dark .usage-table tr:nth-child(even) td { background: #1a2235; }
+        body.dark .date-chip { background: #2d3748; color: #94a3b8; }
+        body.dark .date-chip:hover:not(.active) { border-color: #60a5fa; color: #60a5fa; }
+        body.dark .cal-btn { background: #2d3748; }
+        body.dark .cal-btn svg { stroke: #94a3b8; }
+        body.dark .mat-search-input { background: #1c2333; color: #e2e8f0; border-color: #374151; }
+        body.dark .mat-search-input:focus { border-color: #60a5fa; }
+        body.dark .section-title { color: #6b7280; }
+        body.dark .delete-zone { border-color: #2d3748; }
+        body.dark .completed-section-header { border-color: #2d3748; color: #4b5563; }
+        body.dark .floor-card-meta,
+        body.dark .mat-meta,
+        body.dark .mat-stock-unit,
+        body.dark .stat-label,
+        body.dark .home-tile-sub,
+        body.dark .trade-tile-sub,
+        body.dark .reorder-meta { color: #6b7280; }
+        body.dark .floor-card-arrow,
+        body.dark .mat-stock-none { color: #4b5563; }
+        body.dark .daily-floor-header { border-color: #2d3748; }
+        body.dark .daily-row { border-color: #2d3748; }
+        body.dark .daily-row-label { color: #e2e8f0; }
+        body.dark .mat-trade-badge { background: #2d3748; color: #94a3b8; }
+        body.dark .icon-btn:hover { background: #2d3748; }
+        body.dark .progress-0 { background: #2d3748; color: #6b7280; }
+        body.dark .home-tile-label,
+        body.dark .trade-tile-label { color: #93c5fd; }
+        body.dark .week-grand,
+        body.dark .week-floor-total,
+        body.dark .man-hrs-cell,
+        body.dark .stat-value,
+        body.dark .mat-stock-num { color: #93c5fd; }
+        body.dark .edit-row { color: #4b5563; }
+        body.dark .edit-row:hover { color: #93c5fd; }
+        body.dark .delete-row { color: #4b5563; }
+        body.dark .week-floor-row { border-color: #2d3748; }
+        body.dark .week-grand { border-color: #2d3748; }
+        body.dark .add-btn { border-color: #374151; color: #6b7280; }
+        body.dark .add-btn:hover { border-color: #60a5fa; color: #60a5fa; background: #1a2235; }
     </style>
 </head>
 <body>
@@ -686,6 +764,7 @@
     <span class="sync-indicator" id="syncIndicator" style="display:none"></span>
     <button class="header-btn" id="homeBtn" onclick="navigate('home')" style="display:none">&#8962;</button>
     <button class="header-btn" id="exportBtn" onclick="openExportModal()" style="display:none">Export</button>
+    <button class="header-btn" id="darkModeBtn" onclick="toggleDarkMode()" title="Toggle dark mode">🌙</button>
 </header>
 
 <div class="container" id="app"></div>
@@ -1135,6 +1214,10 @@ function renderHome() {
     const lastEod      = (state.materials || []).reduce((latest, m) => {
         const d = matLastEodDate(m); return d && d > latest ? d : latest;
     }, '');
+    const lowCount     = (state.materials || []).filter(m => {
+        const s = matCurrentStock(m);
+        return m.parQty > 0 && s !== null && s < m.parQty;
+    }).length;
 
     return `
         <div class="home-grid">
@@ -1143,7 +1226,8 @@ function renderHome() {
                 <div class="home-tile-label">Labor Tracking</div>
                 <div class="home-tile-sub">${totalFloors} floor${totalFloors !== 1 ? 's' : ''} · ${totalHrs} man-hrs</div>
             </button>
-            <button class="home-tile materials" onclick="navigate('materials')">
+            <button class="home-tile materials" onclick="navigate('materials')" style="position:relative">
+                ${lowCount > 0 ? `<span style="position:absolute;top:12px;right:12px;background:#dc2626;color:white;font-size:11px;font-weight:800;padding:2px 8px;border-radius:99px">${lowCount} low</span>` : ''}
                 <span class="home-tile-icon">🧰</span>
                 <div class="home-tile-label">Material Inventory</div>
                 <div class="home-tile-sub">${matCount} material${matCount !== 1 ? 's' : ''}${lastEod ? ' · last updated ' + displayDate(lastEod) : ''}</div>
@@ -3422,6 +3506,20 @@ function disconnectSync() {
     const url = c.toDataURL('image/png');
     document.getElementById('appIcon').href = url;
     document.getElementById('favicon').href = url;
+})();
+
+// ── Dark mode ─────────────────────────────────────────────────────────────────
+function toggleDarkMode() {
+    const isDark = document.body.classList.toggle('dark');
+    localStorage.setItem('hallway_dark', isDark ? '1' : '0');
+    document.getElementById('darkModeBtn').textContent = isDark ? '☀️' : '🌙';
+}
+(function applyDarkModeOnLoad() {
+    if (localStorage.getItem('hallway_dark') === '1') {
+        document.body.classList.add('dark');
+        const btn = document.getElementById('darkModeBtn');
+        if (btn) btn.textContent = '☀️';
+    }
 })();
 
 // ── Init ──────────────────────────────────────────────────────────────────────
