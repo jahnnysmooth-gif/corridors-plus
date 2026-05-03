@@ -627,6 +627,12 @@
         .mat-search-input:focus { border-color: #1a3a5c; }
         .mat-search-clear { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 20px; color: #aaa; cursor: pointer; line-height: 1; padding: 0; }
         .mat-trade-badge { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; padding: 2px 7px; border-radius: 99px; margin-left: 6px; vertical-align: middle; background: #e5e7eb; color: #555; }
+        .reorder-card { background: white; border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border-left: 4px solid #7c3aed; }
+        .reorder-name { font-size: 16px; font-weight: 700; color: #1a1a2e; }
+        .reorder-meta { font-size: 13px; color: #888; margin-top: 4px; }
+        .reorder-order { font-size: 15px; font-weight: 800; color: #7c3aed; margin-top: 6px; }
+        .reorder-order.unset { color: #aaa; font-weight: 600; font-style: italic; }
+        .reorder-trade-header { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; color: #888; margin: 18px 0 8px; }
 
         /* Material detail screen */
         .usage-table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -1076,6 +1082,12 @@ function render() {
         const mat = state.materials.find(m => m.id === view.matId);
         title.textContent = mat ? mat.name : 'Material';
         app.innerHTML = renderMaterialDetail(mat);
+
+    } else if (view.screen === 'reorder') {
+        back.style.display = 'block';
+        back.onclick = () => navigate('materials');
+        title.textContent = 'Reorder List';
+        app.innerHTML = renderReorderList();
     }
 }
 
@@ -1318,7 +1330,8 @@ function renderMaterials() {
         </button>`;
     });
     html += `</div>`;
-    html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px;margin-top:20px" onclick="openMaterialsExportModal()">&#8681; Export Usage Report</button>`;
+    html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px;margin-top:20px;background:${lowCount > 0 ? '#7c3aed' : ''};color:${lowCount > 0 ? 'white' : ''};border-color:${lowCount > 0 ? '#7c3aed' : ''}" onclick="navigate('reorder')">&#128203; Reorder List${lowCount > 0 ? ` <span style="background:white;color:#7c3aed;font-size:11px;font-weight:800;padding:2px 7px;border-radius:99px;margin-left:4px">${lowCount}</span>` : ''}</button>`;
+    html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px" onclick="openMaterialsExportModal()">&#8681; Export Usage Report</button>`;
     html += `<button class="add-btn" onclick="openAddMaterial()">+ Add Material</button>`;
     html += `</div>`;
 
@@ -1390,6 +1403,103 @@ function renderMaterialDetail(mat) {
     </div>`;
 
     return html;
+}
+
+// ── Reorder List screen ───────────────────────────────────────────────────────
+function renderReorderList() {
+    const mats  = state.materials || [];
+    const isLow = m => { const s = matCurrentStock(m); return s !== null && m.parQty > 0 && s < m.parQty; };
+    const low   = mats.filter(isLow);
+
+    if (low.length === 0) {
+        return `<div style="text-align:center;padding:60px 20px">
+            <div style="font-size:48px;margin-bottom:16px">✅</div>
+            <div style="font-size:18px;font-weight:700;color:#1a1a2e;margin-bottom:8px">All stocked up</div>
+            <div style="font-size:14px;color:#999">No materials are below minimum stock.</div>
+        </div>`;
+    }
+
+    // Group by trade
+    const byTrade = {};
+    low.forEach(m => {
+        const t = m.trade || 'Other';
+        if (!byTrade[t]) byTrade[t] = [];
+        byTrade[t].push(m);
+    });
+    const tradeKeys = TRADE_ORDER.filter(t => byTrade[t]);
+    Object.keys(byTrade).forEach(t => { if (!TRADE_ORDER.includes(t)) tradeKeys.push(t); });
+
+    const totalOrderItems = low.filter(m => m.reorderQty > 0).length;
+    let html = `<div class="stats-row" style="grid-template-columns:1fr 1fr">
+        <div class="stat-card"><div class="stat-value">${low.length}</div><div class="stat-label">Need Restocking</div></div>
+        <div class="stat-card"><div class="stat-value">${totalOrderItems}</div><div class="stat-label">Qty Set</div></div>
+    </div>`;
+
+    html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:16px" onclick="printReorderList()">&#128438; Print / Share</button>`;
+
+    tradeKeys.forEach(trade => {
+        const color = TRADE_COLORS[trade] || '#475569';
+        html += `<div class="reorder-trade-header" style="color:${color}">${TRADE_ICONS[trade] || '📦'} ${trade}</div>`;
+        byTrade[trade].forEach(mat => {
+            const stock    = matCurrentStock(mat);
+            const shortage = mat.parQty - stock;
+            html += `<div class="reorder-card" style="border-left-color:${color}" onclick="navigate('material',null,null,'${mat.id}','${mat.trade||'Other'}')">
+                <div class="reorder-name">${mat.name}</div>
+                <div class="reorder-meta">In stock: <strong>${stock} ${mat.unit}</strong> &nbsp;·&nbsp; Min: ${mat.parQty} &nbsp;·&nbsp; Short by: ${shortage}</div>
+                <div class="reorder-order${mat.reorderQty > 0 ? '' : ' unset'}">
+                    ${mat.reorderQty > 0 ? `&#128666; Order ${mat.reorderQty} ${mat.unit}` : 'Order qty not set — tap to add'}
+                </div>
+            </div>`;
+        });
+    });
+
+    return html;
+}
+
+function printReorderList() {
+    const mats  = state.materials || [];
+    const isLow = m => { const s = matCurrentStock(m); return s !== null && m.parQty > 0 && s < m.parQty; };
+    const low   = mats.filter(isLow);
+    if (low.length === 0) { alert('Nothing to reorder — all materials are above minimum stock.'); return; }
+
+    const byTrade = {};
+    low.forEach(m => {
+        const t = m.trade || 'Other';
+        if (!byTrade[t]) byTrade[t] = [];
+        byTrade[t].push(m);
+    });
+    const tradeKeys = TRADE_ORDER.filter(t => byTrade[t]);
+    Object.keys(byTrade).forEach(t => { if (!TRADE_ORDER.includes(t)) tradeKeys.push(t); });
+
+    let bodyHtml = '';
+    tradeKeys.forEach(trade => {
+        bodyHtml += `<div style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#7c3aed;margin:20px 0 8px;border-top:1px solid #e5e7eb;padding-top:16px">${trade}</div>`;
+        byTrade[trade].forEach(m => {
+            const stock    = matCurrentStock(m);
+            const shortage = m.parQty - stock;
+            bodyHtml += `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0f0f0">
+                <div>
+                    <div style="font-size:15px;font-weight:700;color:#1a1a2e">${m.name}</div>
+                    <div style="font-size:12px;color:#888;margin-top:2px">In stock: ${stock} ${m.unit} &nbsp;·&nbsp; Min: ${m.parQty} &nbsp;·&nbsp; Short by: ${shortage}</div>
+                </div>
+                <div style="font-size:15px;font-weight:800;color:#7c3aed;white-space:nowrap;margin-left:16px">
+                    ${m.reorderQty > 0 ? `Order ${m.reorderQty} ${m.unit}` : '<span style="color:#aaa;font-weight:400;font-style:italic">Qty TBD</span>'}
+                </div>
+            </div>`;
+        });
+    });
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Reorder List</title>
+    <style>* { box-sizing:border-box; margin:0; padding:0; } body { font-family:Arial,sans-serif; font-size:13px; color:#111; padding:28px; max-width:600px; margin:0 auto; }
+    h1 { font-size:20px; font-weight:800; text-transform:uppercase; letter-spacing:1px; color:#1a3a5c; margin-bottom:4px; }
+    .meta { font-size:12px; color:#666; margin-bottom:20px; }
+    @media print { body { padding:16px; } }</style></head><body>
+    <h1>Corridor's Plus — Reorder List</h1>
+    <div class="meta">Generated: ${displayDate(today())} &nbsp;·&nbsp; ${low.length} item${low.length !== 1 ? 's' : ''} need restocking</div>
+    ${bodyHtml}
+    <script>window.onload = () => window.print();<\/script></body></html>`;
+
+    window.open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank');
 }
 
 // ── Floor screen ──────────────────────────────────────────────────────────────
