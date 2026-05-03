@@ -1274,7 +1274,7 @@ function renderHome() {
         return m.parQty > 0 && s !== null && s < m.parQty;
     }).length;
     const todayAtt     = (state.attendance || []).find(a => a.date === today());
-    const todayWorkers = todayAtt ? todayAtt.workerIds.length : 0;
+    const todayWorkers = todayAtt ? (todayAtt.workerIds || []).length : 0;
     const reportDaysCount = (() => {
         const dates = new Set();
         (state.attendance || []).forEach(a => dates.add(a.date));
