@@ -3434,63 +3434,40 @@ function disconnectSync() {
     c.width = c.height = 180;
     const ctx = c.getContext('2d');
 
-    // Diagonal gradient: deep orange → hot pink/magenta
-    const grad = ctx.createLinearGradient(0, 0, 180, 180);
-    grad.addColorStop(0,   '#ff6b35');
-    grad.addColorStop(0.5, '#e8264a');
-    grad.addColorStop(1,   '#c0166e');
-    ctx.fillStyle = grad;
+    // Navy background
+    ctx.fillStyle = '#1a3a5c';
     ctx.fillRect(0, 0, 180, 180);
 
-    // Radial highlight — bright burst top-left
-    const glow = ctx.createRadialGradient(40, 35, 0, 40, 35, 110);
-    glow.addColorStop(0, 'rgba(255,255,255,0.22)');
-    glow.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, 180, 180);
-
-    // Hammer — rotated, large
-    // Building silhouette — drawn with canvas shapes for crisp rendering
-    ctx.fillStyle = 'rgba(255,255,255,0.95)';
-    ctx.shadowColor = 'rgba(0,0,0,0.2)';
-    ctx.shadowBlur = 6;
-
-    // Left wing
-    ctx.fillRect(30, 80, 32, 52);
-    // Center tower
-    ctx.fillRect(68, 44, 44, 88);
-    // Right wing
-    ctx.fillRect(118, 72, 32, 60);
-
-    // Windows on center tower (gradient-colored cutouts)
-    ctx.shadowBlur = 0;
-    const winColor = 'rgba(255,140,60,0.7)';
-    ctx.fillStyle = winColor;
-    for (let row = 0; row < 4; row++) {
-        for (let col = 0; col < 2; col++) {
-            ctx.fillRect(75 + col * 18, 54 + row * 17, 10, 10);
-        }
+    // Blueprint grid lines
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 1;
+    const step = 18;
+    for (let x = 0; x <= 180; x += step) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 180); ctx.stroke();
     }
-    // Windows on left wing
-    for (let row = 0; row < 2; row++) {
-        ctx.fillRect(37, 88 + row * 17, 10, 10);
-        ctx.fillRect(51, 88 + row * 17, 4, 10);
-    }
-    // Windows on right wing
-    for (let row = 0; row < 2; row++) {
-        ctx.fillRect(125, 80 + row * 17, 10, 10);
-        ctx.fillRect(139, 80 + row * 17, 4, 10);
+    for (let y = 0; y <= 180; y += step) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(180, y); ctx.stroke();
     }
 
-    // CP — bold white with deep shadow
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'alphabetic';
-    ctx.font = 'bold 58px -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.shadowColor = 'rgba(0,0,0,0.4)';
-    ctx.shadowBlur = 8;
+    // Subtle accent lines (thicker, lighter)
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+    ctx.lineWidth = 1.5;
+    for (let x = 0; x <= 180; x += step * 3) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 180); ctx.stroke();
+    }
+    for (let y = 0; y <= 180; y += step * 3) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(180, y); ctx.stroke();
+    }
+
+    // C+ text — white, bold, centered
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = 10;
     ctx.shadowOffsetY = 3;
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('CP', 90, 160);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = 'bold 80px -apple-system, BlinkMacSystemFont, Arial, sans-serif';
+    ctx.fillText('C+', 90, 93);
 
     const url = c.toDataURL('image/png');
     document.getElementById('appIcon').href = url;
