@@ -3729,11 +3729,11 @@ function renderAttendance() {
 
     // Tab switcher
     html += `<div style="display:flex;gap:0;margin-bottom:16px;border:1.5px solid #e0e0e0;border-radius:10px;overflow:hidden">
-        <button onclick="document.getElementById('att_tab_signin').style.display='';document.getElementById('att_tab_roster').style.display='none';this.style.background='#1a3a5c';this.style.color='white';document.getElementById('att_roster_tab_btn').style.background='';document.getElementById('att_roster_tab_btn').style.color=''" id="att_signin_tab_btn"
+        <button onclick="_attView='signin';document.getElementById('att_tab_signin').style.display='';document.getElementById('att_tab_roster').style.display='none';this.style.background='#1a3a5c';this.style.color='white';document.getElementById('att_roster_tab_btn').style.background='';document.getElementById('att_roster_tab_btn').style.color=''" id="att_signin_tab_btn"
             style="flex:1;padding:10px;border:none;cursor:pointer;font-size:14px;font-weight:600;background:${_attView==='signin'?'#1a3a5c':'white'};color:${_attView==='signin'?'white':'#555'}">
             Sign-In
         </button>
-        <button onclick="document.getElementById('att_tab_roster').style.display='';document.getElementById('att_tab_signin').style.display='none';this.style.background='#1a3a5c';this.style.color='white';document.getElementById('att_signin_tab_btn').style.background='';document.getElementById('att_signin_tab_btn').style.color=''" id="att_roster_tab_btn"
+        <button onclick="_attView='roster';document.getElementById('att_tab_roster').style.display='';document.getElementById('att_tab_signin').style.display='none';this.style.background='#1a3a5c';this.style.color='white';document.getElementById('att_signin_tab_btn').style.background='';document.getElementById('att_signin_tab_btn').style.color=''" id="att_roster_tab_btn"
             style="flex:1;padding:10px;border:none;border-left:1.5px solid #e0e0e0;cursor:pointer;font-size:14px;font-weight:600;background:${_attView==='roster'?'#1a3a5c':'white'};color:${_attView==='roster'?'white':'#555'}">
             Manage Roster
         </button>
@@ -3791,7 +3791,7 @@ function renderAttendance() {
     }
 
     // Past days
-    const pastDays = (state.attendance || []).sort((a,b) => b.date.localeCompare(a.date)).slice(0, 8);
+    const pastDays = (state.attendance || []).filter(a => a.date !== _attendanceDate).sort((a,b) => b.date.localeCompare(a.date)).slice(0, 8);
     if (pastDays.length > 0) {
         html += `<div class="section-header" style="margin-top:20px"><span class="section-title">Recent Days</span></div><div class="card">`;
         pastDays.forEach(a => {
