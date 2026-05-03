@@ -19,8 +19,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
     <style>
-        :root { --clr-accent: #1a3a5c; --clr-cyan: #0891b2; }
-        body.dark { --clr-accent: #93c5fd; --clr-cyan: #60a5fa; }
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
@@ -781,11 +779,6 @@
         body.dark .report-section { background: #1c2333; color: #e2e8f0; }
         body.dark .report-day-meta { color: #6b7280; }
         body.dark .report-worker-row { border-color: #2d3748; }
-        body.dark .daily-floor-header { color: #93c5fd; }
-        body.dark .sync-card h2 { color: #93c5fd; }
-        body.dark .select-bar-info { color: #93c5fd; }
-        body.dark .usage-used { color: #93c5fd; }
-        body.dark .attendance-count { color: #60a5fa; }
     </style>
 </head>
 <body>
@@ -1776,8 +1769,8 @@ function renderFloor(floor) {
 
     html += `<div class="card" style="margin-top:16px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-            <span style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;color:var(--clr-accent)">Materials Used</span>
-            <button onclick="navigate('materials')" style="background:none;border:none;font-size:12px;color:var(--clr-accent);font-weight:600;cursor:pointer;padding:0">View All ›</button>
+            <span style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;color:#1a3a5c">Materials Used</span>
+            <button onclick="navigate('materials')" style="background:none;border:none;font-size:12px;color:#1a3a5c;font-weight:600;cursor:pointer;padding:0">View All ›</button>
         </div>`;
     if (floorMatUsage.length === 0) {
         html += `<div style="font-size:13px;color:#aaa;font-style:italic;padding:4px 0">No materials logged for this floor yet.</div>`;
@@ -1795,7 +1788,7 @@ function renderFloor(floor) {
             byTrade[trade].forEach(m => {
                 html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f5f5f5;cursor:pointer" onclick="navigate('material',null,null,'${m.matId}','${m.trade}')">
                     <span style="font-size:14px;color:#1a1a2e">${m.name}</span>
-                    <span style="font-size:14px;font-weight:700;color:var(--clr-accent)">${m.total} <span style="font-size:11px;font-weight:400;color:#999">${m.unit}</span></span>
+                    <span style="font-size:14px;font-weight:700;color:#1a3a5c">${m.total} <span style="font-size:11px;font-weight:400;color:#999">${m.unit}</span></span>
                 </div>`;
             });
         });
@@ -1868,7 +1861,7 @@ function renderItem(floor, item) {
             </div>
             <div class="quick-log-field">
                 <label>Man-Hrs</label>
-                <input type="text" id="ql_preview" readonly placeholder="—" style="background:#f5f8ff;color:var(--clr-accent);font-weight:700;cursor:default" />
+                <input type="text" id="ql_preview" readonly placeholder="—" style="background:#f5f8ff;color:#1a3a5c;font-weight:700;cursor:default" />
             </div>
             <button class="log-btn" onclick="quickLog('${floor.id}','${item.id}')">LOG</button>
         </div>
@@ -1927,7 +1920,7 @@ function renderItem(floor, item) {
             mats.forEach(m => {
                 html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f0f0f0">
                     <span style="font-size:14px">${m.name}</span>
-                    <span style="font-weight:700;font-size:14px;color:var(--clr-accent)">${m.total} ${m.unit}</span>
+                    <span style="font-weight:700;font-size:14px;color:#1a3a5c">${m.total} ${m.unit}</span>
                 </div>`;
             });
         });
@@ -3920,7 +3913,7 @@ function renderAttendance() {
 
     // Stats
     html += `<div class="stats-row" style="grid-template-columns:1fr 1fr;margin-bottom:14px">
-        <div class="stat-card"><div class="stat-value" id="att_stat_count" style="color:var(--clr-cyan)">${presentCount}</div><div class="stat-label">On Site</div></div>
+        <div class="stat-card"><div class="stat-value" id="att_stat_count" style="color:#0891b2">${presentCount}</div><div class="stat-label">On Site</div></div>
         <div class="stat-card"><div class="stat-value">${crew.length}</div><div class="stat-label">Crew Total</div></div>
     </div>`;
 
@@ -3942,7 +3935,7 @@ function renderAttendance() {
             const detail = (currentDay?.details || {})[w.id];
             const floorNames = (detail?.floorIds || []).map(fid => (state.floors||[]).find(f=>f.id===fid)?.name).filter(Boolean);
             const detailLine = checked && detail && (detail.task || floorNames.length > 0)
-                ? `<div style="font-size:11px;color:var(--clr-cyan);margin-top:2px">${[detail.task, floorNames.join(', ')].filter(Boolean).join(' · ')}</div>`
+                ? `<div style="font-size:11px;color:#0891b2;margin-top:2px">${[detail.task, floorNames.join(', ')].filter(Boolean).join(' · ')}</div>`
                 : '';
             html += `<div class="worker-row att-row${checked?' att-checked':''}" id="wr_${w.id}" onclick="toggleSignIn('${w.id}')" style="cursor:pointer">
                 <div style="display:flex;align-items:center;gap:12px">
@@ -3956,7 +3949,7 @@ function renderAttendance() {
                 </div>
                 <div style="display:flex;align-items:center;gap:8px">
                     ${checked ? `<button class="edit-row" style="font-size:14px" onclick="event.stopPropagation();editSignInDetail('${w.id}')">&#9998;</button>` : ''}
-                    ${checked ? `<span style="color:var(--clr-cyan);font-size:13px;font-weight:700">On site</span>` : `<span style="color:#ccc;font-size:13px">—</span>`}
+                    ${checked ? `<span style="color:#0891b2;font-size:13px;font-weight:700">On site</span>` : `<span style="color:#ccc;font-size:13px">—</span>`}
                 </div>
             </div>`;
         });
