@@ -3716,6 +3716,22 @@ function exportAttendancePDF() {
     if (w) { w.document.write(html); w.document.close(); }
 }
 
+function selectAllWorkers() {
+    if (!state.attendance) state.attendance = [];
+    if (!state.crew) state.crew = [];
+    let day = state.attendance.find(a => a.date === _attendanceDate);
+    if (!day) { day = { id: uid(), date: _attendanceDate, workerIds: [] }; state.attendance.push(day); }
+    day.workerIds = state.crew.map(c => c.id);
+    persist();
+    document.getElementById('app').innerHTML = renderAttendance();
+}
+
+function deselectAllWorkers() {
+    state.attendance = (state.attendance || []).filter(a => a.date !== _attendanceDate);
+    persist();
+    document.getElementById('app').innerHTML = renderAttendance();
+}
+
 function viewPastAttendance(date) {
     const day = getAttendanceDay(date);
     const crew = state.crew || [];
@@ -3795,9 +3811,13 @@ function renderAttendance() {
     if (crew.length === 0) {
         html += `<div class="card"><div class="empty-state">No crew roster yet.<br>Go to "Manage Roster" to add workers.</div></div>`;
     } else {
+        const allChecked = crew.length > 0 && presentCount === crew.length;
         html += `<div class="section-header">
             <span class="section-title">${isToday ? "Today" : isYesterday ? "Yesterday" : displayDate(_attendanceDate)} · <span id="att_count">${presentCount}</span> checked in</span>
-            ${presentCount > 0 ? `<button class="icon-btn" onclick="exportAttendancePDF()">&#8681; PDF</button>` : ''}
+            <div style="display:flex;gap:6px;align-items:center">
+                <button class="icon-btn" onclick="${allChecked ? 'deselectAllWorkers' : 'selectAllWorkers'}()">${allChecked ? 'Deselect All' : 'Select All'}</button>
+                ${presentCount > 0 ? `<button class="icon-btn" onclick="exportAttendancePDF()">&#8681; PDF</button>` : ''}
+            </div>
         </div>
         <div class="card" style="padding:8px 16px">`;
         crew.forEach(w => {
