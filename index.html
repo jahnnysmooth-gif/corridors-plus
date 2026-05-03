@@ -1626,7 +1626,10 @@ function renderFloor(floor) {
     html += `<div class="notes-card">
         <div class="notes-card-header">
             <span class="notes-card-label">Floor Notes</span>
-            <button class="notes-edit-btn" onclick="openEditNotes('${floor.id}')">${floor.notes ? 'Edit' : '+ Add'}</button>
+            <div style="display:flex;gap:8px">
+                ${floor.notes ? `<button class="notes-edit-btn" onclick="printFloorNotes()">&#8681; Print</button>` : ''}
+                <button class="notes-edit-btn" onclick="openEditNotes('${floor.id}')">${floor.notes ? 'Edit' : '+ Add'}</button>
+            </div>
         </div>
         ${floor.notes
             ? `<div class="notes-card-text">${floor.notes.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>')}</div>`
@@ -2611,6 +2614,27 @@ function openEditNotes(floorId) {
         persist(); closeModal(); render();
     });
     setTimeout(() => document.getElementById('fn_notes')?.focus(), 150);
+}
+
+function printFloorNotes() {
+    const floors = (state.floors || []).filter(f => f.notes);
+    if (floors.length === 0) { alert('No floor notes to print.'); return; }
+    const sections = floors.map(f => `
+        <div style="margin-bottom:28px;page-break-inside:avoid">
+            <div style="font-size:15px;font-weight:800;color:#1a3a5c;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid #1a3a5c">${f.name}</div>
+            <div style="font-size:14px;line-height:1.7;white-space:pre-wrap;color:#1a1a2e">${f.notes.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</div>
+        </div>`).join('');
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Floor Notes</title>
+    <style>* { box-sizing:border-box; margin:0; padding:0; } body { font-family:Arial,sans-serif; padding:32px; color:#111; max-width:700px; margin:0 auto; }
+    h1 { font-size:20px; font-weight:800; color:#1a3a5c; margin-bottom:4px; }
+    .meta { font-size:12px; color:#666; margin-bottom:28px; }
+    @media print { body { padding:16px; } }</style></head><body>
+    <h1>Corridor's Plus — Floor Notes</h1>
+    <div class="meta">Georgetown Plaza &nbsp;·&nbsp; ${displayDate(today())}</div>
+    ${sections}
+    <script>window.onload=()=>window.print();<\/script></body></html>`;
+    const w = window.open('','_blank');
+    if (w) { w.document.write(html); w.document.close(); }
 }
 
 // ── Backup / Restore ──────────────────────────────────────────────────────────
