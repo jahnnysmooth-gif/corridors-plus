@@ -3925,7 +3925,7 @@ function renderAttendance() {
         // Recent Days list (only shown when viewing today)
         if (isToday) {
             const allPastDays = (state.attendance || []).filter(a => a.date !== t).sort((a,b) => b.date.localeCompare(a.date));
-            const pastDays = _attShowAll ? allPastDays : allPastDays.slice(0, 8);
+            const pastDays = _attShowAll ? allPastDays : allPastDays.slice(0, 10);
 
             html += `<div class="section-header" style="margin-top:20px"><span class="section-title">Recent Days</span></div>`;
             html += `<div style="margin-bottom:10px"><input type="date" style="width:100%;padding:10px 12px;border:1.5px solid #e0e0e0;border-radius:10px;font-size:14px;color:#1a1a2e" onchange="if(this.value)setAttendanceDate(this.value)" placeholder="Pick any date…" /></div>`;
@@ -3943,7 +3943,7 @@ function renderAttendance() {
                     </div>`;
                 });
                 html += `</div>`;
-                if (allPastDays.length > 8) {
+                if (allPastDays.length > 10) {
                     html += `<button class="btn btn-secondary" style="width:100%;margin-top:8px" onclick="_attShowAll=!_attShowAll;document.getElementById('app').innerHTML=renderAttendance()">${_attShowAll ? 'Show Less' : 'Show All ' + allPastDays.length + ' Days'}</button>`;
                 }
             }
