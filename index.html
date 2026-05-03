@@ -3336,6 +3336,8 @@ function initFirebase() {
             state = remote;
             if (!state.floors) state.floors = [];
             if (!state.materials) state.materials = [];
+            if (!state.attendance) state.attendance = [];
+            if (!state.crew) state.crew = [];
             state.floors.forEach(f => { (f.items || []).forEach(i => { if (!i.hoursLog) i.hoursLog = []; }); });
             // Normalize materials: ensure log array and backfill trade
             const _tradeLookup = {};
@@ -3557,7 +3559,9 @@ function setAttendanceDate(date) {
 }
 
 function toggleSignIn(workerId) {
-    let day = (state.attendance || []).find(a => a.date === _attendanceDate);
+    if (!state.attendance) state.attendance = [];
+    if (!state.crew) state.crew = [];
+    let day = state.attendance.find(a => a.date === _attendanceDate);
     if (!day) {
         day = { id: uid(), date: _attendanceDate, workerIds: [] };
         state.attendance.push(day);
