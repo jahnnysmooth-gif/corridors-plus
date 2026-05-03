@@ -1244,16 +1244,6 @@ function renderFloors() {
 
     let html = '';
 
-    // Backup warning
-    const lastBackup  = localStorage.getItem('hallway_last_backup');
-    const daysSince   = lastBackup ? Math.floor((new Date(today()) - new Date(lastBackup)) / 86400000) : null;
-    if (state.floors.length > 0 && (daysSince === null || daysSince >= 7)) {
-        const msg = lastBackup ? `Last backup was ${daysSince} day${daysSince !== 1 ? 's' : ''} ago.` : "You haven't backed up yet.";
-        html += `<div class="backup-warning">
-            <span>&#9888; ${msg} Back up your data.</span>
-            <button class="backup-warn-btn" onclick="backupData()">Backup Now</button>
-        </div>`;
-    }
 
     const activeFloors    = state.floors.filter(f => !f.completed);
     const completedFloors = state.floors.filter(f =>  f.completed);
