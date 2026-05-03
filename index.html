@@ -3772,11 +3772,25 @@ function removeCrewMember(id) {
     document.getElementById('app').innerHTML = renderAttendance();
 }
 
+function crewSortOrder(trade) {
+    if (trade === 'Supervisor') return 0;
+    if (trade === 'Foreman') return 1;
+    return 2;
+}
+
+function sortedWorkerIds(workerIds, crew) {
+    return [...workerIds].sort((a, b) => {
+        const ma = crew.find(c => c.id === a);
+        const mb = crew.find(c => c.id === b);
+        return crewSortOrder(ma?.trade) - crewSortOrder(mb?.trade);
+    });
+}
+
 function exportAttendancePDF() {
     const day = getAttendanceDay(_attendanceDate);
     const checkedIds = new Set(day ? day.workerIds : []);
     const crew = state.crew || [];
-    const present = crew.filter(c => checkedIds.has(c.id));
+    const present = crew.filter(c => checkedIds.has(c.id)).sort((a,b) => crewSortOrder(a.trade) - crewSortOrder(b.trade));
     const dateStr = new Date(_attendanceDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     const rows = present.map(w =>
         `<tr><td>${w.name}</td><td>${w.trade || '—'}</td></tr>`
@@ -4039,7 +4053,7 @@ function renderReport(date) {
         html += `<div class="report-section"><div style="color:#bbb;font-style:italic;font-size:14px">No attendance logged.</div></div>`;
     } else {
         html += `<div class="report-section">`;
-        att.workerIds.forEach(wid => {
+        sortedWorkerIds(att.workerIds, crew).forEach(wid => {
             const member = crew.find(c => c.id === wid);
             if (!member) return;
             const detail = (att.details || {})[wid] || {};
@@ -4124,7 +4138,7 @@ function exportDailyReportPDF(date) {
     const dateStr = new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
 
     const workerRows = att && att.workerIds.length > 0
-        ? att.workerIds.map(wid => {
+        ? sortedWorkerIds(att.workerIds, crew).map(wid => {
             const m = crew.find(c=>c.id===wid);
             if (!m) return '';
             const detail = (att.details||{})[wid]||{};
