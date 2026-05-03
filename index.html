@@ -688,6 +688,14 @@
         .att-row.att-checked { background: #f0fdfe; }
         body.dark .att-row.att-checked { background: #0c2a30; }
 
+        /* ── Reports ── */
+        .report-day-card { background: white; border-radius: 12px; padding: 16px; margin-bottom: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
+        .report-day-date { font-size: 16px; font-weight: 700; }
+        .report-day-meta { font-size: 13px; color: #999; margin-top: 3px; }
+        .report-section { background: white; border-radius: 12px; padding: 16px; margin-bottom: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+        .report-worker-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+        .report-worker-row:last-child { border-bottom: none; }
+
         /* ── Dark mode ── */
         body.dark { background: #0d1117; color: #e2e8f0; }
         body.dark .card,
@@ -767,6 +775,10 @@
         body.dark .add-btn:hover { border-color: #60a5fa; color: #60a5fa; background: #1a2235; }
         body.dark .worker-row { border-color: #2d3748; }
         body.dark .worker-trade { color: #6b7280; }
+        body.dark .report-day-card,
+        body.dark .report-section { background: #1c2333; color: #e2e8f0; }
+        body.dark .report-day-meta { color: #6b7280; }
+        body.dark .report-worker-row { border-color: #2d3748; }
     </style>
 </head>
 <body>
@@ -839,6 +851,7 @@ if (!state.floors) state.floors = [];
 if (!state.materials) state.materials = [];
 if (!state.attendance) state.attendance = [];
 if (!state.crew) state.crew = [];
+if (!state.reports) state.reports = {};
 state.floors.forEach(f => {
     (f.items || []).forEach(i => { if (!i.hoursLog) i.hoursLog = []; });
 });
@@ -1119,10 +1132,10 @@ function hasUnsavedHours() {
     return (s + l + sh + lh) > 0;
 }
 
-function navigate(screen, floorId, itemId, matId, matTrade) {
+function navigate(screen, floorId, itemId, matId, matTrade, reportDate) {
     if (hasUnsavedHours() && !confirm('You have unsaved hours. Leave without logging?')) return;
     if (screen !== 'materials') _matSearch = '';
-    view = { screen, floorId: floorId || null, itemId: itemId || null, matId: matId || null, matTrade: matTrade || null };
+    view = { screen, floorId: floorId||null, itemId: itemId||null, matId: matId||null, matTrade: matTrade||null, reportDate: reportDate||null };
     render();
 }
 
@@ -1135,6 +1148,8 @@ function render() {
 
     back.style.display = 'none';
     exp.style.display  = 'none';
+    exp.onclick = () => openExportModal();
+    exp.textContent = 'Export';
     document.getElementById('homeBtn').style.display = view.screen === 'home' ? 'none' : 'inline-block';
 
     if (view.screen === 'home') {
@@ -1195,6 +1210,21 @@ function render() {
         back.onclick = () => navigate('home');
         title.textContent = 'Attendance';
         app.innerHTML = renderAttendance();
+
+    } else if (view.screen === 'reports') {
+        back.style.display = 'block';
+        back.onclick = () => navigate('home');
+        title.textContent = 'Daily Reports';
+        app.innerHTML = renderReports();
+
+    } else if (view.screen === 'report') {
+        back.style.display = 'block';
+        back.onclick = () => navigate('reports');
+        title.textContent = view.reportDate ? displayDate(view.reportDate) : 'Report';
+        exp.style.display = 'block';
+        exp.onclick = () => exportDailyReportPDF(view.reportDate);
+        exp.textContent = 'PDF';
+        app.innerHTML = renderReport(view.reportDate);
     }
 }
 
@@ -1241,6 +1271,13 @@ function renderHome() {
     }).length;
     const todayAtt     = (state.attendance || []).find(a => a.date === today());
     const todayWorkers = todayAtt ? todayAtt.workerIds.length : 0;
+    const reportDaysCount = (() => {
+        const dates = new Set();
+        (state.attendance || []).forEach(a => dates.add(a.date));
+        (state.floors || []).forEach(f => (f.items||[]).forEach(i => (i.hoursLog||[]).forEach(e => dates.add(e.date))));
+        Object.keys(state.reports || {}).forEach(d => dates.add(d));
+        return dates.size;
+    })();
 
     return `
         <div class="home-grid">
@@ -1260,6 +1297,11 @@ function renderHome() {
                 <span class="home-tile-icon">📋</span>
                 <div class="home-tile-label">Attendance</div>
                 <div class="home-tile-sub">${todayWorkers > 0 ? `${todayWorkers} worker${todayWorkers !== 1 ? 's' : ''} today` : 'No sign-ins today'}</div>
+            </button>
+            <button class="home-tile" style="border-top:4px solid #7c3aed" onclick="navigate('reports')">
+                <span class="home-tile-icon">📄</span>
+                <div class="home-tile-label">Daily Reports</div>
+                <div class="home-tile-sub">${reportDaysCount > 0 ? `${reportDaysCount} day${reportDaysCount !== 1 ? 's' : ''} with data` : 'Tap to view'}</div>
             </button>
         </div>
         <div class="home-subtitle">Georgetown Plaza · Corridor Renovation</div>
@@ -3338,6 +3380,7 @@ function initFirebase() {
             if (!state.materials) state.materials = [];
             if (!state.attendance) state.attendance = [];
             if (!state.crew) state.crew = [];
+            if (!state.reports) state.reports = {};
             state.floors.forEach(f => { (f.items || []).forEach(i => { if (!i.hoursLog) i.hoursLog = []; }); });
             // Normalize materials: ensure log array and backfill trade
             const _tradeLookup = {};
@@ -3567,23 +3610,70 @@ function toggleSignIn(workerId) {
         state.attendance.push(day);
     }
     const idx = day.workerIds.indexOf(workerId);
-    if (idx === -1) day.workerIds.push(workerId);
-    else day.workerIds.splice(idx, 1);
-    if (day.workerIds.length === 0) state.attendance = state.attendance.filter(a => a.date !== _attendanceDate);
-    persist();
-    // toggle checkbox in DOM without full re-render
-    const cb = document.getElementById('cb_' + workerId);
-    const row = document.getElementById('wr_' + workerId);
-    if (cb) cb.checked = idx === -1;
-    if (row) row.classList.toggle('att-checked', idx === -1);
-    // update count badge
-    const countEl = document.getElementById('att_count');
-    const newDay = (state.attendance || []).find(a => a.date === _attendanceDate);
-    const cnt = newDay ? newDay.workerIds.length : 0;
-    if (countEl) countEl.textContent = cnt;
-    // update stat
-    const statEl = document.getElementById('att_stat_count');
-    if (statEl) statEl.textContent = cnt;
+    if (idx === -1) {
+        // Checking IN — open modal to capture task + floors
+        openSignInDetailModal(workerId, day);
+    } else {
+        // Checking OUT — remove from workerIds, delete from details
+        day.workerIds.splice(idx, 1);
+        if (day.details) delete day.details[workerId];
+        if (day.workerIds.length === 0) state.attendance = state.attendance.filter(a => a.date !== _attendanceDate);
+        persist();
+        // toggle checkbox in DOM without full re-render
+        const cb = document.getElementById('cb_' + workerId);
+        const row = document.getElementById('wr_' + workerId);
+        if (cb) cb.checked = false;
+        if (row) row.classList.remove('att-checked');
+        // update count badge
+        const countEl = document.getElementById('att_count');
+        const newDay = (state.attendance || []).find(a => a.date === _attendanceDate);
+        const cnt = newDay ? newDay.workerIds.length : 0;
+        if (countEl) countEl.textContent = cnt;
+        // update stat
+        const statEl = document.getElementById('att_stat_count');
+        if (statEl) statEl.textContent = cnt;
+    }
+}
+
+function openSignInDetailModal(workerId, day) {
+    const member = (state.crew || []).find(c => c.id === workerId);
+    const existingDetail = (day.details || {})[workerId] || {};
+    const floorCheckboxes = (state.floors || []).map(f =>
+        `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f0f0f0">
+            <input type="checkbox" id="floor_cb_${f.id}" ${(existingDetail.floorIds||[]).includes(f.id) ? 'checked' : ''} style="width:18px;height:18px;accent-color:#0891b2;cursor:pointer" />
+            <label for="floor_cb_${f.id}" style="font-size:14px;cursor:pointer">${f.name}</label>
+        </div>`
+    ).join('') || '<div style="color:#aaa;font-style:italic;font-size:13px">No floors added yet.</div>';
+    openModal(
+        (member ? member.name + ' — ' : '') + 'Sign In Details',
+        `<div class="form-group">
+            <label>Task</label>
+            <input id="signin_task" type="text" placeholder="e.g. Skim Coat, Priming" value="${(existingDetail.task||'').replace(/"/g,'&quot;')}" />
+        </div>
+        <div class="form-group">
+            <label>Floor(s)</label>
+            <div style="max-height:200px;overflow-y:auto;border:1.5px solid #e0e0e0;border-radius:8px;padding:0 12px">
+                ${floorCheckboxes}
+            </div>
+        </div>`,
+        () => {
+            const task = (document.getElementById('signin_task')?.value || '').trim();
+            const floorIds = (state.floors || []).filter(f => document.getElementById('floor_cb_' + f.id)?.checked).map(f => f.id);
+            if (!day.details) day.details = {};
+            day.workerIds.push(workerId);
+            day.details[workerId] = { task, floorIds };
+            persist();
+            closeModal();
+            document.getElementById('app').innerHTML = renderAttendance();
+        }
+    );
+}
+
+function editSignInDetail(workerId) {
+    if (!state.attendance) return;
+    let day = state.attendance.find(a => a.date === _attendanceDate);
+    if (!day) return;
+    openSignInDetailModal(workerId, day);
 }
 
 function addCrewMember() {
@@ -3722,6 +3812,11 @@ function selectAllWorkers() {
     let day = state.attendance.find(a => a.date === _attendanceDate);
     if (!day) { day = { id: uid(), date: _attendanceDate, workerIds: [] }; state.attendance.push(day); }
     day.workerIds = state.crew.map(c => c.id);
+    day.details = day.details || {};
+    // Add empty details for any crew member not yet having details
+    state.crew.forEach(c => {
+        if (!day.details[c.id]) day.details[c.id] = { task: '', floorIds: [] };
+    });
     persist();
     document.getElementById('app').innerHTML = renderAttendance();
 }
@@ -3820,8 +3915,14 @@ function renderAttendance() {
             </div>
         </div>
         <div class="card" style="padding:8px 16px">`;
+        const currentDay = getAttendanceDay(_attendanceDate);
         crew.forEach(w => {
             const checked = checkedIds.has(w.id);
+            const detail = (currentDay?.details || {})[w.id];
+            const floorNames = (detail?.floorIds || []).map(fid => (state.floors||[]).find(f=>f.id===fid)?.name).filter(Boolean);
+            const detailLine = checked && detail && (detail.task || floorNames.length > 0)
+                ? `<div style="font-size:11px;color:#0891b2;margin-top:2px">${[detail.task, floorNames.join(', ')].filter(Boolean).join(' · ')}</div>`
+                : '';
             html += `<div class="worker-row att-row${checked?' att-checked':''}" id="wr_${w.id}" onclick="toggleSignIn('${w.id}')" style="cursor:pointer">
                 <div style="display:flex;align-items:center;gap:12px">
                     <input type="checkbox" id="cb_${w.id}" ${checked?'checked':''} onclick="event.stopPropagation();toggleSignIn('${w.id}')"
@@ -3829,9 +3930,13 @@ function renderAttendance() {
                     <div>
                         <div class="worker-name">${w.name}</div>
                         ${w.trade ? `<div class="worker-trade">${w.trade}</div>` : ''}
+                        ${detailLine}
                     </div>
                 </div>
-                ${checked ? `<span style="color:#0891b2;font-size:13px;font-weight:700">On site</span>` : `<span style="color:#ccc;font-size:13px">—</span>`}
+                <div style="display:flex;align-items:center;gap:8px">
+                    ${checked ? `<button class="edit-row" style="font-size:14px" onclick="event.stopPropagation();editSignInDetail('${w.id}')">&#9998;</button>` : ''}
+                    ${checked ? `<span style="color:#0891b2;font-size:13px;font-weight:700">On site</span>` : `<span style="color:#ccc;font-size:13px">—</span>`}
+                </div>
             </div>`;
         });
         html += `</div>`;
@@ -3887,6 +3992,189 @@ function renderAttendance() {
     html += `</div>`; // end roster tab
 
     return html;
+}
+
+// ── Reports ──────────────────────────────────────────────────────────────────
+function renderReports() {
+    const dates = new Set();
+    (state.attendance || []).forEach(a => dates.add(a.date));
+    (state.floors || []).forEach(f => (f.items||[]).forEach(i => (i.hoursLog||[]).forEach(e => dates.add(e.date))));
+    Object.keys(state.reports || {}).forEach(d => dates.add(d));
+
+    const sorted = [...dates].sort((a,b) => b.localeCompare(a));
+
+    if (sorted.length === 0) {
+        return `<div class="card"><div class="empty-state">No reports yet.<br>Log labor or attendance to generate a report.</div></div>`;
+    }
+
+    let html = '';
+    sorted.forEach(date => {
+        const att = (state.attendance||[]).find(a => a.date === date);
+        const workerCount = att ? att.workerIds.length : 0;
+        const dayMH = (state.floors||[]).reduce((s,f) => s + (f.items||[]).reduce((ss,i) => ss + (i.hoursLog||[]).filter(e=>e.date===date).reduce((sss,e)=>sss+entryManHours(e),0), 0), 0);
+        const hasNotes = !!(state.reports?.[date]?.notes);
+        html += `<div class="report-day-card" onclick="navigate('report',null,null,null,null,'${date}')">
+            <div>
+                <div class="report-day-date">${displayDate(date)}</div>
+                <div class="report-day-meta">${workerCount > 0 ? workerCount + ' on site' : 'No attendance'}${dayMH > 0 ? ' · ' + dayMH + ' man-hrs' : ''}${hasNotes ? ' · 📝' : ''}</div>
+            </div>
+            <span style="color:#ccc;font-size:22px">›</span>
+        </div>`;
+    });
+    return html;
+}
+
+function renderReport(date) {
+    if (!date) return '<div class="empty-state">No date selected.</div>';
+    const att = (state.attendance||[]).find(a => a.date === date);
+    const crew = state.crew || [];
+    const floors = state.floors || [];
+    const report = (state.reports || {})[date] || {};
+
+    let html = '';
+
+    // ── Workers on site
+    html += `<div class="section-header"><span class="section-title">Workers on Site</span></div>`;
+    if (!att || att.workerIds.length === 0) {
+        html += `<div class="report-section"><div style="color:#bbb;font-style:italic;font-size:14px">No attendance logged.</div></div>`;
+    } else {
+        html += `<div class="report-section">`;
+        att.workerIds.forEach(wid => {
+            const member = crew.find(c => c.id === wid);
+            if (!member) return;
+            const detail = (att.details || {})[wid] || {};
+            const floorNames = (detail.floorIds || []).map(fid => floors.find(f=>f.id===fid)?.name).filter(Boolean);
+            html += `<div class="report-worker-row">
+                <div>
+                    <div style="font-weight:700;font-size:14px">${member.name}</div>
+                    <div style="font-size:12px;color:#999;margin-top:2px">${member.trade || ''}${detail.task ? ' · ' + detail.task : ''}${floorNames.length > 0 ? ' · ' + floorNames.join(', ') : ''}</div>
+                </div>
+            </div>`;
+        });
+        html += `</div>`;
+    }
+
+    // ── Labor by floor
+    const floorData = [];
+    floors.forEach(f => {
+        const entries = (f.items||[]).flatMap(i => (i.hoursLog||[]).filter(e=>e.date===date).map(e=>({item:i.name, mh:entryManHours(e)})));
+        if (entries.length > 0) {
+            const total = entries.reduce((s,e)=>s+e.mh, 0);
+            floorData.push({ name: f.name, total, entries });
+        }
+    });
+    html += `<div class="section-header"><span class="section-title">Labor</span></div>`;
+    if (floorData.length === 0) {
+        html += `<div class="report-section"><div style="color:#bbb;font-style:italic;font-size:14px">No labor logged.</div></div>`;
+    } else {
+        html += `<div class="report-section">`;
+        floorData.forEach(f => {
+            html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f0f0f0">
+                <div>
+                    <div style="font-weight:700;font-size:14px">${f.name}</div>
+                    <div style="font-size:12px;color:#999;margin-top:2px">${f.entries.map(e=>e.item+' ('+e.mh+' mh)').join(', ')}</div>
+                </div>
+                <span style="font-weight:800;font-size:16px;color:#1a3a5c">${f.total} mh</span>
+            </div>`;
+        });
+        html += `</div>`;
+    }
+
+    // ── Materials used
+    const matUsed = (state.materials||[]).map(m => {
+        const entries = (m.log||[]).filter(e=>e.type==='usage'&&e.date===date);
+        const qty = entries.reduce((s,e)=>s+e.qty,0);
+        return qty > 0 ? { name: m.name, unit: m.unit, qty } : null;
+    }).filter(Boolean);
+    html += `<div class="section-header"><span class="section-title">Materials Used</span></div>`;
+    if (matUsed.length === 0) {
+        html += `<div class="report-section"><div style="color:#bbb;font-style:italic;font-size:14px">No materials logged.</div></div>`;
+    } else {
+        html += `<div class="report-section">`;
+        matUsed.forEach(m => {
+            html += `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0f0f0">
+                <span style="font-size:14px">${m.name}</span>
+                <span style="font-weight:700;font-size:14px;color:#1a3a5c">${m.qty} ${m.unit}</span>
+            </div>`;
+        });
+        html += `</div>`;
+    }
+
+    // ── Notes
+    html += `<div class="section-header"><span class="section-title">Notes</span></div>`;
+    html += `<div class="report-section">
+        <textarea id="report_notes" rows="4" placeholder="Observations, delays, issues…" style="width:100%;border:none;outline:none;font-size:14px;resize:none;font-family:inherit;background:transparent;color:inherit" onchange="saveReportNotes('${date}',this.value)">${report.notes || ''}</textarea>
+    </div>`;
+
+    return html;
+}
+
+function saveReportNotes(date, notes) {
+    if (!state.reports) state.reports = {};
+    if (!state.reports[date]) state.reports[date] = {};
+    state.reports[date].notes = notes;
+    persist();
+}
+
+function exportDailyReportPDF(date) {
+    const att = (state.attendance||[]).find(a=>a.date===date);
+    const crew = state.crew||[];
+    const floors = state.floors||[];
+    const report = (state.reports||{})[date]||{};
+    const dateStr = new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+    const workerRows = att && att.workerIds.length > 0
+        ? att.workerIds.map(wid => {
+            const m = crew.find(c=>c.id===wid);
+            if (!m) return '';
+            const detail = (att.details||{})[wid]||{};
+            const floorNames = (detail.floorIds||[]).map(fid=>floors.find(f=>f.id===fid)?.name).filter(Boolean);
+            const taskStr = [detail.task, floorNames.join(', ')].filter(Boolean).join(' · ');
+            return `<tr><td>${m.name}</td><td>${m.trade||'—'}</td><td>${taskStr||'—'}</td></tr>`;
+          }).join('')
+        : '<tr><td colspan="3" style="color:#aaa;font-style:italic">No attendance logged</td></tr>';
+
+    const laborRows = floors.map(f => {
+        const entries = (f.items||[]).flatMap(i=>(i.hoursLog||[]).filter(e=>e.date===date).map(e=>({item:i.name,mh:entryManHours(e)})));
+        if (!entries.length) return '';
+        const total = entries.reduce((s,e)=>s+e.mh,0);
+        return `<tr><td>${f.name}</td><td>${entries.map(e=>e.item+' ('+e.mh+' mh)').join(', ')}</td><td style="font-weight:700">${total} mh</td></tr>`;
+    }).join('');
+
+    const matRows = (state.materials||[]).map(m=>{
+        const qty = (m.log||[]).filter(e=>e.type==='usage'&&e.date===date).reduce((s,e)=>s+e.qty,0);
+        return qty>0?`<tr><td>${m.name}</td><td>${qty} ${m.unit}</td></tr>`:'';
+    }).join('');
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <style>
+        body{font-family:-apple-system,Arial,sans-serif;padding:32px;color:#111}
+        h1{font-size:22px;font-weight:800;color:#1a3a5c;margin:0}
+        .sub{font-size:14px;color:#666;margin:4px 0 24px}
+        h2{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#888;margin:24px 0 8px}
+        table{width:100%;border-collapse:collapse;margin-bottom:8px}
+        th{background:#1a3a5c;color:white;padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+        td{padding:9px 12px;border-bottom:1px solid #eee;font-size:14px}
+        .notes{background:#fffbeb;border:1.5px solid #fde68a;border-radius:8px;padding:14px;font-size:14px;line-height:1.6;white-space:pre-wrap}
+        .footer{margin-top:32px;font-size:11px;color:#bbb;border-top:1px solid #eee;padding-top:12px}
+    </style></head><body>
+    <h1>Corridor's Plus — Georgetown Plaza</h1>
+    <div class="sub">Daily Report &nbsp;·&nbsp; ${dateStr}</div>
+
+    <h2>Workers on Site</h2>
+    <table><thead><tr><th>Name</th><th>Trade</th><th>Task / Floor</th></tr></thead><tbody>${workerRows}</tbody></table>
+
+    ${laborRows ? `<h2>Labor</h2><table><thead><tr><th>Floor</th><th>Work</th><th>Man-Hrs</th></tr></thead><tbody>${laborRows}</tbody></table>` : ''}
+
+    ${matRows ? `<h2>Materials Used</h2><table><thead><tr><th>Material</th><th>Quantity</th></tr></thead><tbody>${matRows}</tbody></table>` : ''}
+
+    ${report.notes ? `<h2>Notes</h2><div class="notes">${report.notes}</div>` : ''}
+
+    <div class="footer">Generated by Corridor's Plus &nbsp;·&nbsp; ${new Date().toLocaleString()}</div>
+    <script>window.onload=()=>window.print();<\/script>
+    </body></html>`;
+    const w = window.open('','_blank');
+    if (w){w.document.write(html);w.document.close();}
 }
 
 // ── Dark mode ─────────────────────────────────────────────────────────────────
