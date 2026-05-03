@@ -677,6 +677,17 @@
             letter-spacing: 0.3px;
         }
 
+        /* ── Attendance ── */
+        .home-tile.attendance { border-top: 4px solid #0891b2; }
+        .worker-row { display: flex; align-items: center; justify-content: space-between; padding: 11px 0; border-bottom: 1px solid #f0f0f0; }
+        .worker-row:last-child { border-bottom: none; }
+        .worker-name { font-size: 15px; font-weight: 700; }
+        .worker-trade { font-size: 12px; color: #999; margin-top: 2px; }
+        .attendance-count { font-size: 11px; font-weight: 700; color: #0891b2; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+        .att-row { transition: background 0.1s; border-radius: 6px; margin: 0 -4px; padding-left: 4px; padding-right: 4px; }
+        .att-row.att-checked { background: #f0fdfe; }
+        body.dark .att-row.att-checked { background: #0c2a30; }
+
         /* ── Dark mode ── */
         body.dark { background: #0d1117; color: #e2e8f0; }
         body.dark .card,
@@ -754,6 +765,8 @@
         body.dark .week-grand { border-color: #2d3748; }
         body.dark .add-btn { border-color: #374151; color: #6b7280; }
         body.dark .add-btn:hover { border-color: #60a5fa; color: #60a5fa; background: #1a2235; }
+        body.dark .worker-row { border-color: #2d3748; }
+        body.dark .worker-trade { color: #6b7280; }
     </style>
 </head>
 <body>
@@ -824,6 +837,8 @@ let state = JSON.parse(localStorage.getItem('hallway_tracker_v2') || '{"floors":
 // Normalize missing arrays
 if (!state.floors) state.floors = [];
 if (!state.materials) state.materials = [];
+if (!state.attendance) state.attendance = [];
+if (!state.crew) state.crew = [];
 state.floors.forEach(f => {
     (f.items || []).forEach(i => { if (!i.hoursLog) i.hoursLog = []; });
 });
@@ -1174,6 +1189,12 @@ function render() {
         back.onclick = () => navigate('materials');
         title.textContent = 'Reorder List';
         app.innerHTML = renderReorderList();
+
+    } else if (view.screen === 'attendance') {
+        back.style.display = 'block';
+        back.onclick = () => navigate('home');
+        title.textContent = 'Attendance';
+        app.innerHTML = renderAttendance();
     }
 }
 
@@ -1218,6 +1239,8 @@ function renderHome() {
         const s = matCurrentStock(m);
         return m.parQty > 0 && s !== null && s < m.parQty;
     }).length;
+    const todayAtt     = (state.attendance || []).find(a => a.date === today());
+    const todayWorkers = todayAtt ? todayAtt.workerIds.length : 0;
 
     return `
         <div class="home-grid">
@@ -1231,6 +1254,12 @@ function renderHome() {
                 <span class="home-tile-icon">🧰</span>
                 <div class="home-tile-label">Material Inventory</div>
                 <div class="home-tile-sub">${matCount} material${matCount !== 1 ? 's' : ''}${lastEod ? ' · last updated ' + displayDate(lastEod) : ''}</div>
+            </button>
+            <button class="home-tile attendance" onclick="navigate('attendance')" style="position:relative">
+                ${todayWorkers > 0 ? `<span style="position:absolute;top:12px;right:12px;background:#0891b2;color:white;font-size:11px;font-weight:800;padding:2px 8px;border-radius:99px">${todayWorkers} in</span>` : ''}
+                <span class="home-tile-icon">📋</span>
+                <div class="home-tile-label">Attendance</div>
+                <div class="home-tile-sub">${todayWorkers > 0 ? `${todayWorkers} worker${todayWorkers !== 1 ? 's' : ''} today` : 'No sign-ins today'}</div>
             </button>
         </div>
         <div class="home-subtitle">Georgetown Plaza · Corridor Renovation</div>
@@ -3507,6 +3536,314 @@ function disconnectSync() {
     document.getElementById('appIcon').href = url;
     document.getElementById('favicon').href = url;
 })();
+
+// ── Attendance ────────────────────────────────────────────────────────────────
+let _attendanceDate = today();
+let _attView = 'signin'; // 'signin' | 'roster'
+
+function getAttendanceDay(date) {
+    return (state.attendance || []).find(a => a.date === date) || null;
+}
+
+function getCheckedIds(date) {
+    const day = getAttendanceDay(date);
+    return new Set(day ? day.workerIds : []);
+}
+
+function setAttendanceDate(date) {
+    if (!date) return;
+    _attendanceDate = date;
+    document.getElementById('app').innerHTML = renderAttendance();
+}
+
+function toggleSignIn(workerId) {
+    let day = (state.attendance || []).find(a => a.date === _attendanceDate);
+    if (!day) {
+        day = { id: uid(), date: _attendanceDate, workerIds: [] };
+        state.attendance.push(day);
+    }
+    const idx = day.workerIds.indexOf(workerId);
+    if (idx === -1) day.workerIds.push(workerId);
+    else day.workerIds.splice(idx, 1);
+    if (day.workerIds.length === 0) state.attendance = state.attendance.filter(a => a.date !== _attendanceDate);
+    persist();
+    // toggle checkbox in DOM without full re-render
+    const cb = document.getElementById('cb_' + workerId);
+    const row = document.getElementById('wr_' + workerId);
+    if (cb) cb.checked = idx === -1;
+    if (row) row.classList.toggle('att-checked', idx === -1);
+    // update count badge
+    const countEl = document.getElementById('att_count');
+    const newDay = (state.attendance || []).find(a => a.date === _attendanceDate);
+    const cnt = newDay ? newDay.workerIds.length : 0;
+    if (countEl) countEl.textContent = cnt;
+    // update stat
+    const statEl = document.getElementById('att_stat_count');
+    if (statEl) statEl.textContent = cnt;
+}
+
+function addCrewMember() {
+    const trades = ['Plasterer', 'Painter', 'Wallcovering', 'Carpenter', 'Electrician', 'Laborer', 'Foreman', 'Other'];
+    openModal('Add Crew Member', `
+        <div class="form-group">
+            <label>Full Name</label>
+            <input id="att_name" type="text" placeholder="e.g. John Smith" autocomplete="off" />
+        </div>
+        <div class="form-group">
+            <label>Trade / Role</label>
+            <select id="att_trade">
+                <option value="">— select —</option>
+                ${trades.map(t => `<option value="${t}">${t}</option>`).join('')}
+                <option value="__custom">Custom (type below)</option>
+            </select>
+        </div>
+        <div class="form-group" id="att_custom_wrap" style="display:none">
+            <label>Custom Trade</label>
+            <input id="att_custom_trade" type="text" placeholder="e.g. Tile Setter" />
+        </div>
+    `, () => {
+        const name = document.getElementById('att_name').value.trim();
+        if (!name) { alert('Enter a name.'); return; }
+        const sel   = document.getElementById('att_trade').value;
+        const trade = sel === '__custom'
+            ? (document.getElementById('att_custom_trade').value.trim() || '')
+            : sel;
+        if (!state.crew) state.crew = [];
+        state.crew.push({ id: uid(), name, trade });
+        persist(); closeModal();
+        document.getElementById('app').innerHTML = renderAttendance();
+    });
+    setTimeout(() => {
+        const sel = document.getElementById('att_trade');
+        if (sel) sel.addEventListener('change', () => {
+            const wrap = document.getElementById('att_custom_wrap');
+            if (wrap) wrap.style.display = sel.value === '__custom' ? '' : 'none';
+        });
+        document.getElementById('att_name')?.focus();
+    }, 50);
+}
+
+function editCrewMember(id) {
+    const member = (state.crew || []).find(c => c.id === id);
+    if (!member) return;
+    const trades = ['Plasterer', 'Painter', 'Wallcovering', 'Carpenter', 'Electrician', 'Laborer', 'Foreman', 'Other'];
+    const isKnown = trades.includes(member.trade);
+    openModal('Edit Crew Member', `
+        <div class="form-group">
+            <label>Full Name</label>
+            <input id="att_name" type="text" value="${member.name}" />
+        </div>
+        <div class="form-group">
+            <label>Trade / Role</label>
+            <select id="att_trade">
+                <option value="">— select —</option>
+                ${trades.map(t => `<option value="${t}" ${t === member.trade ? 'selected' : ''}>${t}</option>`).join('')}
+                <option value="__custom" ${!isKnown && member.trade ? 'selected' : ''}>Custom (type below)</option>
+            </select>
+        </div>
+        <div class="form-group" id="att_custom_wrap" style="display:${!isKnown && member.trade ? '' : 'none'}">
+            <label>Custom Trade</label>
+            <input id="att_custom_trade" type="text" value="${!isKnown ? member.trade : ''}" />
+        </div>
+    `, () => {
+        const name = document.getElementById('att_name').value.trim();
+        if (!name) { alert('Enter a name.'); return; }
+        const sel   = document.getElementById('att_trade').value;
+        const trade = sel === '__custom'
+            ? (document.getElementById('att_custom_trade').value.trim() || '')
+            : sel;
+        member.name  = name;
+        member.trade = trade;
+        persist(); closeModal();
+        document.getElementById('app').innerHTML = renderAttendance();
+    });
+    setTimeout(() => {
+        const sel = document.getElementById('att_trade');
+        if (sel) sel.addEventListener('change', () => {
+            const wrap = document.getElementById('att_custom_wrap');
+            if (wrap) wrap.style.display = sel.value === '__custom' ? '' : 'none';
+        });
+    }, 50);
+}
+
+function removeCrewMember(id) {
+    if (!confirm('Remove this person from the crew roster?')) return;
+    state.crew = (state.crew || []).filter(c => c.id !== id);
+    // also purge from all attendance days
+    (state.attendance || []).forEach(a => {
+        a.workerIds = a.workerIds.filter(wid => wid !== id);
+    });
+    state.attendance = state.attendance.filter(a => a.workerIds.length > 0);
+    persist();
+    document.getElementById('app').innerHTML = renderAttendance();
+}
+
+function exportAttendancePDF() {
+    const day = getAttendanceDay(_attendanceDate);
+    const checkedIds = new Set(day ? day.workerIds : []);
+    const crew = state.crew || [];
+    const present = crew.filter(c => checkedIds.has(c.id));
+    const absent  = crew.filter(c => !checkedIds.has(c.id));
+    const dateStr = new Date(_attendanceDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const rows = (list, cls) => list.map(w =>
+        `<tr class="${cls}"><td>${w.name}</td><td>${w.trade || '—'}</td><td style="text-align:center;font-size:18px">${cls === 'present' ? '✓' : ''}</td></tr>`
+    ).join('');
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <style>
+        body { font-family: -apple-system, Arial, sans-serif; padding: 32px; color: #111; }
+        .header { margin-bottom: 28px; }
+        .header h1 { font-size: 22px; font-weight: 800; color: #1a3a5c; }
+        .header .sub { font-size: 14px; color: #666; margin-top: 4px; }
+        .badge { display:inline-block; background:#0891b2; color:white; font-size:13px; font-weight:700; padding:3px 12px; border-radius:99px; margin-top:8px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th { background: #1a3a5c; color: white; padding: 9px 12px; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+        td { padding: 10px 12px; border-bottom: 1px solid #eee; font-size: 14px; }
+        tr.present td { background: #f0fdf4; }
+        tr.absent td { background: #fafafa; color: #aaa; }
+        .section-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; color: #888; margin: 24px 0 6px; }
+        .footer { margin-top: 32px; font-size: 11px; color: #bbb; border-top: 1px solid #eee; padding-top: 12px; }
+    </style></head><body>
+    <div class="header">
+        <h1>Corridor's Plus — Georgetown Plaza</h1>
+        <div class="sub">Attendance Sheet &nbsp;·&nbsp; ${dateStr}</div>
+        <div class="badge">${present.length} of ${crew.length} on site</div>
+    </div>
+    <div class="section-label">Present (${present.length})</div>
+    <table><thead><tr><th>Name</th><th>Trade</th><th style="width:60px;text-align:center">✓</th></tr></thead><tbody>
+    ${present.length > 0 ? rows(present, 'present') : '<tr><td colspan="3" style="color:#aaa;font-style:italic">None checked in</td></tr>'}
+    </tbody></table>
+    ${absent.length > 0 ? `<div class="section-label">Not on Site (${absent.length})</div>
+    <table><thead><tr><th>Name</th><th>Trade</th><th style="width:60px"></th></tr></thead><tbody>
+    ${rows(absent, 'absent')}</tbody></table>` : ''}
+    <div class="footer">Generated by Corridor's Plus &nbsp;·&nbsp; ${new Date().toLocaleString()}</div>
+    <script>window.onload = () => window.print();<\/script>
+    </body></html>`;
+    const w = window.open('', '_blank');
+    if (w) { w.document.write(html); w.document.close(); }
+}
+
+function renderAttendance() {
+    const t   = today();
+    const yes = yesterday();
+    const crew = state.crew || [];
+    const checkedIds = getCheckedIds(_attendanceDate);
+    const presentCount = checkedIds.size;
+    const isToday = _attendanceDate === t;
+    const isYesterday = _attendanceDate === yes;
+
+    let html = '';
+
+    // Tab switcher
+    html += `<div style="display:flex;gap:0;margin-bottom:16px;border:1.5px solid #e0e0e0;border-radius:10px;overflow:hidden">
+        <button onclick="document.getElementById('att_tab_signin').style.display='';document.getElementById('att_tab_roster').style.display='none';this.style.background='#1a3a5c';this.style.color='white';document.getElementById('att_roster_tab_btn').style.background='';document.getElementById('att_roster_tab_btn').style.color=''" id="att_signin_tab_btn"
+            style="flex:1;padding:10px;border:none;cursor:pointer;font-size:14px;font-weight:600;background:${_attView==='signin'?'#1a3a5c':'white'};color:${_attView==='signin'?'white':'#555'}">
+            Sign-In
+        </button>
+        <button onclick="document.getElementById('att_tab_roster').style.display='';document.getElementById('att_tab_signin').style.display='none';this.style.background='#1a3a5c';this.style.color='white';document.getElementById('att_signin_tab_btn').style.background='';document.getElementById('att_signin_tab_btn').style.color=''" id="att_roster_tab_btn"
+            style="flex:1;padding:10px;border:none;border-left:1.5px solid #e0e0e0;cursor:pointer;font-size:14px;font-weight:600;background:${_attView==='roster'?'#1a3a5c':'white'};color:${_attView==='roster'?'white':'#555'}">
+            Manage Roster
+        </button>
+    </div>`;
+
+    // ── Sign-In tab ──
+    html += `<div id="att_tab_signin" style="display:${_attView==='roster'?'none':''}">`;
+
+    // Date selector
+    html += `<div class="quick-log-card" style="margin-bottom:14px">
+        <div class="quick-log-date">
+            <button class="date-chip ${isToday?'active':''}" onclick="setAttendanceDate('${t}')">Today</button>
+            <button class="date-chip ${isYesterday?'active':''}" onclick="setAttendanceDate('${yes}')">Yesterday</button>
+            <button class="cal-btn ${!isToday&&!isYesterday?'active':''}" onclick="document.getElementById('att_date_wrap').classList.toggle('open')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${!isToday&&!isYesterday?'white':'#555'}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </button>
+        </div>
+        <div class="date-picker-wrap${!isToday&&!isYesterday?' open':''}" id="att_date_wrap">
+            <input type="date" value="${!isToday&&!isYesterday?_attendanceDate:''}" onchange="setAttendanceDate(this.value)" />
+        </div>
+    </div>`;
+
+    // Stats
+    html += `<div class="stats-row" style="grid-template-columns:1fr 1fr;margin-bottom:14px">
+        <div class="stat-card"><div class="stat-value" id="att_stat_count" style="color:#0891b2">${presentCount}</div><div class="stat-label">On Site</div></div>
+        <div class="stat-card"><div class="stat-value">${crew.length}</div><div class="stat-label">Crew Total</div></div>
+    </div>`;
+
+    if (crew.length === 0) {
+        html += `<div class="card"><div class="empty-state">No crew roster yet.<br>Go to "Manage Roster" to add workers.</div></div>`;
+    } else {
+        html += `<div class="section-header">
+            <span class="section-title">${isToday ? "Today" : isYesterday ? "Yesterday" : displayDate(_attendanceDate)} · <span id="att_count">${presentCount}</span> checked in</span>
+            ${presentCount > 0 ? `<button class="icon-btn" onclick="exportAttendancePDF()">&#8681; PDF</button>` : ''}
+        </div>
+        <div class="card" style="padding:8px 16px">`;
+        crew.forEach(w => {
+            const checked = checkedIds.has(w.id);
+            html += `<div class="worker-row att-row${checked?' att-checked':''}" id="wr_${w.id}" onclick="toggleSignIn('${w.id}')" style="cursor:pointer">
+                <div style="display:flex;align-items:center;gap:12px">
+                    <input type="checkbox" id="cb_${w.id}" ${checked?'checked':''} onclick="event.stopPropagation();toggleSignIn('${w.id}')"
+                        style="width:20px;height:20px;accent-color:#0891b2;cursor:pointer;flex-shrink:0" />
+                    <div>
+                        <div class="worker-name">${w.name}</div>
+                        ${w.trade ? `<div class="worker-trade">${w.trade}</div>` : ''}
+                    </div>
+                </div>
+                ${checked ? `<span style="color:#0891b2;font-size:13px;font-weight:700">On site</span>` : `<span style="color:#ccc;font-size:13px">—</span>`}
+            </div>`;
+        });
+        html += `</div>`;
+        if (presentCount > 0) {
+            html += `<button class="btn btn-secondary" style="width:100%;margin-top:8px" onclick="exportAttendancePDF()">&#8681; Export PDF to Share</button>`;
+        }
+    }
+
+    // Past days
+    const pastDays = (state.attendance || []).sort((a,b) => b.date.localeCompare(a.date)).slice(0, 8);
+    if (pastDays.length > 0) {
+        html += `<div class="section-header" style="margin-top:20px"><span class="section-title">Recent Days</span></div><div class="card">`;
+        pastDays.forEach(a => {
+            const names = (a.workerIds || []).map(id => {
+                const m = crew.find(c => c.id === id);
+                return m ? m.name.split(' ')[0] : null;
+            }).filter(Boolean);
+            html += `<div class="worker-row" style="cursor:pointer" onclick="setAttendanceDate('${a.date}')">
+                <div>
+                    <div class="worker-name">${displayDate(a.date)}</div>
+                    <div class="worker-trade">${a.workerIds.length} on site · ${names.join(', ')}</div>
+                </div>
+                <span style="color:#ccc;font-size:20px">›</span>
+            </div>`;
+        });
+        html += `</div>`;
+    }
+
+    html += `</div>`; // end sign-in tab
+
+    // ── Roster tab ──
+    html += `<div id="att_tab_roster" style="display:${_attView==='roster'?'':'none'}">`;
+    html += `<div class="section-header"><span class="section-title">Crew Roster (${crew.length})</span></div>`;
+    if (crew.length === 0) {
+        html += `<div class="card"><div class="empty-state">No crew members yet.<br>Add everyone once, then check them in daily.</div></div>`;
+    } else {
+        html += `<div class="card" style="padding:8px 16px">`;
+        crew.forEach(w => {
+            html += `<div class="worker-row">
+                <div>
+                    <div class="worker-name">${w.name}</div>
+                    ${w.trade ? `<div class="worker-trade">${w.trade}</div>` : ''}
+                </div>
+                <div style="display:flex;gap:8px">
+                    <button class="edit-row" onclick="editCrewMember('${w.id}')">&#9998;</button>
+                    <button class="delete-row" onclick="removeCrewMember('${w.id}')">×</button>
+                </div>
+            </div>`;
+        });
+        html += `</div>`;
+    }
+    html += `<button class="btn btn-primary" style="width:100%;margin-top:8px;padding:14px;font-size:15px" onclick="addCrewMember()">+ Add Crew Member</button>`;
+    html += `</div>`; // end roster tab
+
+    return html;
+}
 
 // ── Dark mode ─────────────────────────────────────────────────────────────────
 function toggleDarkMode() {
