@@ -3059,6 +3059,44 @@ function exportWeeklySummary() {
             </tbody>
         </table>`;
 
+    // ── Worker hours this week ───────────────────────────────────────────────
+    const crew = state.crew || [];
+    const workerHoursMap = {};
+    (state.attendance || []).filter(a => inRange(a.date)).forEach(a => {
+        Object.entries(a.details || {}).forEach(([wid, detail]) => {
+            if (!detail.hours) return;
+            if (!workerHoursMap[wid]) workerHoursMap[wid] = 0;
+            workerHoursMap[wid] += detail.hours;
+        });
+    });
+    let workerHtml = '';
+    const sortedWorkers = crew.filter(w => workerHoursMap[w.id]).sort((a,b) => crewSortOrder(a.trade) - crewSortOrder(b.trade));
+    sortedWorkers.forEach(w => {
+        workerHtml += `<tr>
+            <td style="padding:8px 10px;border-bottom:1px solid #eee;font-weight:600">${w.name}</td>
+            <td style="padding:8px 10px;border-bottom:1px solid #eee;color:#888">${w.trade || '—'}</td>
+            <td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:right;font-weight:700;color:#1a3a5c">${workerHoursMap[w.id]}</td>
+        </tr>`;
+    });
+    const totalWorkerHours = Object.values(workerHoursMap).reduce((s,h)=>s+h,0);
+    if (sortedWorkers.length > 0) {
+        workerHtml += `<tr style="background:#f0f4ff">
+            <td colspan="2" style="padding:8px 10px;font-weight:800">Total</td>
+            <td style="padding:8px 10px;text-align:right;font-weight:800;color:#1a3a5c">${totalWorkerHours}</td>
+        </tr>`;
+    }
+    if (!workerHtml) workerHtml = `<tr><td colspan="3" style="padding:12px 10px;color:#aaa;font-style:italic">No worker hours logged this week.</td></tr>`;
+    const workerSection = `
+        <h2 style="font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#1a3a5c;margin:24px 0 10px;border-top:2px solid #1a3a5c;padding-top:10px">Worker Hours</h2>
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead><tr style="background:#1a3a5c;color:white">
+                <th style="padding:8px 10px;text-align:left">Name</th>
+                <th style="padding:8px 10px;text-align:left">Trade</th>
+                <th style="padding:8px 10px;text-align:right">Hours</th>
+            </tr></thead>
+            <tbody>${workerHtml}</tbody>
+        </table>`;
+
     // ── Materials: usage by trade this week ──────────────────────────────────
     const byTrade = {};
     (state.materials || []).forEach(mat => {
@@ -3115,7 +3153,7 @@ function exportWeeklySummary() {
     <h1>Corridor's Plus — Weekly Summary</h1>
     <div class="meta">Week of ${label}</div>
     <div class="meta">Generated: ${displayDate(today())}</div>
-    ${laborSection}${matSection}${lowSection}
+    ${workerSection}${laborSection}${matSection}${lowSection}
     <script>window.onload = () => window.print();<\/script></body></html>`;
 
     window.open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank');
@@ -3527,6 +3565,10 @@ function openSignInDetailModal(workerId, day) {
     openModal(
         (member ? member.name + ' — ' : '') + 'Sign In Details',
         `<div class="form-group">
+            <label>Hours Worked</label>
+            <input id="signin_hours" type="number" min="1" max="24" step="0.5" placeholder="e.g. 8" value="${existingDetail.hours || ''}" />
+        </div>
+        <div class="form-group">
             <label>Task</label>
             <input id="signin_task" type="text" placeholder="e.g. Skim Coat, Priming" value="${(existingDetail.task||'').replace(/"/g,'&quot;')}" />
         </div>
@@ -3537,11 +3579,12 @@ function openSignInDetailModal(workerId, day) {
             </div>
         </div>`,
         () => {
+            const hours = parseFloat(document.getElementById('signin_hours')?.value) || 0;
             const task = (document.getElementById('signin_task')?.value || '').trim();
             const floorIds = (state.floors || []).filter(f => document.getElementById('floor_cb_' + f.id)?.checked).map(f => f.id);
             if (!day.details) day.details = {};
             day.workerIds.push(workerId);
-            day.details[workerId] = { task, floorIds };
+            day.details[workerId] = { hours, task, floorIds };
             persist();
             closeModal();
             document.getElementById('app').innerHTML = renderAttendance();
@@ -3791,8 +3834,8 @@ function renderAttendance() {
             const checked = checkedIds.has(w.id);
             const detail = (currentDay?.details || {})[w.id];
             const floorNames = (detail?.floorIds || []).map(fid => (state.floors||[]).find(f=>f.id===fid)?.name).filter(Boolean);
-            const detailLine = checked && detail && (detail.task || floorNames.length > 0)
-                ? `<div style="font-size:11px;color:#0891b2;margin-top:2px">${[detail.task, floorNames.join(', ')].filter(Boolean).join(' · ')}</div>`
+            const detailLine = checked && detail && (detail.hours || detail.task || floorNames.length > 0)
+                ? `<div style="font-size:11px;color:#0891b2;margin-top:2px">${[detail.hours ? detail.hours + ' hrs' : '', detail.task, floorNames.join(', ')].filter(Boolean).join(' · ')}</div>`
                 : '';
             html += `<div class="worker-row att-row${checked?' att-checked':''}" onclick="toggleSignIn('${w.id}','${_attendanceDate}')" style="cursor:pointer">
                 <div style="display:flex;align-items:center;gap:12px">
