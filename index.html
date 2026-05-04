@@ -3733,7 +3733,7 @@ function exportAttendancePDF(date) {
     const rows = present.map(w =>
         `<tr><td>${w.name}</td><td>${w.trade || '—'}</td></tr>`
     ).join('');
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Attendance — ${dateStr}</title>
     <style>
         body { font-family: -apple-system, Arial, sans-serif; padding: 32px; color: #111; }
         .header { margin-bottom: 28px; }
@@ -4157,7 +4157,7 @@ function exportDailyReportPDF(date) {
         return qty>0?`<tr><td>${m.name}</td><td>${qty} ${m.unit}</td></tr>`:'';
     }).join('');
 
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Daily Report — ${dateStr}</title>
     <style>
         body{font-family:-apple-system,Arial,sans-serif;padding:32px;color:#111}
         h1{font-size:22px;font-weight:800;color:#1a3a5c;margin:0}
