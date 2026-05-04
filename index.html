@@ -1221,6 +1221,11 @@ function renderHome() {
         </div>
         <div class="home-subtitle">Georgetown Plaza · Corridor Renovation</div>
         <button class="btn btn-secondary" style="width:100%;margin-top:20px" onclick="exportWeeklySummary()">&#128196; Weekly Summary</button>
+        <div class="backup-row" style="margin-top:12px">
+            <button class="btn btn-secondary" onclick="backupData()">&#8681; Backup</button>
+            <button class="btn btn-secondary" onclick="document.getElementById('restoreInput').click()">&#8679; Restore</button>
+            <button class="btn btn-secondary" onclick="disconnectSync()" title="Sync code: ${syncCode || '—'}">&#8635; Sync</button>
+        </div>
         <div style="text-align:center;font-size:10px;color:#bbb;margin-top:8px">build 20260425-6</div>`;
 }
 
@@ -1280,11 +1285,6 @@ function renderFloors() {
     }
 
     html += `<button class="add-btn" onclick="openAddFloor()">+ Add Floor</button>`;
-    html += `<div class="backup-row">
-        <button class="btn btn-secondary" onclick="backupData()">&#8681; Backup</button>
-        <button class="btn btn-secondary" onclick="document.getElementById('restoreInput').click()">&#8679; Restore</button>
-        <button class="btn btn-secondary" onclick="disconnectSync()" title="Sync code: ${syncCode || '—'}">&#8635; Sync</button>
-    </div>`;
 
     return html;
 }
