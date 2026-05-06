@@ -1140,6 +1140,12 @@ function render() {
         exp.onclick = () => exportDailyReportPDF(view.reportDate);
         exp.textContent = 'PDF';
         app.innerHTML = renderReport(view.reportDate);
+
+    } else if (view.screen === 'dailynotes') {
+        back.style.display = 'block';
+        back.onclick = () => navigate('home');
+        title.textContent = 'Daily Notes';
+        app.innerHTML = renderDailyNotes();
     }
 }
 
@@ -1217,6 +1223,11 @@ function renderHome() {
                 <span class="home-tile-icon">📄</span>
                 <div class="home-tile-label">Daily Reports</div>
                 <div class="home-tile-sub">${reportDaysCount > 0 ? `${reportDaysCount} day${reportDaysCount !== 1 ? 's' : ''} with data` : 'Tap to view'}</div>
+            </button>
+            <button class="home-tile" style="border-top:4px solid #d97706;grid-column:1/-1" onclick="navigate('dailynotes')">
+                <span class="home-tile-icon">📝</span>
+                <div class="home-tile-label">Daily Notes</div>
+                <div class="home-tile-sub">${(state.reports||{})[today()]?.notes ? 'Notes saved for today' : 'Tap to add today\'s notes'}</div>
             </button>
         </div>
         <div class="home-subtitle">Georgetown Plaza · Corridor Renovation</div>
@@ -3023,6 +3034,71 @@ function exportCrossFloorSummary(floors, inRange, periodLabel) {
     const blob = new Blob([html], { type: 'text/html' });
     const url  = URL.createObjectURL(blob);
     window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+// ── Daily Notes screen ────────────────────────────────────────────────────────
+let _dnDate = null; // null means today
+
+function renderDailyNotes() {
+    const date = _dnDate || today();
+    const isToday = date === today();
+    const isYest  = date === (() => { const d = new Date(); d.setDate(d.getDate()-1); return d.toISOString().slice(0,10); })();
+    const notes   = (state.reports || {})[date]?.notes || '';
+
+    return `
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button onclick="_dnDate=null;document.getElementById('app').innerHTML=renderDailyNotes()"
+            style="padding:8px 18px;border-radius:99px;border:none;font-size:14px;font-weight:700;cursor:pointer;background:${isToday?'#1a3a5c':'#e5e7eb'};color:${isToday?'white':'#555'}">Today</button>
+        <button onclick="_dnDate=(()=>{const d=new Date();d.setDate(d.getDate()-1);return d.toISOString().slice(0,10)})();document.getElementById('app').innerHTML=renderDailyNotes()"
+            style="padding:8px 18px;border-radius:99px;border:none;font-size:14px;font-weight:700;cursor:pointer;background:${isYest?'#1a3a5c':'#e5e7eb'};color:${isYest?'white':'#555'}">Yesterday</button>
+        <input type="date" value="${date}" onchange="if(this.value){_dnDate=this.value;document.getElementById('app').innerHTML=renderDailyNotes()}"
+            style="padding:8px;border:1.5px solid #e0e0e0;border-radius:10px;font-size:14px;color:#1a1a2e" />
+    </div>
+    <div style="text-align:center;font-size:13px;font-weight:700;color:#1a3a5c;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px">${displayDate(date)}</div>
+    <div class="card" style="padding:0;overflow:hidden">
+        <textarea id="dn_text" rows="16" placeholder="Write your notes for the day — observations, delays, scope changes, site conditions…"
+            style="width:100%;padding:16px;border:none;outline:none;font-size:15px;line-height:1.7;resize:none;font-family:inherit;color:#1a1a2e;box-sizing:border-box">${notes.replace(/</g,'&lt;')}</textarea>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:12px">
+        <button class="btn btn-primary" style="flex:1" onclick="saveDailyNotes('${date}')">Save</button>
+        <button class="btn btn-secondary" style="flex:1" onclick="printDailyNotes('${date}')">&#8681; Print</button>
+    </div>`;
+}
+
+function saveDailyNotes(date) {
+    const text = document.getElementById('dn_text')?.value || '';
+    if (!state.reports) state.reports = {};
+    if (!state.reports[date]) state.reports[date] = {};
+    state.reports[date].notes = text.trim();
+    persist();
+    const btn = event.target;
+    btn.textContent = 'Saved ✓';
+    setTimeout(() => { btn.textContent = 'Save'; }, 1500);
+}
+
+function printDailyNotes(date) {
+    const text = (document.getElementById('dn_text')?.value || (state.reports||{})[date]?.notes || '').trim();
+    if (!text) { alert('No notes to print.'); return; }
+    const dateStr = new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+    const escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>');
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Daily Notes — ${dateStr}</title>
+    <style>
+        body{font-family:-apple-system,Arial,sans-serif;padding:40px;color:#111;max-width:720px;margin:0 auto}
+        h1{font-size:20px;font-weight:800;color:#1a3a5c;margin:0}
+        .sub{font-size:13px;color:#888;margin:4px 0 28px}
+        .notes{font-size:15px;line-height:1.8;color:#1a1a2e;white-space:pre-wrap}
+        .footer{margin-top:40px;font-size:11px;color:#bbb;border-top:1px solid #eee;padding-top:12px}
+    </style></head><body>
+    <h1>Daily Notes</h1>
+    <div class="sub">${dateStr}</div>
+    <div class="notes">${escaped}</div>
+    <div class="footer">Corridor's Plus &nbsp;·&nbsp; Generated ${displayDate(today())}</div>
+    <script>window.onload=()=>window.print();<\/script>
+    </body></html>`;
+    const blob = new Blob([html], {type:'text/html'});
+    const url  = URL.createObjectURL(blob);
+    window.open(url,'_blank');
     setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
