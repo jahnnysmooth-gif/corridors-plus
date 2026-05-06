@@ -3061,8 +3061,9 @@ function renderDailyNotes() {
             style="width:100%;padding:16px;border:none;outline:none;font-size:15px;line-height:1.7;resize:none;font-family:inherit;color:#1a1a2e;box-sizing:border-box">${notes.replace(/</g,'&lt;')}</textarea>
     </div>
     <div style="display:flex;gap:10px;margin-top:12px">
-        <button class="btn btn-primary" style="flex:1" onclick="saveDailyNotes('${date}')">Save</button>
-        <button class="btn btn-secondary" style="flex:1" onclick="printDailyNotes('${date}')">&#8681; Print</button>
+        <button class="btn btn-primary" style="flex:2" onclick="saveDailyNotes('${date}')">Save</button>
+        <button class="btn btn-secondary" style="flex:2" onclick="printDailyNotes('${date}')">&#8681; Print</button>
+        ${notes ? `<button class="btn btn-danger" style="flex:1" onclick="deleteDailyNotes('${date}')">Delete</button>` : ''}
     </div>`;
 }
 
@@ -3075,6 +3076,16 @@ function saveDailyNotes(date) {
     const btn = event.target;
     btn.textContent = 'Saved ✓';
     setTimeout(() => { btn.textContent = 'Save'; }, 1500);
+}
+
+function deleteDailyNotes(date) {
+    if (!confirm('Delete notes for ' + displayDate(date) + '?')) return;
+    if (state.reports?.[date]) {
+        delete state.reports[date].notes;
+        if (Object.keys(state.reports[date]).length === 0) delete state.reports[date];
+    }
+    persist();
+    document.getElementById('app').innerHTML = renderDailyNotes();
 }
 
 function printDailyNotes(date) {
@@ -4204,10 +4215,18 @@ function renderReport(date) {
     }
 
     // ── Notes
-    html += `<div class="section-header"><span class="section-title">Notes</span></div>`;
-    html += `<div class="report-section">
-        <textarea id="report_notes" rows="4" placeholder="Observations, delays, issues…" style="width:100%;border:none;outline:none;font-size:14px;resize:none;font-family:inherit;background:transparent;color:inherit" onchange="saveReportNotes('${date}',this.value)">${report.notes || ''}</textarea>
+    html += `<div class="section-header" style="display:flex;align-items:center;justify-content:space-between">
+        <span class="section-title">Notes</span>
+        <div style="display:flex;gap:8px">
+            ${report.notes ? `<button class="notes-edit-btn" onclick="deleteDailyNotes('${date}')">Delete</button>` : ''}
+            <button class="notes-edit-btn" onclick="_dnDate='${date}';navigate('dailynotes')">${report.notes ? 'Edit' : '+ Add Note'}</button>
+        </div>
     </div>`;
+    if (report.notes) {
+        html += `<div class="notes-card"><div class="notes-card-text">${report.notes.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>')}</div></div>`;
+    } else {
+        html += `<div class="report-section"><div style="color:#bbb;font-style:italic;font-size:14px">No notes for this day.</div></div>`;
+    }
 
     return html;
 }
