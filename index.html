@@ -3566,7 +3566,7 @@ function toggleSignIn(workerId, date) {
     }
 }
 
-function openSignInDetailModal(workerId, day) {
+function openSignInDetailModal(workerId, day, afterSave) {
     const member = (state.crew || []).find(c => c.id === workerId);
     const existingDetail = (day.details || {})[workerId] || {};
     const floorCheckboxes = (state.floors || []).map(f =>
@@ -3596,11 +3596,11 @@ function openSignInDetailModal(workerId, day) {
             const task = (document.getElementById('signin_task')?.value || '').trim();
             const floorIds = (state.floors || []).filter(f => document.getElementById('floor_cb_' + f.id)?.checked).map(f => f.id);
             if (!day.details) day.details = {};
-            day.workerIds.push(workerId);
+            if (!day.workerIds.includes(workerId)) day.workerIds.push(workerId);
             day.details[workerId] = { hours, task, floorIds };
             persist();
             closeModal();
-            document.getElementById('app').innerHTML = renderAttendance();
+            if (afterSave) afterSave(); else document.getElementById('app').innerHTML = renderAttendance();
         }
     );
 }
@@ -3610,7 +3610,10 @@ function editSignInDetail(workerId, date) {
     if (!state.attendance) return;
     let day = state.attendance.find(a => a.date === date);
     if (!day) return;
-    openSignInDetailModal(workerId, day);
+    const afterSave = view.screen === 'report'
+        ? () => navigate('report', null, null, null, null, date)
+        : () => { document.getElementById('app').innerHTML = renderAttendance(); };
+    openSignInDetailModal(workerId, day, afterSave);
 }
 
 function addCrewMember() {
@@ -3781,6 +3784,17 @@ function deselectAllWorkers(date) {
 
 function viewPastAttendance(date) {
     setAttendanceDate(date);
+}
+
+function removeWorkerFromDay(workerId, date) {
+    if (!confirm('Remove this worker from ' + displayDate(date) + '?')) return;
+    const day = (state.attendance || []).find(a => a.date === date);
+    if (!day) return;
+    day.workerIds = day.workerIds.filter(id => id !== workerId);
+    if (day.details) delete day.details[workerId];
+    if (day.workerIds.length === 0) state.attendance = state.attendance.filter(a => a.date !== date);
+    persist();
+    navigate('report', null, null, null, null, date);
 }
 
 function deleteAttendanceDay(date) {
@@ -4053,10 +4067,14 @@ function renderReport(date) {
             if (!member) return;
             const detail = (att.details || {})[wid] || {};
             const floorNames = (detail.floorIds || []).map(fid => floors.find(f=>f.id===fid)?.name).filter(Boolean);
-            html += `<div class="report-worker-row">
+            html += `<div class="report-worker-row" style="display:flex;justify-content:space-between;align-items:center">
                 <div>
                     <div style="font-weight:700;font-size:14px">${member.name}</div>
                     <div style="font-size:12px;color:#999;margin-top:2px">${member.trade || ''}${detail.task ? ' · ' + detail.task : ''}${floorNames.length > 0 ? ' · ' + floorNames.join(', ') : ''}</div>
+                </div>
+                <div style="white-space:nowrap;display:flex;gap:6px">
+                    <button class="edit-row" style="font-size:14px" onclick="editSignInDetail('${wid}','${date}')">&#9998;</button>
+                    <button class="delete-row" onclick="removeWorkerFromDay('${wid}','${date}')">×</button>
                 </div>
             </div>`;
         });
