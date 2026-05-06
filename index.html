@@ -1014,9 +1014,9 @@ function floorProgress(floor) {
 function getWeekRange() {
     const d   = new Date();
     const day = d.getDay();
-    const mon = new Date(d); mon.setDate(d.getDate() - ((day + 6) % 7));
-    const fri = new Date(mon); fri.setDate(mon.getDate() + 4);
-    return { start: mon.toISOString().slice(0, 10), end: fri.toISOString().slice(0, 10) };
+    const sun = new Date(d); sun.setDate(d.getDate() - day);
+    const sat = new Date(sun); sat.setDate(sun.getDate() + 6);
+    return { start: sun.toISOString().slice(0, 10), end: sat.toISOString().slice(0, 10) };
 }
 
 function entrySkilledMH(e) {
@@ -2729,10 +2729,10 @@ function openExportModal() {
         } else if (period === 'weekly') {
             const d   = new Date(document.getElementById('exp_week').value + 'T00:00:00');
             const day = d.getDay();
-            const mon = new Date(d); mon.setDate(d.getDate() - ((day + 6) % 7));
-            const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-            start = mon.toISOString().slice(0, 10);
-            end   = sun.toISOString().slice(0, 10);
+            const sun = new Date(d); sun.setDate(d.getDate() - day);
+            const sat = new Date(sun); sat.setDate(sun.getDate() + 6);
+            start = sun.toISOString().slice(0, 10);
+            end   = sat.toISOString().slice(0, 10);
             label = `week_${start}`;
         } else {
             const val = document.getElementById('exp_month').value;
@@ -3203,10 +3203,10 @@ function openMaterialsExportModal() {
         } else if (period === 'weekly') {
             const d   = new Date(document.getElementById('mexp_week').value + 'T00:00:00');
             const day = d.getDay();
-            const mon = new Date(d); mon.setDate(d.getDate() - ((day + 6) % 7));
-            const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-            start = mon.toISOString().slice(0,10);
-            end   = sun.toISOString().slice(0,10);
+            const sun = new Date(d); sun.setDate(d.getDate() - day);
+            const sat = new Date(sun); sat.setDate(sun.getDate() + 6);
+            start = sun.toISOString().slice(0,10);
+            end   = sat.toISOString().slice(0,10);
             label = `${displayDate(start)} – ${displayDate(end)}`;
         } else if (period === 'monthly') {
             const val = document.getElementById('mexp_month').value;
