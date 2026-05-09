@@ -3611,12 +3611,24 @@ function initFirebase() {
         if (_localWrite) return;
         const remote = snap.val();
         if (remote && remote.floors && remote.floors.length > 0) {
+            // Preserve local deletions that may not have reached Firebase yet
+            const _localDeleted = [...(state.deletedMaterials || [])];
             state = remote;
             if (!state.floors) state.floors = [];
             if (!state.materials) state.materials = [];
             if (!state.attendance) state.attendance = [];
             if (!state.crew) state.crew = [];
             if (!state.reports) state.reports = {};
+            if (!state.deletedMaterials) state.deletedMaterials = [];
+            // Merge any local deletions the remote snapshot doesn't know about yet
+            const _remoteDelKeys = new Set(state.deletedMaterials.map(d => (String(d.trade||'')+'||'+String(d.name||'')).toLowerCase()));
+            _localDeleted.forEach(d => {
+                const k = (String(d.trade||'')+'||'+String(d.name||'')).toLowerCase();
+                if (!_remoteDelKeys.has(k)) state.deletedMaterials.push(d);
+            });
+            // Strip any materials that belong to the merged deletion list
+            const _allDelNames = new Set(state.deletedMaterials.map(d => String(d.name||'').toLowerCase()));
+            state.materials = state.materials.filter(m => !_allDelNames.has(m.name.toLowerCase()));
             state.floors.forEach(f => { (f.items || []).forEach(i => { if (!i.hoursLog) i.hoursLog = []; }); });
             // Normalize materials: ensure log array and backfill trade
             const _tradeLookup = {};
