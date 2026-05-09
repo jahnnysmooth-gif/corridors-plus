@@ -64,8 +64,9 @@ function doPost(e) {
       if (r[matIdx]) rowMap[key] = i + 2;
     });
 
-    // Fields the app owns — only these are updated on existing rows
-    const APP_FIELDS = ['On Hand', 'Last Delivery Date', 'Last Delivery Qty', 'Ordered By', 'To Order', 'Order Status'];
+    // Min Stock is sheet-only — everything else the app can update
+    const SHEET_ONLY = ['Min Stock'];
+    const APP_FIELDS = HEADERS.filter(h => !SHEET_ONLY.includes(h));
 
     const updates = payload.materials || [];
     const newRows = [];
