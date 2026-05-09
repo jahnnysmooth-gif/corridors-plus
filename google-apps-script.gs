@@ -64,16 +64,25 @@ function doPost(e) {
       if (r[matIdx]) rowMap[key] = i + 2;
     });
 
+    // Fields the app owns — only these are updated on existing rows
+    const APP_FIELDS = ['On Hand', 'Last Delivery Date', 'Last Delivery Qty', 'Ordered By', 'To Order', 'Order Status'];
+
     const updates = payload.materials || [];
     const newRows = [];
 
     updates.forEach(mat => {
       const key = [String(mat['Trade'] || ''), String(mat['Material'] || '')].join('||').toLowerCase();
-      const row = HEADERS.map(h => (mat[h] !== undefined ? mat[h] : ''));
       if (rowMap[key]) {
-        sheet.getRange(rowMap[key], 1, 1, HEADERS.length).setValues([row]);
+        // Partial update — only overwrite app-managed columns, leave Min Stock, Brand, Link, Notes etc. alone
+        APP_FIELDS.forEach(field => {
+          const colIdx = hdr.indexOf(field);
+          if (colIdx >= 0 && mat[field] !== undefined) {
+            sheet.getRange(rowMap[key], colIdx + 1).setValue(mat[field]);
+          }
+        });
       } else {
-        newRows.push(row);
+        // New row — push all fields
+        newRows.push(HEADERS.map(h => (mat[h] !== undefined ? mat[h] : '')));
       }
     });
 
