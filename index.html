@@ -1468,6 +1468,9 @@ function renderMaterialDetail(mat) {
             &#10003; Confirm Delivery${mat.reorderQty > 0 ? ' of ' + mat.reorderQty + ' ' + mat.unit : ''}
             <span style="font-size:12px;font-weight:400;display:block;margin-top:2px;opacity:0.85">Tap to receive this order — count updates automatically</span>
         </button>`;
+        html += `<button onclick="cancelOrder('${mat.id}')" style="width:100%;margin-bottom:10px;padding:10px;background:none;border:1.5px solid #dc2626;border-radius:10px;color:#dc2626;font-size:14px;font-weight:600;cursor:pointer">&#10007; Cancel Order</button>`;
+    } else if (mat.procStatus) {
+        html += `<button onclick="cancelOrder('${mat.id}')" style="width:100%;margin-bottom:10px;padding:10px;background:none;border:1.5px solid #dc2626;border-radius:10px;color:#dc2626;font-size:14px;font-weight:600;cursor:pointer">&#10007; Cancel Order</button>`;
     } else if (low) {
         const orderNote = mat.reorderQty > 0 ? ` — order ${mat.reorderQty} ${mat.unit}` : '';
         html += `<div class="low-stock-bar"><span style="font-size:18px">⚠️</span><span class="low-stock-bar-text">Below minimum${orderNote}</span></div>`;
@@ -2605,6 +2608,17 @@ function confirmDelivery(matId) {
         state.pendingConfirms.push({ name: mat.name, trade: mat.trade || '' });
         persist(); closeModal(); render();
     });
+}
+
+function cancelOrder(matId) {
+    const mat = state.materials.find(m => m.id === matId);
+    if (!mat) return;
+    if (!confirm('Cancel the order for ' + mat.name + '? This will clear the order status and quantity.')) return;
+    mat.procStatus = '';
+    mat.reorderQty = 0;
+    if (!state.pendingConfirms) state.pendingConfirms = [];
+    state.pendingConfirms.push({ name: mat.name, trade: mat.trade || '' });
+    persist(); render();
 }
 
 function updateCount(matId) {
