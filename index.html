@@ -4412,7 +4412,7 @@ async function syncPull() {
             } else {
                 if (row['Brand/Type']) mat.brand = row['Brand/Type'];
                 if (row['Link'])       mat.link  = row['Link'];
-                if (row['Status'] !== undefined) mat.procStatus = row['Status'] || mat.procStatus;
+                mat.procStatus = row['Status'] || mat.procStatus || '';
                 if (row['Notes'] && !mat.notes)  mat.notes = row['Notes'];
                 if (row['Trade']  && !mat.trade) mat.trade = row['Trade'];
                 updated++;
@@ -4432,6 +4432,12 @@ async function syncPull() {
             }
         });
 
+        // Ensure no undefined fields that Firebase rejects
+        state.materials.forEach(m => {
+            if (!m.procStatus) m.procStatus = '';
+            if (!m.brand)      m.brand      = '';
+            if (!m.link)       m.link       = '';
+        });
         persist(); render();
         localStorage.setItem('hallway_sheets_last_sync', new Date().toISOString());
         _showSyncToast(`&#10003; Pulled: ${added} added, ${updated} updated`, toast, 3500);

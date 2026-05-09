@@ -2,14 +2,15 @@
 // Paste this entire file into: Google Sheet → Extensions → Apps Script
 // Then: run setup() once, then deploy as a Web App (Deploy → New deployment → Web app → Anyone)
 
-const MASTER_SHEET = 'Master';
+const SPREADSHEET_ID = '1u13Ai9uvKcau_cB4NjubcFnHkn2xXnsW3UmduOgbA0c';
+const MASTER_SHEET  = 'Master';
 const HEADERS = ['Trade', 'Material', 'Brand/Type', 'Unit', 'Qty', 'Status',
                  'Last Purchase Date', 'Last Purchase Qty', 'Purchased By', 'Notes', 'Link'];
 
 // Called by the app to pull all materials (GET request)
 function doGet(e) {
   try {
-    const ss    = SpreadsheetApp.getActiveSpreadsheet();
+    const ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
     const sheet = ss.getSheetByName(MASTER_SHEET);
     if (!sheet) {
       return json({ error: 'Master sheet not found — run setup() first from the Apps Script editor.' });
@@ -38,7 +39,7 @@ function doPost(e) {
     lock.waitLock(15000);
 
     const payload = JSON.parse(e.postData.contents);
-    const ss      = SpreadsheetApp.getActiveSpreadsheet();
+    const ss      = SpreadsheetApp.openById(SPREADSHEET_ID);
     let   sheet   = ss.getSheetByName(MASTER_SHEET);
 
     if (!sheet) {
@@ -81,24 +82,18 @@ function doPost(e) {
 
 // ── Run this ONCE from the Apps Script editor to create the Master sheet ──────
 function setup() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   let sheet = ss.getSheetByName(MASTER_SHEET);
 
   if (sheet) {
-    const ui   = SpreadsheetApp.getUi();
-    const resp = ui.alert('Master sheet already exists',
-                          'Overwrite it with the full default material list?',
-                          ui.ButtonSet.YES_NO);
-    if (resp !== ui.Button.YES) return;
     sheet.clearContents();
   } else {
     sheet = ss.insertSheet(MASTER_SHEET, 0);
   }
 
-  sheet.appendRow(HEADERS);
-
-  // Pre-loaded from your existing sheet — edit freely after setup
+  // Insert all rows at once (much faster than appendRow in a loop)
   const data = [
+    HEADERS,
     // Plaster
     ['Plaster','Sealer/Primer','Zinsser Gardz2300','5 Gallon Buckets',5,'','04/28/2025',5,'jv','Before skim coat',''],
     ['Plaster','Joint Compound AP','All-Purpose','5 Gallon Buckets',20,'','04/28/2025',20,'jv','1 coat',''],
@@ -172,7 +167,7 @@ function setup() {
     ['Misc.','Storage Cabinet','','',2,'','04/28/2025',2,'jv','-',''],
   ];
 
-  data.forEach(row => sheet.appendRow(row));
+  sheet.getRange(1, 1, data.length, HEADERS.length).setValues(data);
 
   // Style the header row
   const hdrRange = sheet.getRange(1, 1, 1, HEADERS.length);
@@ -182,16 +177,7 @@ function setup() {
   sheet.setFrozenRows(1);
   sheet.autoResizeColumns(1, HEADERS.length);
 
-  SpreadsheetApp.getUi().alert(
-    'Setup complete! ' + data.length + ' materials loaded into the Master sheet.\n\n' +
-    'Next steps:\n' +
-    '1. Click Deploy → New deployment\n' +
-    '2. Type: Web app\n' +
-    '3. Execute as: Me\n' +
-    '4. Who has access: Anyone\n' +
-    '5. Click Deploy and copy the Web App URL\n' +
-    '6. Paste that URL into the Hallway Tracker app (Material Inventory → Google Sheets Sync)'
-  );
+  Logger.log('Setup complete! ' + (data.length - 1) + ' materials loaded into the Master sheet.');
 }
 
 function json(data) {
