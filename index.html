@@ -3667,8 +3667,8 @@ function initFirebase() {
                     _tradeDirty = true;
                 } else {
                     const _ex = _matByName[dm.name];
-                    if ((_ex.startQty === undefined || _ex.startQty === null) && dm.startQty !== undefined) { _ex.startQty = dm.startQty; _tradeDirty = true; }
-                    if (!_ex.trade && dm.trade) { _ex.trade = dm.trade; _tradeDirty = true; }
+                    if (_ex && (_ex.startQty === undefined || _ex.startQty === null) && dm.startQty !== undefined) { _ex.startQty = dm.startQty; _tradeDirty = true; }
+                    if (_ex && !_ex.trade && dm.trade) { _ex.trade = dm.trade; _tradeDirty = true; }
                 }
             });
             localStorage.setItem('hallway_tracker_v2', JSON.stringify(state));
@@ -3737,6 +3737,7 @@ function disconnectSync() {
             dirty = true;
         } else {
             const existing = matByName[dm.name];
+            if (!existing) return; // deleted item — skip backfill
             // Backfill startQty if not yet set
             if ((existing.startQty === undefined || existing.startQty === null) && dm.startQty !== undefined) {
                 existing.startQty = dm.startQty;
