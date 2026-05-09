@@ -865,7 +865,7 @@ function matCurrentStock(mat) {
     const adjusts = log.filter(e => e.type === 'adjust').sort((a,b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
     if (adjusts.length > 0) {
         const last = adjusts[0];
-        const delivAfter = log.filter(e => e.type === 'delivery' && e.date > last.date).reduce((s,e) => s + e.qty, 0);
+        const delivAfter = log.filter(e => e.type === 'delivery' && (e.date > last.date || (e.date === last.date && e.id > last.id))).reduce((s,e) => s + e.qty, 0);
         return last.qty + delivAfter;
     }
     // Legacy EOD model
@@ -2607,6 +2607,7 @@ function confirmDelivery(matId) {
         if (!state.pendingConfirms) state.pendingConfirms = [];
         state.pendingConfirms.push({ name: mat.name, trade: mat.trade || '' });
         persist(); closeModal(); render();
+        if (localStorage.getItem('hallway_sheets_url')) syncPull().then(ok => { if (ok) syncPush(); });
     });
 }
 
