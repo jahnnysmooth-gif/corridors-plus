@@ -4400,33 +4400,37 @@ async function syncPull() {
                     id: uid(), name,
                     trade: row['Trade'] || 'Misc.',
                     unit: row['Unit'] || '',
-                    startQty: parseFloat(row['Qty']) || 0,
+                    startQty: parseFloat(row['On Hand']) || 0,
+                    parQty: parseFloat(row['Min Stock']) || 0,
+                    reorderQty: parseFloat(row['To Order']) || 0,
                     log: [],
                     brand: row['Brand/Type'] || '',
                     notes: row['Notes'] || '',
                     link: row['Link'] || '',
-                    procStatus: row['Status'] || ''
+                    procStatus: row['Order Status'] || ''
                 };
                 state.materials.push(mat);
                 added++;
             } else {
-                if (row['Brand/Type']) mat.brand = row['Brand/Type'];
-                if (row['Link'])       mat.link  = row['Link'];
-                mat.procStatus = row['Status'] || mat.procStatus || '';
+                if (row['Brand/Type'])  mat.brand      = row['Brand/Type'];
+                if (row['Link'])        mat.link       = row['Link'];
+                if (row['Min Stock'])   mat.parQty     = parseFloat(row['Min Stock']) || mat.parQty || 0;
+                if (row['To Order'])    mat.reorderQty = parseFloat(row['To Order'])  || mat.reorderQty || 0;
+                mat.procStatus = row['Order Status'] || mat.procStatus || '';
                 if (row['Notes'] && !mat.notes)  mat.notes = row['Notes'];
                 if (row['Trade']  && !mat.trade) mat.trade = row['Trade'];
                 updated++;
             }
-            // Import last purchase as a delivery log entry if it's newer than the last recorded delivery
-            const isoDate  = parseSheetDate(row['Last Purchase Date']);
-            const sheetQty = parseFloat(row['Last Purchase Qty']);
+            // Import last delivery as a delivery log entry if it's newer than the last recorded delivery
+            const isoDate  = parseSheetDate(row['Last Delivery Date']);
+            const sheetQty = parseFloat(row['Last Delivery Qty']);
             if (isoDate && !isNaN(sheetQty) && sheetQty > 0) {
                 const alreadyHas = (mat.log || []).some(e => e.type === 'delivery' && e.date === isoDate && e.qty === sheetQty);
                 if (!alreadyHas) {
                     const lastDel = (mat.log || []).filter(e => e.type === 'delivery').sort((a,b) => b.date.localeCompare(a.date))[0];
                     if (!lastDel || isoDate >= lastDel.date) {
                         if (!mat.log) mat.log = [];
-                        mat.log.push({ id: uid(), date: isoDate, type: 'delivery', qty: sheetQty, by: row['Purchased By'] || '' });
+                        mat.log.push({ id: uid(), date: isoDate, type: 'delivery', qty: sheetQty, by: row['Delivered By'] || '' });
                     }
                 }
             }
@@ -4460,13 +4464,16 @@ async function syncPush() {
             'Material':            mat.name,
             'Brand/Type':          mat.brand || '',
             'Unit':                mat.unit  || '',
-            'Qty':                 stock !== null ? stock : '',
-            'Status':              mat.procStatus || '',
-            'Last Purchase Date':  lastDel ? lastDel.date : '',
-            'Last Purchase Qty':   lastDel ? lastDel.qty  : '',
-            'Purchased By':        lastDel ? (lastDel.by || '') : '',
-            'Notes':               mat.notes || '',
-            'Link':                mat.link  || ''
+            'On Hand':             stock !== null ? stock : '',
+            'Min Stock':           mat.parQty    || '',
+            'Last Delivery Date':  lastDel ? lastDel.date : '',
+            'Last Delivery Qty':   lastDel ? lastDel.qty  : '',
+            'Delivered By':        lastDel ? (lastDel.by || '') : '',
+            'To Order':            mat.reorderQty || '',
+            'Order Status':        mat.procStatus || '',
+            'Ordered By':          '',
+            'Link':                mat.link  || '',
+            'Notes':               mat.notes || ''
         };
     });
     try {
