@@ -78,8 +78,23 @@ function doPost(e) {
     });
 
     newRows.forEach(row => sheet.appendRow(row));
+
+    // Handle deletions — remove sheet rows for materials deleted in the app
+    const deletions = payload.deletions || [];
+    if (deletions.length > 0) {
+      const delKeys = new Set(deletions.map(d => (String(d.trade||'') + '||' + String(d.name||'')).toLowerCase()));
+      const freshData = sheet.getDataRange().getValues();
+      const freshHdrTrade = freshData[0].map(h => String(h).trim()).indexOf('Trade');
+      const freshHdrMat   = freshData[0].map(h => String(h).trim()).indexOf('Material');
+      // Work backwards so row deletion doesn't shift indices
+      for (let i = freshData.length - 1; i >= 1; i--) {
+        const key = (String(freshData[i][freshHdrTrade]||'') + '||' + String(freshData[i][freshHdrMat]||'')).toLowerCase();
+        if (delKeys.has(key)) sheet.deleteRow(i + 1);
+      }
+    }
+
     lock.releaseLock();
-    return json({ success: true, updated: updates.length });
+    return json({ success: true, updated: updates.length, deleted: deletions.length });
   } catch (err) {
     return json({ error: err.toString() });
   }

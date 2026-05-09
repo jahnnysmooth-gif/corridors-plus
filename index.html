@@ -778,6 +778,7 @@ if (!state.floors) state.floors = [];
 if (!state.materials) state.materials = [];
 if (!state.attendance) state.attendance = [];
 if (!state.crew) state.crew = [];
+if (!state.deletedMaterials) state.deletedMaterials = [];
 if (!state.reports) state.reports = {};
 state.floors.forEach(f => {
     (f.items || []).forEach(i => { if (!i.hoursLog) i.hoursLog = []; });
@@ -2417,6 +2418,11 @@ function setStartQty(matId) {
 
 function deleteMaterial(matId) {
     if (!confirm('Delete this material and all its log data? Cannot be undone.')) return;
+    const mat = state.materials.find(m => m.id === matId);
+    if (mat) {
+        if (!state.deletedMaterials) state.deletedMaterials = [];
+        state.deletedMaterials.push({ name: mat.name, trade: mat.trade || '' });
+    }
     state.materials = state.materials.filter(m => m.id !== matId);
     persist(); navigate('materials');
 }
@@ -4428,10 +4434,14 @@ async function syncPull() {
         const rows = await resp.json();
         if (rows && rows.error) throw new Error(rows.error);
 
+        const deletedKeys = new Set((state.deletedMaterials || []).map(d => (String(d.trade||'') + '||' + String(d.name||'')).toLowerCase()));
         let added = 0, updated = 0;
         (rows || []).forEach(row => {
             const name = String(row['Material'] || '').trim();
             if (!name) return;
+            // Skip materials that were deleted in the app
+            const dKey = (String(row['Trade']||'') + '||' + name).toLowerCase();
+            if (deletedKeys.has(dKey)) return;
             let mat = state.materials.find(m => m.name.toLowerCase() === name.toLowerCase());
             if (!mat) {
                 mat = {
@@ -4513,9 +4523,12 @@ async function syncPush() {
             'Notes':               mat.notes || ''
         };
     });
+    const deletions = (state.deletedMaterials || []).map(d => ({ name: d.name, trade: d.trade }));
     try {
-        await fetch(url, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ materials }) });
+        await fetch(url, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ materials, deletions }) });
         localStorage.setItem('hallway_sheets_last_sync', new Date().toISOString());
+        state.deletedMaterials = [];
+        persist();
         _showSyncToast('&#10003; Pushed to Google Sheets', toast, 3500);
     } catch(err) {
         _showSyncToast('&#10007; Push failed: ' + err.message, toast, 4500);
