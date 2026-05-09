@@ -4365,7 +4365,7 @@ function openSheetsSync() {
             localStorage.setItem('hallway_sheets_url', val);
             closeModal();
             syncPull();
-        }, 'Connect & Pull');
+        });
         return;
     }
 
@@ -4377,7 +4377,7 @@ function openSheetsSync() {
         <button class="btn btn-secondary" style="width:100%;margin-bottom:16px" onclick="closeModal();syncPull().then(ok=>{if(ok)syncPush();})">&#8645; Full Two-Way Sync</button>
         <hr style="margin:0 0 12px;border:none;border-top:1px solid #eee">
         <button onclick="if(confirm('Disconnect Google Sheets?')){localStorage.removeItem('hallway_sheets_url');closeModal();render();}" style="background:none;border:none;font-size:12px;color:#bbb;cursor:pointer;width:100%">Disconnect</button>
-    `);
+    `, null, true);
 }
 
 async function syncPull() {
