@@ -640,6 +640,13 @@
         .usage-table td { padding: 9px 10px; border-bottom: 1px solid #eee; }
         .usage-table tr:nth-child(even) td { background: #f5f8ff; }
         .usage-used { font-weight: 700; color: #1a3a5c; }
+        .proc-status-badge { display:inline-block; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; padding:2px 7px; border-radius:99px; margin-left:6px; vertical-align:middle; background:#dcfce7; color:#15803d; }
+        .mat-info-card { background:white; border-radius:12px; padding:14px 16px; margin-bottom:12px; box-shadow:0 1px 4px rgba(0,0,0,0.08); }
+        .mat-info-row { display:flex; align-items:flex-start; gap:8px; font-size:13px; color:#444; margin-bottom:7px; }
+        .mat-info-row:last-child { margin-bottom:0; }
+        .mat-info-label { font-weight:700; color:#999; min-width:56px; font-size:11px; text-transform:uppercase; letter-spacing:0.4px; padding-top:1px; }
+        .mat-info-link { color:#1a3a5c; text-decoration:underline; word-break:break-all; }
+        .sheets-last-sync { font-size:12px; color:#aaa; text-align:center; margin-bottom:12px; }
 
         /* ── Sync overlay ── */
         .sync-overlay {
@@ -1321,7 +1328,7 @@ function _matCardHtml(mat, tradeBadge) {
     const trade = mat.trade || 'Other';
     return `<div class="mat-card${low ? ' low-stock' : ''}" data-mat-name="${mat.name.toLowerCase()}" onclick="navigate('material',null,null,'${mat.id}','${trade}')">
         <div>
-            <div class="mat-name">${mat.name}${low ? `<span class="low-badge">⚠ LOW</span>` : ''}${tradeBadge ? `<span class="mat-trade-badge">${trade}</span>` : ''}</div>
+            <div class="mat-name">${mat.name}${low ? `<span class="low-badge">⚠ LOW</span>` : ''}${tradeBadge ? `<span class="mat-trade-badge">${trade}</span>` : ''}${mat.procStatus ? `<span class="proc-status-badge">${mat.procStatus}</span>` : ''}</div>
             <div class="mat-meta">${mat.unit}${deliv > 0 ? ` &nbsp;·&nbsp; <span style="color:#16a34a;font-weight:600">+${deliv} today</span>` : ''}${mat.parQty > 0 ? ` &nbsp;·&nbsp; min: ${mat.parQty}` : ''}${mat.reorderQty > 0 && low ? ` &nbsp;·&nbsp; <span style="color:#dc2626;font-weight:600">order: ${mat.reorderQty}</span>` : ''}</div>
             ${days !== null ? `<div class="mat-meta" style="color:${days <= 2 ? '#dc2626' : days <= 5 ? '#d97706' : '#16a34a'};font-weight:600">~${days} day${days !== 1 ? 's' : ''} remaining</div>` : ''}
         </div>
@@ -1411,6 +1418,7 @@ function renderMaterials() {
     html += `</div>`;
     html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px;margin-top:20px;background:${lowCount > 0 ? '#7c3aed' : ''};color:${lowCount > 0 ? 'white' : ''};border-color:${lowCount > 0 ? '#7c3aed' : ''}" onclick="navigate('reorder')">&#128203; Reorder List${lowCount > 0 ? ` <span style="background:white;color:#7c3aed;font-size:11px;font-weight:800;padding:2px 7px;border-radius:99px;margin-left:4px">${lowCount}</span>` : ''}</button>`;
     html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px" onclick="openMaterialsExportModal()">&#8681; Export Usage Report</button>`;
+    html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px" onclick="openSheetsSync()">&#9729; Google Sheets Sync${localStorage.getItem('hallway_sheets_url') ? ' <span style="display:inline-block;width:7px;height:7px;background:#16a34a;border-radius:50%;margin-left:4px;vertical-align:middle"></span>' : ''}</button>`;
     html += `<button class="add-btn" onclick="openAddMaterial()">+ Add Material</button>`;
     html += `</div>`;
 
@@ -1442,6 +1450,14 @@ function renderMaterialDetail(mat) {
     if (low) {
         const orderNote = mat.reorderQty > 0 ? ` — order ${mat.reorderQty} ${mat.unit}` : '';
         html += `<div class="low-stock-bar"><span style="font-size:18px">⚠️</span><span class="low-stock-bar-text">Below minimum${orderNote}</span></div>`;
+    }
+
+    if (mat.brand || mat.link || mat.procStatus) {
+        html += `<div class="mat-info-card">`;
+        if (mat.brand)      html += `<div class="mat-info-row"><span class="mat-info-label">Brand</span><span>${mat.brand.replace(/</g,'&lt;')}</span></div>`;
+        if (mat.procStatus) html += `<div class="mat-info-row"><span class="mat-info-label">Status</span><span>${mat.procStatus.replace(/</g,'&lt;')}</span></div>`;
+        if (mat.link)       html += `<div class="mat-info-row"><span class="mat-info-label">Link</span><a href="${mat.link.replace(/"/g,'&quot;')}" target="_blank" rel="noopener" class="mat-info-link">View product ↗</a></div>`;
+        html += `</div>`;
     }
 
     html += `<div class="mat-action-row">
@@ -4312,6 +4328,160 @@ function exportDailyReportPDF(date) {
     <script>window.onload=()=>window.print();<\/script>
     </body></html>`;
     window.open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank');
+}
+
+// ── Google Sheets Sync ────────────────────────────────────────────────────────
+function parseSheetDate(str) {
+    if (!str) return null;
+    const s = String(str).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    const parts = s.split('/');
+    if (parts.length >= 2) {
+        const m = parts[0].trim().padStart(2, '0');
+        const d = parts[1].trim().padStart(2, '0');
+        const rawY = parts[2] ? parts[2].trim() : '';
+        const y = rawY.length === 2 ? '20' + rawY : (rawY.length === 4 ? rawY : String(new Date().getFullYear()));
+        if (!isNaN(m) && !isNaN(d) && !isNaN(y)) return `${y}-${m}-${d}`;
+    }
+    return null;
+}
+
+function openSheetsSync() {
+    const url = localStorage.getItem('hallway_sheets_url');
+    const lastSync = localStorage.getItem('hallway_sheets_last_sync');
+    const lastSyncStr = lastSync ? new Date(lastSync).toLocaleString() : null;
+
+    if (!url) {
+        openModal('Connect Google Sheets', `
+            <p style="font-size:14px;color:#555;margin-bottom:14px">Paste the Google Apps Script Web App URL to sync your material inventory with your team's Google Sheet.</p>
+            <div class="form-group">
+                <label>Apps Script Web App URL</label>
+                <input id="sheets_url_input" placeholder="https://script.google.com/macros/s/…" style="font-size:12px" />
+            </div>
+            <p style="font-size:12px;color:#aaa;margin-top:6px">In your Google Sheet: Extensions → Apps Script → Deploy → Manage deployments → copy the Web App URL.</p>
+        `, () => {
+            const val = document.getElementById('sheets_url_input').value.trim();
+            if (!val.startsWith('https://')) { alert('Enter a valid Apps Script URL.'); return; }
+            localStorage.setItem('hallway_sheets_url', val);
+            closeModal();
+            syncPull();
+        }, 'Connect & Pull');
+        return;
+    }
+
+    openModal('Google Sheets Sync', `
+        ${lastSyncStr ? `<div class="sheets-last-sync">Last synced: ${lastSyncStr}</div>` : ''}
+        <p style="font-size:13px;color:#555;margin-bottom:16px">Keep your material inventory in sync with the team's Google Sheet.</p>
+        <button class="btn" style="width:100%;margin-bottom:10px;background:#1a3a5c;color:white;border:none;padding:13px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer" onclick="closeModal();syncPull()">&#8595; Pull from Google Sheets</button>
+        <button class="btn" style="width:100%;margin-bottom:10px;background:#16a34a;color:white;border:none;padding:13px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer" onclick="closeModal();syncPush()">&#8593; Push to Google Sheets</button>
+        <button class="btn btn-secondary" style="width:100%;margin-bottom:16px" onclick="closeModal();syncPull().then(ok=>{if(ok)syncPush();})">&#8645; Full Two-Way Sync</button>
+        <hr style="margin:0 0 12px;border:none;border-top:1px solid #eee">
+        <button onclick="if(confirm('Disconnect Google Sheets?')){localStorage.removeItem('hallway_sheets_url');closeModal();render();}" style="background:none;border:none;font-size:12px;color:#bbb;cursor:pointer;width:100%">Disconnect</button>
+    `);
+}
+
+async function syncPull() {
+    const url = localStorage.getItem('hallway_sheets_url');
+    if (!url) return false;
+    const toast = _showSyncToast('Pulling from Google Sheets…');
+    try {
+        const resp = await fetch(url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now());
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const rows = await resp.json();
+        if (rows && rows.error) throw new Error(rows.error);
+
+        let added = 0, updated = 0;
+        (rows || []).forEach(row => {
+            const name = String(row['Material'] || '').trim();
+            if (!name) return;
+            let mat = state.materials.find(m => m.name.toLowerCase() === name.toLowerCase());
+            if (!mat) {
+                mat = {
+                    id: uid(), name,
+                    trade: row['Trade'] || 'Misc.',
+                    unit: row['Unit'] || '',
+                    startQty: parseFloat(row['Qty']) || 0,
+                    log: [],
+                    brand: row['Brand/Type'] || '',
+                    notes: row['Notes'] || '',
+                    link: row['Link'] || '',
+                    procStatus: row['Status'] || ''
+                };
+                state.materials.push(mat);
+                added++;
+            } else {
+                if (row['Brand/Type']) mat.brand = row['Brand/Type'];
+                if (row['Link'])       mat.link  = row['Link'];
+                if (row['Status'] !== undefined) mat.procStatus = row['Status'] || mat.procStatus;
+                if (row['Notes'] && !mat.notes)  mat.notes = row['Notes'];
+                if (row['Trade']  && !mat.trade) mat.trade = row['Trade'];
+                updated++;
+            }
+            // Import last purchase as a delivery log entry if it's newer than the last recorded delivery
+            const isoDate  = parseSheetDate(row['Last Purchase Date']);
+            const sheetQty = parseFloat(row['Last Purchase Qty']);
+            if (isoDate && !isNaN(sheetQty) && sheetQty > 0) {
+                const alreadyHas = (mat.log || []).some(e => e.type === 'delivery' && e.date === isoDate && e.qty === sheetQty);
+                if (!alreadyHas) {
+                    const lastDel = (mat.log || []).filter(e => e.type === 'delivery').sort((a,b) => b.date.localeCompare(a.date))[0];
+                    if (!lastDel || isoDate >= lastDel.date) {
+                        if (!mat.log) mat.log = [];
+                        mat.log.push({ id: uid(), date: isoDate, type: 'delivery', qty: sheetQty, by: row['Purchased By'] || '' });
+                    }
+                }
+            }
+        });
+
+        persist(); render();
+        localStorage.setItem('hallway_sheets_last_sync', new Date().toISOString());
+        _showSyncToast(`&#10003; Pulled: ${added} added, ${updated} updated`, toast, 3500);
+        return true;
+    } catch(err) {
+        _showSyncToast('&#10007; Pull failed: ' + err.message, toast, 4500);
+        return false;
+    }
+}
+
+async function syncPush() {
+    const url = localStorage.getItem('hallway_sheets_url');
+    if (!url) return;
+    const toast = _showSyncToast('Pushing to Google Sheets…');
+    const materials = (state.materials || []).map(mat => {
+        const lastDel = (mat.log || []).filter(e => e.type === 'delivery').sort((a,b) => b.date.localeCompare(a.date))[0];
+        const stock = matCurrentStock(mat);
+        return {
+            'Trade':               mat.trade || 'Misc.',
+            'Material':            mat.name,
+            'Brand/Type':          mat.brand || '',
+            'Unit':                mat.unit  || '',
+            'Qty':                 stock !== null ? stock : '',
+            'Status':              mat.procStatus || '',
+            'Last Purchase Date':  lastDel ? lastDel.date : '',
+            'Last Purchase Qty':   lastDel ? lastDel.qty  : '',
+            'Purchased By':        lastDel ? (lastDel.by || '') : '',
+            'Notes':               mat.notes || '',
+            'Link':                mat.link  || ''
+        };
+    });
+    try {
+        await fetch(url, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ materials }) });
+        localStorage.setItem('hallway_sheets_last_sync', new Date().toISOString());
+        _showSyncToast('&#10003; Pushed to Google Sheets', toast, 3500);
+    } catch(err) {
+        _showSyncToast('&#10007; Push failed: ' + err.message, toast, 4500);
+    }
+}
+
+function _showSyncToast(msg, existingToast, autoDismissMs) {
+    let toast = existingToast;
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1a3a5c;color:white;padding:10px 22px;border-radius:99px;font-size:13px;font-weight:600;z-index:9999;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,0.22);transition:opacity .3s';
+        document.body.appendChild(toast);
+    }
+    toast.innerHTML = msg;
+    if (autoDismissMs) setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, autoDismissMs);
+    return toast;
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
