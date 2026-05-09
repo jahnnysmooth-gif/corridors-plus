@@ -1387,9 +1387,6 @@ function renderMaterials() {
             <div class="stat-card"><div class="stat-value">${tradeMats.length}</div><div class="stat-label">Materials</div></div>
             <div class="stat-card"><div class="stat-value">${delivToday}</div><div class="stat-label">Delivered Today</div></div>
         </div>`;
-        html += `<div class="mat-action-row">
-            <button class="mat-action-btn mat-delivery-btn" onclick="openLogDeliveryForTrade('${view.matTrade}')">&#128666; Log Delivery</button>
-        </div>`;
         html += `<div id="mat_card_list">`;
         tradeMats.forEach(mat => { html += _matCardHtml(mat, false); });
         html += `</div>`;
@@ -1404,9 +1401,6 @@ function renderMaterials() {
     html += `<div class="stats-row" style="grid-template-columns:1fr 1fr">
         <div class="stat-card"><div class="stat-value">${mats.length}</div><div class="stat-label">Materials</div></div>
         <div class="stat-card"><div class="stat-value">${totalDeliveriesToday}</div><div class="stat-label">Delivered Today</div></div>
-    </div>`;
-    html += `<div class="mat-action-row">
-        <button class="mat-action-btn mat-delivery-btn" onclick="openLogDelivery()">&#128666; Log Delivery</button>
     </div>`;
     if (lowCount > 0) {
         html += `<div class="low-stock-bar"><span style="font-size:18px">⚠️</span><span class="low-stock-bar-text">${lowCount} material${lowCount !== 1 ? 's' : ''} below minimum stock</span></div>`;
@@ -1479,7 +1473,6 @@ function renderMaterialDetail(mat) {
     }
 
     html += `<div class="mat-action-row">
-        <button class="mat-action-btn mat-delivery-btn" onclick="openLogDeliveryFor('${mat.id}')">&#128666; Log Delivery</button>
         <button class="mat-action-btn" style="background:#475569;color:white" onclick="updateCount('${mat.id}')">&#9998; Update Count</button>
     </div>`;
 
