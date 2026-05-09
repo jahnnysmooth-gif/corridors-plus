@@ -641,6 +641,11 @@
         .usage-table tr:nth-child(even) td { background: #f5f8ff; }
         .usage-used { font-weight: 700; color: #1a3a5c; }
         .proc-status-badge { display:inline-block; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; padding:2px 7px; border-radius:99px; margin-left:6px; vertical-align:middle; background:#dcfce7; color:#15803d; }
+        .ordered-badge { background:#dbeafe; color:#1d4ed8; }
+        .mat-card-ordered { border-left:3px solid #1d4ed8; }
+        .confirm-delivery-btn { display:block; width:100%; margin:-2px 0 10px; padding:11px 14px; background:#16a34a; color:white; border:none; border-radius:0 0 12px 12px; font-size:13px; font-weight:700; cursor:pointer; text-align:left; }
+        .confirm-delivery-btn:active { background:#15803d; }
+        .confirm-delivery-banner { display:block; width:100%; padding:14px 16px; margin-bottom:14px; background:#16a34a; color:white; border:none; border-radius:12px; font-size:15px; font-weight:700; cursor:pointer; text-align:left; line-height:1.3; }
         .mat-info-card { background:white; border-radius:12px; padding:14px 16px; margin-bottom:12px; box-shadow:0 1px 4px rgba(0,0,0,0.08); }
         .mat-info-row { display:flex; align-items:flex-start; gap:8px; font-size:13px; color:#444; margin-bottom:7px; }
         .mat-info-row:last-child { margin-bottom:0; }
@@ -854,12 +859,19 @@ const DEFAULT_MATERIALS = [
 
 function matCurrentStock(mat) {
     const log = mat.log || [];
-    // Legacy EOD model: no startQty set
+    // Preferred: latest manual count update as base + deliveries strictly after it
+    const adjusts = log.filter(e => e.type === 'adjust').sort((a,b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+    if (adjusts.length > 0) {
+        const last = adjusts[0];
+        const delivAfter = log.filter(e => e.type === 'delivery' && e.date > last.date).reduce((s,e) => s + e.qty, 0);
+        return last.qty + delivAfter;
+    }
+    // Legacy EOD model
     if (mat.startQty === undefined || mat.startQty === null) {
         const eodEntries = log.filter(e => e.type === 'eod').sort((a,b) => b.date.localeCompare(a.date));
         return eodEntries.length > 0 ? eodEntries[0].qty : null;
     }
-    // New model: startQty + deliveries - usages
+    // startQty + deliveries - usages
     const delivered = log.filter(e => e.type === 'delivery').reduce((s,e) => s + e.qty, 0);
     const used      = log.filter(e => e.type === 'usage').reduce((s,e) => s + e.qty, 0);
     return mat.startQty + delivered - used;
@@ -1321,16 +1333,15 @@ function _matSearchBar() {
 }
 
 function _matCardHtml(mat, tradeBadge) {
-    const stock = matCurrentStock(mat);
-    const low   = stock !== null && mat.parQty > 0 && stock < mat.parQty;
-    const deliv = (mat.log||[]).filter(e => e.type==='delivery' && e.date===today()).reduce((s,e) => s+e.qty, 0);
-    const days  = matDaysRemaining(mat);
-    const trade = mat.trade || 'Other';
-    return `<div class="mat-card${low ? ' low-stock' : ''}" data-mat-name="${mat.name.toLowerCase()}" onclick="navigate('material',null,null,'${mat.id}','${trade}')">
+    const stock    = matCurrentStock(mat);
+    const low      = stock !== null && mat.parQty > 0 && stock < mat.parQty;
+    const deliv    = (mat.log||[]).filter(e => e.type==='delivery' && e.date===today()).reduce((s,e) => s+e.qty, 0);
+    const trade    = mat.trade || 'Other';
+    const ordered  = mat.procStatus && mat.procStatus.toLowerCase().includes('ordered');
+    const cardHtml = `<div class="mat-card${low ? ' low-stock' : ''}${ordered ? ' mat-card-ordered' : ''}" data-mat-name="${mat.name.toLowerCase()}" onclick="navigate('material',null,null,'${mat.id}','${trade}')">
         <div>
-            <div class="mat-name">${mat.name}${low ? `<span class="low-badge">⚠ LOW</span>` : ''}${tradeBadge ? `<span class="mat-trade-badge">${trade}</span>` : ''}${mat.procStatus ? `<span class="proc-status-badge">${mat.procStatus}</span>` : ''}</div>
-            <div class="mat-meta">${mat.unit}${deliv > 0 ? ` &nbsp;·&nbsp; <span style="color:#16a34a;font-weight:600">+${deliv} today</span>` : ''}${mat.parQty > 0 ? ` &nbsp;·&nbsp; min: ${mat.parQty}` : ''}${mat.reorderQty > 0 && low ? ` &nbsp;·&nbsp; <span style="color:#dc2626;font-weight:600">order: ${mat.reorderQty}</span>` : ''}</div>
-            ${days !== null ? `<div class="mat-meta" style="color:${days <= 2 ? '#dc2626' : days <= 5 ? '#d97706' : '#16a34a'};font-weight:600">~${days} day${days !== 1 ? 's' : ''} remaining</div>` : ''}
+            <div class="mat-name">${mat.name}${low ? `<span class="low-badge">⚠ LOW</span>` : ''}${tradeBadge ? `<span class="mat-trade-badge">${trade}</span>` : ''}${ordered ? `<span class="proc-status-badge ordered-badge">&#128666; Ordered</span>` : (mat.procStatus ? `<span class="proc-status-badge">${mat.procStatus}</span>` : '')}</div>
+            <div class="mat-meta">${mat.unit}${deliv > 0 ? ` &nbsp;·&nbsp; <span style="color:#16a34a;font-weight:600">+${deliv} today</span>` : ''}${mat.parQty > 0 ? ` &nbsp;·&nbsp; min: ${mat.parQty}` : ''}${mat.reorderQty > 0 ? ` &nbsp;·&nbsp; <span style="color:${ordered ? '#16a34a' : '#dc2626'};font-weight:600">order: ${mat.reorderQty}</span>` : ''}</div>
         </div>
         <div class="mat-stock">
             ${stock !== null
@@ -1338,6 +1349,10 @@ function _matCardHtml(mat, tradeBadge) {
                 : `<div class="mat-stock-none">No count yet</div>`}
         </div>
     </div>`;
+    if (ordered) {
+        return cardHtml + `<button class="confirm-delivery-btn" onclick="event.stopPropagation();confirmDelivery('${mat.id}')">&#10003; Confirm Delivery${mat.reorderQty > 0 ? ' of ' + mat.reorderQty + ' ' + mat.unit : ''}</button>`;
+    }
+    return cardHtml;
 }
 
 function renderMaterials() {
@@ -1374,7 +1389,6 @@ function renderMaterials() {
         </div>`;
         html += `<div class="mat-action-row">
             <button class="mat-action-btn mat-delivery-btn" onclick="openLogDeliveryForTrade('${view.matTrade}')">&#128666; Log Delivery</button>
-            <button class="mat-action-btn mat-eod-btn" onclick="openLogUsageForTrade('${view.matTrade}')">&#9999; Log Daily Usage</button>
         </div>`;
         html += `<div id="mat_card_list">`;
         tradeMats.forEach(mat => { html += _matCardHtml(mat, false); });
@@ -1393,7 +1407,6 @@ function renderMaterials() {
     </div>`;
     html += `<div class="mat-action-row">
         <button class="mat-action-btn mat-delivery-btn" onclick="openLogDelivery()">&#128666; Log Delivery</button>
-        <button class="mat-action-btn mat-eod-btn" onclick="openLogUsage()">&#9999; Log Daily Usage</button>
     </div>`;
     if (lowCount > 0) {
         html += `<div class="low-stock-bar"><span style="font-size:18px">⚠️</span><span class="low-stock-bar-text">${lowCount} material${lowCount !== 1 ? 's' : ''} below minimum stock</span></div>`;
@@ -1433,55 +1446,73 @@ function renderMaterials() {
 
 function renderMaterialDetail(mat) {
     if (!mat) return `<div class="empty-state">Material not found.</div>`;
-    const usage    = matDailyUsage(mat);
     const stock    = matCurrentStock(mat);
-    const days     = matDaysRemaining(mat);
-    const totalUsed = usage.reduce((s, d) => s + d.used, 0);
-    const totalDel  = (mat.log||[]).filter(e => e.type==='delivery').reduce((s,e) => s+e.qty, 0);
-    const low = stock !== null && mat.parQty > 0 && stock < mat.parQty;
+    const totalDel = (mat.log||[]).filter(e => e.type==='delivery').reduce((s,e) => s+e.qty, 0);
+    const low      = stock !== null && mat.parQty > 0 && stock < mat.parQty;
+    const ordered  = mat.procStatus && mat.procStatus.toLowerCase().includes('ordered');
 
-    const startedWith = mat.startQty !== undefined && mat.startQty !== null ? mat.startQty : null;
+    // Stats
+    const lastDeliv = (mat.log||[]).filter(e => e.type==='delivery').sort((a,b) => b.date.localeCompare(a.date))[0];
     let html = `<div class="stats-row">
-        <div class="stat-card"><div class="stat-value">${startedWith !== null ? startedWith : '—'}</div><div class="stat-label">Started With</div></div>
-        <div class="stat-card"><div class="stat-value">${stock !== null ? stock : '—'}</div><div class="stat-label">In Stock</div></div>
-        <div class="stat-card"><div class="stat-value">${totalUsed}</div><div class="stat-label">Total Used</div></div>
+        <div class="stat-card"><div class="stat-value">${stock !== null ? stock : '—'}</div><div class="stat-label">On Hand</div></div>
+        <div class="stat-card"><div class="stat-value">${mat.parQty > 0 ? mat.parQty : '—'}</div><div class="stat-label">Min Stock</div></div>
+        <div class="stat-card"><div class="stat-value">${lastDeliv ? displayDate(lastDeliv.date) : '—'}</div><div class="stat-label">Last Delivery</div></div>
     </div>`;
 
-    if (low) {
+    // Confirm Delivery banner — prominent when ordered
+    if (ordered) {
+        html += `<button class="confirm-delivery-banner" onclick="confirmDelivery('${mat.id}')">
+            &#10003; Confirm Delivery${mat.reorderQty > 0 ? ' of ' + mat.reorderQty + ' ' + mat.unit : ''}
+            <span style="font-size:12px;font-weight:400;display:block;margin-top:2px;opacity:0.85">Tap to receive this order — count updates automatically</span>
+        </button>`;
+    } else if (low) {
         const orderNote = mat.reorderQty > 0 ? ` — order ${mat.reorderQty} ${mat.unit}` : '';
         html += `<div class="low-stock-bar"><span style="font-size:18px">⚠️</span><span class="low-stock-bar-text">Below minimum${orderNote}</span></div>`;
     }
 
-    if (mat.brand || mat.link || mat.procStatus) {
+    if (mat.brand || mat.link || (mat.procStatus && !ordered)) {
         html += `<div class="mat-info-card">`;
-        if (mat.brand)      html += `<div class="mat-info-row"><span class="mat-info-label">Brand</span><span>${mat.brand.replace(/</g,'&lt;')}</span></div>`;
-        if (mat.procStatus) html += `<div class="mat-info-row"><span class="mat-info-label">Status</span><span>${mat.procStatus.replace(/</g,'&lt;')}</span></div>`;
-        if (mat.link)       html += `<div class="mat-info-row"><span class="mat-info-label">Link</span><a href="${mat.link.replace(/"/g,'&quot;')}" target="_blank" rel="noopener" class="mat-info-link">View product ↗</a></div>`;
+        if (mat.brand)                     html += `<div class="mat-info-row"><span class="mat-info-label">Brand</span><span>${mat.brand.replace(/</g,'&lt;')}</span></div>`;
+        if (mat.procStatus && !ordered)    html += `<div class="mat-info-row"><span class="mat-info-label">Status</span><span>${mat.procStatus.replace(/</g,'&lt;')}</span></div>`;
+        if (mat.link)                      html += `<div class="mat-info-row"><span class="mat-info-label">Link</span><a href="${mat.link.replace(/"/g,'&quot;')}" target="_blank" rel="noopener" class="mat-info-link">View product ↗</a></div>`;
         html += `</div>`;
     }
 
     html += `<div class="mat-action-row">
         <button class="mat-action-btn mat-delivery-btn" onclick="openLogDeliveryFor('${mat.id}')">&#128666; Log Delivery</button>
-        <button class="mat-action-btn mat-eod-btn" onclick="openLogUsageFor('${mat.id}')">&#9999; Log Daily Usage</button>
+        <button class="mat-action-btn" style="background:#475569;color:white" onclick="updateCount('${mat.id}')">&#9998; Update Count</button>
     </div>`;
 
-    if (usage.length === 0) {
-        html += `<div class="card"><div class="empty-state">No activity logged yet.</div></div>`;
+    // History — deliveries and count updates
+    const logEntries = (mat.log||[])
+        .filter(e => e.type === 'delivery' || e.type === 'adjust')
+        .sort((a,b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+
+    if (logEntries.length === 0) {
+        html += `<div class="card"><div class="empty-state">No deliveries or count updates yet.</div></div>`;
     } else {
+        // Compute running balance for each entry
+        let balance = mat.startQty || 0;
+        const withBalance = logEntries.map(e => {
+            if (e.type === 'adjust')    { balance = e.qty; }
+            else if (e.type === 'delivery') { balance += e.qty; }
+            return { ...e, balance };
+        });
         html += `<div class="card"><table class="usage-table">
-            <thead><tr><th>Date</th><th>Delivered</th><th>Used</th><th>Floor</th><th>Balance</th><th></th></tr></thead>
+            <thead><tr><th>Date</th><th>Event</th><th>Qty</th><th>On Hand</th><th></th></tr></thead>
             <tbody>`;
-        [...usage].reverse().forEach(d => {
+        [...withBalance].reverse().forEach(e => {
+            const isAdj  = e.type === 'adjust';
+            const color  = isAdj ? '#475569' : '#16a34a';
+            const label  = isAdj ? 'Count updated' : 'Delivery' + (e.by ? ` · ${e.by}` : '');
+            const qtyStr = isAdj ? `= ${e.qty}` : `+${e.qty}`;
+            const balColor = e.balance <= (mat.parQty || 0) && mat.parQty > 0 ? '#dc2626' : '#1a3a5c';
             html += `<tr>
-                <td>${displayDate(d.date)}</td>
-                <td>${d.delivered > 0 ? `<span style="color:#16a34a;font-weight:600">+${d.delivered}</span>` : '—'}</td>
-                <td class="usage-used">${d.used > 0 ? d.used + ' ' + mat.unit : '—'}</td>
-                <td style="font-size:12px;color:#666">${d.floors && d.floors.length > 0 ? d.floors.join(', ') : '—'}${d.items && d.items.length > 0 ? `<br><span style="color:#aaa;font-size:11px">${d.items.join(', ')}</span>` : ''}</td>
-                <td style="font-weight:700;color:${d.balance <= (mat.parQty || 0) && mat.parQty > 0 ? '#dc2626' : '#1a3a5c'}">${d.balance} ${mat.unit}</td>
-                <td style="white-space:nowrap">
-                    <button onclick="editMatDay('${mat.id}','${d.date}')" style="background:none;border:none;font-size:15px;cursor:pointer;color:#aaa;padding:2px 4px">✏️</button>
-                    <button onclick="deleteMatDay('${mat.id}','${d.date}')" style="background:none;border:none;font-size:15px;cursor:pointer;color:#aaa;padding:2px 4px">🗑️</button>
-                </td>
+                <td>${displayDate(e.date)}</td>
+                <td style="font-size:12px;color:#666">${label}</td>
+                <td style="font-weight:700;color:${color}">${qtyStr} ${mat.unit}</td>
+                <td style="font-weight:700;color:${balColor}">${e.balance} ${mat.unit}</td>
+                <td><button onclick="deleteMatEntry('${mat.id}','${e.id}')" style="background:none;border:none;font-size:15px;cursor:pointer;color:#aaa;padding:2px 4px">🗑️</button></td>
             </tr>`;
         });
         html += `</tbody></table></div>`;
@@ -1501,9 +1532,8 @@ function renderMaterialDetail(mat) {
     html += `<div class="delete-zone">
         <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn btn-secondary btn-sm" onclick="renameMaterial('${mat.id}')">&#9998; Rename</button>
-            <button class="btn btn-secondary btn-sm" onclick="setStartQty('${mat.id}')">&#128230; Start${startedWith !== null ? ': ' + startedWith : ''}</button>
             <button class="btn btn-secondary btn-sm" onclick="setParQty('${mat.id}')">&#9651; Min${mat.parQty > 0 ? ': ' + mat.parQty : ''}</button>
-            <button class="btn btn-secondary btn-sm" onclick="setReorderQty('${mat.id}')">&#128666; Reorder${mat.reorderQty > 0 ? ': ' + mat.reorderQty : ''}</button>
+            <button class="btn btn-secondary btn-sm" onclick="setReorderQty('${mat.id}')">&#128666; Order qty${mat.reorderQty > 0 ? ': ' + mat.reorderQty : ''}</button>
             <button class="btn btn-danger btn-sm" onclick="deleteMaterial('${mat.id}')">Delete</button>
         </div>
     </div>`;
@@ -2398,7 +2428,7 @@ function deleteMaterial(matId) {
     persist(); navigate('materials');
 }
 
-function _buildMatLogModal(title, type, matId) {
+function _buildMatLogModal(title, matId) {
     const mats = Array.isArray(matId)
         ? state.materials.filter(m => matId.includes(m.id))
         : matId
@@ -2412,43 +2442,22 @@ function _buildMatLogModal(title, type, matId) {
                 <input type="number" min="0" step="1" id="mat_qty_${i}" placeholder="qty" style="width:100%" />
             </div>
         </div>`).join('');
-    const floorOpts = `<option value="">General / All Floors</option>` +
-        (state.floors||[]).map(f => `<option value="${f.id}">${f.name}</option>`).join('');
-    const floorSelector = type === 'usage' ? `
-        <div class="form-group" style="margin-bottom:8px">
-            <label style="font-size:13px;font-weight:600;color:#555">Floor</label>
-            <select id="mat_floor_sel" onchange="updateMatItemSel()">
-                ${floorOpts}
-            </select>
-        </div>
-        <div class="form-group" style="margin-bottom:12px">
-            <label style="font-size:13px;font-weight:600;color:#555">Work Item <span style="font-weight:400;color:#aaa">(optional)</span></label>
-            <select id="mat_item_sel">
-                <option value="">— select floor first —</option>
-            </select>
-        </div>` : '';
     openModal(title, `
         <div style="display:flex;gap:8px;margin-bottom:12px">
             <button class="date-chip active" id="mchip_today" onclick="setMatDate('${t}')">Today</button>
             <button class="date-chip" id="mchip_yesterday" onclick="setMatDate('${yes}')">Yesterday</button>
         </div>
         <input type="hidden" id="mat_date" value="${t}" />
-        ${floorSelector}
         <p style="font-size:13px;color:#999;margin-bottom:10px">Leave blank for materials not affected.</p>
         ${rows}
     `, () => {
-        const date    = document.getElementById('mat_date').value;
-        const floorId = type === 'usage' ? (document.getElementById('mat_floor_sel')?.value || undefined) : undefined;
-        const itemId  = type === 'usage' ? (document.getElementById('mat_item_sel')?.value  || undefined) : undefined;
+        const date = document.getElementById('mat_date').value;
         let saved = 0;
         mats.forEach((mat, i) => {
             const val = parseFloat(document.getElementById(`mat_qty_${i}`)?.value);
             if (!isNaN(val) && val > 0) {
                 if (!mat.log) mat.log = [];
-                const entry = { id: uid(), date, type, qty: val };
-                if (floorId) entry.floorId = floorId;
-                if (itemId)  entry.itemId  = itemId;
-                mat.log.push(entry);
+                mat.log.push({ id: uid(), date, type: 'delivery', qty: val });
                 saved++;
             }
         });
@@ -2457,30 +2466,62 @@ function _buildMatLogModal(title, type, matId) {
     });
 }
 
-function updateMatItemSel() {
-    const floorId = document.getElementById('mat_floor_sel')?.value;
-    const itemSel = document.getElementById('mat_item_sel');
-    if (!itemSel) return;
-    const floor = (state.floors || []).find(f => f.id === floorId);
-    if (!floor) {
-        itemSel.innerHTML = `<option value="">— select floor first —</option>`;
-        return;
-    }
-    itemSel.innerHTML = `<option value="">No specific item</option>` +
-        (floor.items || []).map(i => `<option value="${i.id}">${i.name}</option>`).join('');
-}
-
-function openLogDelivery()               { _buildMatLogModal('Log Delivery',    'delivery', null); }
-function openLogUsage()                  { _buildMatLogModal('Log Daily Usage', 'usage',    null); }
-function openLogDeliveryFor(id)          { _buildMatLogModal('Log Delivery',    'delivery', id);   }
-function openLogUsageFor(id)             { _buildMatLogModal('Log Daily Usage', 'usage',    id);   }
+function openLogDelivery()              { _buildMatLogModal('Log Delivery', null); }
+function openLogDeliveryFor(id)         { _buildMatLogModal('Log Delivery', id);   }
 function openLogDeliveryForTrade(trade) {
     const ids = (state.materials||[]).filter(m => (m.trade||'Other') === trade).map(m => m.id);
-    _buildMatLogModal('Log Delivery', 'delivery', ids);
+    _buildMatLogModal('Log Delivery', ids);
 }
-function openLogUsageForTrade(trade) {
-    const ids = (state.materials||[]).filter(m => (m.trade||'Other') === trade).map(m => m.id);
-    _buildMatLogModal('Log Daily Usage', 'usage', ids);
+
+function confirmDelivery(matId) {
+    const mat = state.materials.find(m => m.id === matId);
+    openModal('Confirm Delivery — ' + mat.name, `
+        <div class="form-group">
+            <label>Quantity received (${mat.unit})</label>
+            <input id="deliv_confirm_qty" type="number" min="0" step="1" value="${mat.reorderQty || ''}" placeholder="qty" />
+        </div>
+        <div class="form-group">
+            <label>Delivered by <span style="font-weight:400;color:#aaa">(optional)</span></label>
+            <input id="deliv_confirm_by" placeholder="name" />
+        </div>
+        <p style="font-size:12px;color:#999;margin-top:4px">Adjust the quantity if the delivery was short or over.</p>
+    `, () => {
+        const val = parseFloat(document.getElementById('deliv_confirm_qty').value);
+        if (isNaN(val) || val <= 0) { alert('Enter a valid quantity.'); return; }
+        const by = document.getElementById('deliv_confirm_by').value.trim();
+        if (!mat.log) mat.log = [];
+        const entry = { id: uid(), date: today(), type: 'delivery', qty: val };
+        if (by) entry.by = by;
+        mat.log.push(entry);
+        mat.procStatus = '';
+        mat.reorderQty = 0;
+        persist(); closeModal(); render();
+    });
+}
+
+function updateCount(matId) {
+    const mat   = state.materials.find(m => m.id === matId);
+    const stock = matCurrentStock(mat);
+    openModal('Update Count — ' + mat.name, `
+        <div class="form-group">
+            <label>Current count on hand (${mat.unit})</label>
+            <input id="count_qty" type="number" min="0" step="1" value="${stock !== null ? stock : ''}" placeholder="e.g. 15" autofocus />
+        </div>
+        <p style="font-size:12px;color:#999;margin-top:4px">Do a quick count and enter what you see. Future deliveries will be added on top of this.</p>
+    `, () => {
+        const val = parseFloat(document.getElementById('count_qty').value);
+        if (isNaN(val) || val < 0) { alert('Enter a valid count.'); return; }
+        if (!mat.log) mat.log = [];
+        mat.log.push({ id: uid(), date: today(), type: 'adjust', qty: val });
+        persist(); closeModal(); render();
+    });
+}
+
+function deleteMatEntry(matId, entryId) {
+    if (!confirm('Delete this entry? Cannot be undone.')) return;
+    const mat = state.materials.find(m => m.id === matId);
+    mat.log = (mat.log||[]).filter(e => e.id !== entryId);
+    persist(); render();
 }
 
 function setMatSearch(q) {
@@ -3337,23 +3378,29 @@ function updateMatExportFields() {
     else el.innerHTML = '';
 }
 
+function _matLogInRange(mat, inRange) {
+    return (mat.log||[])
+        .filter(e => (e.type === 'delivery' || e.type === 'adjust') && inRange(e.date))
+        .sort((a,b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+}
+
 function exportMaterialsPDF(inRange, label) {
-    const mats = state.materials.filter(m => matDailyUsage(m).some(d => inRange(d.date)));
+    const mats = state.materials.filter(m => _matLogInRange(m, inRange).length > 0);
     if (mats.length === 0) { alert('No data in this period.'); return; }
 
     let bodyHtml = '';
     mats.forEach(mat => {
-        const usage = matDailyUsage(mat).filter(d => inRange(d.date));
-        if (usage.length === 0) return;
-        const totalUsed = usage.reduce((s,d) => s + d.used, 0);
-        const totalDel  = usage.reduce((s,d) => s + d.delivered, 0);
-        const rows = [...usage].reverse().map(d => `<tr>
-            <td>${displayDate(d.date)}</td>
-            <td>${d.delivered > 0 ? '+'+d.delivered : '—'}</td>
-            <td style="font-weight:700;color:#1a3a5c">${d.used > 0 ? d.used : '—'}</td>
-            <td style="font-size:11px;color:#666">${d.floors && d.floors.length > 0 ? d.floors.join(', ') : '—'}</td>
-            <td>${d.balance}</td>
-        </tr>`).join('');
+        const entries = _matLogInRange(mat, inRange);
+        if (entries.length === 0) return;
+        const totalDel = entries.filter(e => e.type === 'delivery').reduce((s,e) => s+e.qty, 0);
+        const rows = [...entries].reverse().map(e => {
+            const isAdj = e.type === 'adjust';
+            return `<tr>
+                <td>${displayDate(e.date)}</td>
+                <td>${isAdj ? '—' : '+'+e.qty}</td>
+                <td>${isAdj ? '= '+e.qty : '—'}</td>
+            </tr>`;
+        }).join('');
         bodyHtml += `<div style="margin-bottom:32px">
             <div style="font-size:15px;font-weight:800;text-transform:uppercase;color:#1a3a5c;border-top:2px solid #1a3a5c;padding-top:6px;margin-bottom:8px">
                 ${mat.name} <span style="font-weight:400;font-size:12px;color:#666">(${mat.unit})</span>
@@ -3363,14 +3410,12 @@ function exportMaterialsPDF(inRange, label) {
                 <thead><tr style="background:#1a3a5c;color:white">
                     <th style="padding:8px 10px;text-align:left">Date</th>
                     <th style="padding:8px 10px;text-align:left">Delivered</th>
-                    <th style="padding:8px 10px;text-align:left">Used</th>
-                    <th style="padding:8px 10px;text-align:left">Floor</th>
-                    <th style="padding:8px 10px;text-align:left">Balance</th>
+                    <th style="padding:8px 10px;text-align:left">Count Update</th>
                 </tr></thead>
                 <tbody>${rows}</tbody>
             </table>
             <div style="text-align:right;margin-top:8px;font-size:13px;font-weight:700;color:#1a3a5c">
-                Total Delivered: ${totalDel} ${mat.unit} &nbsp;·&nbsp; Total Used: ${totalUsed} ${mat.unit}
+                Total Delivered: ${totalDel} ${mat.unit}
             </div>
         </div>`;
     });
@@ -3390,10 +3435,10 @@ function exportMaterialsPDF(inRange, label) {
 }
 
 function exportMaterialsCSV(inRange, label) {
-    const rows = [['MATERIAL', 'UNIT', 'TRADE', 'DATE', 'DELIVERED', 'USED', 'FLOOR', 'BALANCE']];
+    const rows = [['MATERIAL', 'UNIT', 'TRADE', 'DATE', 'EVENT', 'QTY']];
     state.materials.forEach(mat => {
-        matDailyUsage(mat).filter(d => inRange(d.date)).forEach(d => {
-            rows.push([mat.name, mat.unit, mat.trade || '', displayDate(d.date), d.delivered, d.used, (d.floors||[]).join('; '), d.balance]);
+        _matLogInRange(mat, inRange).forEach(e => {
+            rows.push([mat.name, mat.unit, mat.trade || '', displayDate(e.date), e.type === 'adjust' ? 'Count Update' : 'Delivery', e.qty]);
         });
     });
     if (rows.length === 1) { alert('No data in this period.'); return; }
