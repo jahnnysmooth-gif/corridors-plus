@@ -4666,13 +4666,19 @@ async function syncPush() {
     });
     const deletions = (state.deletedMaterials || []).map(d => ({ name: d.name, trade: d.trade }));
     try {
-        await fetch(url, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ materials, deletions }) });
+        const resp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ materials, deletions })
+        });
+        const result = await resp.json().catch(() => ({}));
+        if (result.error) throw new Error(result.error);
         localStorage.setItem('hallway_sheets_last_sync', new Date().toISOString());
         state.pendingConfirms  = [];
         persist();
-        _showSyncToast('&#10003; Pushed to Google Sheets', toast, 3500);
+        _showSyncToast(`&#10003; Pushed to Google Sheets`, toast, 3500);
     } catch(err) {
-        _showSyncToast('&#10007; Push failed: ' + err.message, toast, 4500);
+        _showSyncToast('&#10007; Push failed: ' + err.message, toast, 5000);
     }
 }
 
