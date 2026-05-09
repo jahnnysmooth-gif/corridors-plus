@@ -4468,7 +4468,7 @@ async function syncPull() {
                     const lastDel = (mat.log || []).filter(e => e.type === 'delivery').sort((a,b) => b.date.localeCompare(a.date))[0];
                     if (!lastDel || isoDate >= lastDel.date) {
                         if (!mat.log) mat.log = [];
-                        mat.log.push({ id: uid(), date: isoDate, type: 'delivery', qty: sheetQty, by: row['Delivered By'] || '' });
+                        mat.log.push({ id: uid(), date: isoDate, type: 'delivery', qty: sheetQty, by: row['Ordered By'] || '' });
                     }
                 }
             }
@@ -4506,10 +4506,9 @@ async function syncPush() {
             'Min Stock':           mat.parQty    || '',
             'Last Delivery Date':  lastDel ? lastDel.date : '',
             'Last Delivery Qty':   lastDel ? lastDel.qty  : '',
-            'Delivered By':        lastDel ? (lastDel.by || '') : '',
+            'Ordered By':          lastDel ? (lastDel.by || '') : '',
             'To Order':            mat.reorderQty || '',
             'Order Status':        mat.procStatus || '',
-            'Ordered By':          '',
             'Link':                mat.link  || '',
             'Notes':               mat.notes || ''
         };
