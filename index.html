@@ -614,7 +614,7 @@
         .mat-card.low-stock { border-left: 4px solid #dc2626; background: #fff5f5; }
         .mat-stock-num.low { color: #dc2626; }
         .low-badge { display:inline-block; background:#dc2626; color:white; font-size:10px; font-weight:700; padding:2px 6px; border-radius:99px; margin-left:6px; vertical-align:middle; letter-spacing:0.4px; }
-        .trade-tile-low { position:absolute; top:8px; right:8px; width:10px; height:10px; background:#dc2626; border-radius:50%; }
+        .trade-tile-low { position:absolute; top:7px; right:7px; min-width:18px; height:18px; background:#dc2626; border-radius:99px; color:white; font-size:10px; font-weight:800; display:flex; align-items:center; justify-content:center; padding:0 4px; line-height:1; }
         .trade-tile { position: relative; }
         .low-stock-bar { background:#fff1f1; border:1.5px solid #fca5a5; border-radius:10px; padding:10px 14px; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
         .low-stock-bar-text { font-size:13px; font-weight:600; color:#dc2626; flex:1; }
@@ -1135,6 +1135,12 @@ function render() {
         title.textContent = mat ? mat.name : 'Material';
         app.innerHTML = renderMaterialDetail(mat);
 
+    } else if (view.screen === 'orderhistory') {
+        back.style.display = 'block';
+        back.onclick = () => navigate('materials');
+        title.textContent = 'Order History';
+        app.innerHTML = renderOrderHistory();
+
     } else if (view.screen === 'reorder') {
         back.style.display = 'block';
         back.onclick = () => navigate('materials');
@@ -1416,9 +1422,9 @@ function renderMaterials() {
         const icon  = TRADE_ICONS[trade]  || '📦';
         const deliv = tradeMats.reduce((s,m) => s + (m.log||[]).filter(e => e.type==='delivery' && e.date===today()).reduce((ss,e) => ss+e.qty, 0), 0);
         const sub   = deliv > 0 ? `+${deliv} delivered today` : `${tradeMats.length} item${tradeMats.length !== 1 ? 's' : ''}`;
-        const hasLow = tradeMats.some(isLow);
+        const lowInTrade = tradeMats.filter(isLow).length;
         html += `<button class="trade-tile" style="border-top:4px solid ${color}" onclick="navigate('materials',null,null,null,'${trade}')">
-            ${hasLow ? `<div class="trade-tile-low"></div>` : ''}
+            ${lowInTrade > 0 ? `<div class="trade-tile-low">${lowInTrade}</div>` : ''}
             <span class="trade-tile-icon">${icon}</span>
             <div class="trade-tile-label">${trade}</div>
             <div class="trade-tile-sub">${sub}</div>
@@ -1426,6 +1432,7 @@ function renderMaterials() {
     });
     html += `</div>`;
     html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px;margin-top:20px;background:${lowCount > 0 ? '#7c3aed' : ''};color:${lowCount > 0 ? 'white' : ''};border-color:${lowCount > 0 ? '#7c3aed' : ''}" onclick="navigate('reorder')">&#128203; Reorder List${lowCount > 0 ? ` <span style="background:white;color:#7c3aed;font-size:11px;font-weight:800;padding:2px 7px;border-radius:99px;margin-left:4px">${lowCount}</span>` : ''}</button>`;
+    html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px" onclick="navigate('orderhistory')">&#128220; Order History</button>`;
     html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px" onclick="openMaterialsExportModal()">&#8681; Export Usage Report</button>`;
     html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px" onclick="openSheetsSync()">&#9729; Google Sheets Sync${localStorage.getItem('hallway_sheets_url') ? ' <span style="display:inline-block;width:7px;height:7px;background:#16a34a;border-radius:50%;margin-left:4px;vertical-align:middle"></span>' : ''}</button>`;
     html += `<button class="add-btn" onclick="openAddMaterial()">+ Add Material</button>`;
@@ -1481,6 +1488,8 @@ function renderMaterialDetail(mat) {
 
     html += `<div class="mat-action-row">
         <button class="mat-action-btn" style="background:#475569;color:white" onclick="updateCount('${mat.id}')">&#9998; Update Count</button>
+        <button class="mat-action-btn" style="background:#b45309;color:white" onclick="placeOrder('${mat.id}')">&#128666; Place Order</button>
+        <button class="mat-action-btn" style="background:#1a3a5c;color:white" onclick="openSheetsSync()">&#9729; Sync</button>
     </div>`;
 
     // History — deliveries and count updates
@@ -1537,6 +1546,65 @@ function renderMaterialDetail(mat) {
             <button class="btn btn-danger btn-sm" onclick="deleteMaterial('${mat.id}')">Delete</button>
         </div>
     </div>`;
+
+    return html;
+}
+
+// ── Order History screen ──────────────────────────────────────────────────────
+function renderOrderHistory() {
+    const mats = state.materials || [];
+    // Collect all delivery entries across all materials
+    const entries = [];
+    mats.forEach(mat => {
+        (mat.log || []).filter(e => e.type === 'delivery').forEach(e => {
+            entries.push({ mat, entry: e });
+        });
+    });
+
+    if (entries.length === 0) {
+        return `<div style="text-align:center;padding:60px 20px">
+            <div style="font-size:48px;margin-bottom:16px">📦</div>
+            <div style="font-size:18px;font-weight:700;color:#1a1a2e;margin-bottom:8px">No deliveries yet</div>
+            <div style="font-size:14px;color:#999">Confirmed deliveries will appear here.</div>
+        </div>`;
+    }
+
+    // Sort newest first
+    entries.sort((a, b) => b.entry.date.localeCompare(a.entry.date) || b.entry.id.localeCompare(a.entry.id));
+
+    // Group by date
+    const byDate = {};
+    entries.forEach(({ mat, entry }) => {
+        if (!byDate[entry.date]) byDate[entry.date] = [];
+        byDate[entry.date].push({ mat, entry });
+    });
+
+    const totalQty = entries.reduce((s, { entry }) => s + entry.qty, 0);
+    let html = `<div class="stats-row" style="grid-template-columns:1fr 1fr">
+        <div class="stat-card"><div class="stat-value">${entries.length}</div><div class="stat-label">Total Deliveries</div></div>
+        <div class="stat-card"><div class="stat-value">${totalQty}</div><div class="stat-label">Total Units Received</div></div>
+    </div>`;
+
+    Object.keys(byDate).sort((a, b) => b.localeCompare(a)).forEach(date => {
+        html += `<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#999;margin:16px 0 6px;padding:0 2px">${displayDate(date)}</div>`;
+        html += `<div class="card" style="padding:0;overflow:hidden">`;
+        byDate[date].forEach(({ mat, entry }, i) => {
+            const color = TRADE_COLORS[mat.trade] || '#475569';
+            const border = i > 0 ? 'border-top:1px solid #f0f3f8' : '';
+            html += `<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;${border};cursor:pointer" onclick="navigate('material',null,null,'${mat.id}','${mat.trade||'Other'}')">
+                <div style="width:4px;min-width:4px;height:36px;background:${color};border-radius:2px"></div>
+                <div style="flex:1;min-width:0">
+                    <div style="font-size:14px;font-weight:600;color:#1a1a2e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${mat.name}</div>
+                    <div style="font-size:12px;color:#888;margin-top:2px">${mat.trade || 'Other'}${entry.by ? ' · ' + entry.by : ''}</div>
+                </div>
+                <div style="text-align:right;flex-shrink:0">
+                    <div style="font-size:16px;font-weight:700;color:#16a34a">+${entry.qty}</div>
+                    <div style="font-size:11px;color:#aaa">${mat.unit || 'units'}</div>
+                </div>
+            </div>`;
+        });
+        html += `</div>`;
+    });
 
     return html;
 }
@@ -2389,6 +2457,32 @@ function setReorderQty(matId) {
         mat.reorderQty = isNaN(val) || val < 0 ? 0 : val;
         persist(); closeModal(); render();
     });
+}
+
+function placeOrder(matId) {
+    const mat = state.materials.find(m => m.id === matId);
+    if (!mat) return;
+    const stock = matCurrentStock(mat);
+    openModal('Place Order — ' + mat.name, `
+        <div class="form-group">
+            <label>Quantity to order (${mat.unit || 'units'})</label>
+            <input id="po_qty" type="number" min="1" step="1" value="${mat.reorderQty || ''}" placeholder="e.g. 20" />
+        </div>
+        <div class="form-group">
+            <label>Notes (optional)</label>
+            <input id="po_notes" placeholder="Vendor, SKU, urgency…" value="" />
+        </div>
+        <p style="font-size:12px;color:#999;margin-top:4px">Order status will be set to <strong>Review</strong> so the office can approve before ordering.</p>
+    `, () => {
+        const qty = parseFloat(document.getElementById('po_qty').value);
+        const notes = document.getElementById('po_notes').value.trim();
+        if (!qty || qty <= 0) { alert('Enter a valid quantity.'); return; }
+        mat.reorderQty = qty;
+        mat.procStatus = 'Review';
+        if (notes) mat.notes = mat.notes ? mat.notes + '\n' + notes : notes;
+        persist(); closeModal(); render();
+    });
+    setTimeout(() => { const el = document.getElementById('po_qty'); if (el) el.focus(); }, 100);
 }
 
 function setParQty(matId) {
@@ -3540,8 +3634,9 @@ function initFirebase() {
             // Add / backfill Georgetown materials
             const _matByName = {};
             (state.materials || []).forEach(m => { _matByName[m.name] = m; });
+            const _deletedNames = new Set((state.deletedMaterials || []).map(d => String(d.name || '').toLowerCase()));
             DEFAULT_MATERIALS.forEach(dm => {
-                if (!_matByName[dm.name]) {
+                if (!_matByName[dm.name] && !_deletedNames.has(dm.name.toLowerCase())) {
                     state.materials.push({ id: uid(), name: dm.name, unit: dm.unit, trade: dm.trade, startQty: dm.startQty !== undefined ? dm.startQty : 0, log: [] });
                     _tradeDirty = true;
                 } else {
@@ -3608,8 +3703,9 @@ function disconnectSync() {
     // Add / backfill Georgetown materials from DEFAULT_MATERIALS
     const matByName = {};
     (state.materials || []).forEach(m => { matByName[m.name] = m; });
+    const deletedNames = new Set((state.deletedMaterials || []).map(d => String(d.name || '').toLowerCase()));
     DEFAULT_MATERIALS.forEach(dm => {
-        if (!matByName[dm.name]) {
+        if (!matByName[dm.name] && !deletedNames.has(dm.name.toLowerCase())) {
             // Add missing material
             state.materials.push({ id: uid(), name: dm.name, unit: dm.unit, trade: dm.trade, startQty: dm.startQty !== undefined ? dm.startQty : 0, log: [] });
             dirty = true;
@@ -4572,6 +4668,13 @@ if (_savedCode) {
 } else {
     document.getElementById('syncOverlay').classList.add('open');
 }
+
+// Auto-sync with Google Sheets every 15 minutes (only when URL is configured)
+setInterval(() => {
+    if (localStorage.getItem('hallway_sheets_url')) {
+        syncPull().then(ok => { if (ok) syncPush(); });
+    }
+}, 15 * 60 * 1000);
 </script>
 </body>
 </html>
