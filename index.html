@@ -4465,7 +4465,7 @@ async function syncPull() {
                 if (row['Min Stock'])   mat.parQty     = parseFloat(row['Min Stock']) || mat.parQty || 0;
                 if (row['To Order'])    mat.reorderQty = parseFloat(row['To Order'])  || mat.reorderQty || 0;
                 mat.procStatus = row['Order Status'] || mat.procStatus || '';
-                if (row['Notes'] && !mat.notes)  mat.notes = row['Notes'];
+                mat.notes = row['Notes'] || '';
                 if (row['Trade']  && !mat.trade) mat.trade = row['Trade'];
                 updated++;
             }
