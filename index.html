@@ -1466,13 +1466,18 @@ function renderMaterialDetail(mat) {
         html += `<div class="low-stock-bar"><span style="font-size:18px">⚠️</span><span class="low-stock-bar-text">Below minimum${orderNote}</span></div>`;
     }
 
-    if (mat.brand || mat.link || (mat.procStatus && !ordered)) {
-        html += `<div class="mat-info-card">`;
-        if (mat.brand)                     html += `<div class="mat-info-row"><span class="mat-info-label">Brand</span><span>${mat.brand.replace(/</g,'&lt;')}</span></div>`;
-        if (mat.procStatus && !ordered)    html += `<div class="mat-info-row"><span class="mat-info-label">Status</span><span>${mat.procStatus.replace(/</g,'&lt;')}</span></div>`;
-        if (mat.link)                      html += `<div class="mat-info-row"><span class="mat-info-label">Link</span><a href="${mat.link.replace(/"/g,'&quot;')}" target="_blank" rel="noopener" class="mat-info-link">View product ↗</a></div>`;
-        html += `</div>`;
-    }
+    html += `<div class="mat-info-card">`;
+    if (mat.brand) html += `<div class="mat-info-row"><span class="mat-info-label">Brand</span><span>${mat.brand.replace(/</g,'&lt;')}</span></div>`;
+    html += `<div class="mat-info-row">
+        <span class="mat-info-label">Order Status</span>
+        <div style="display:flex;gap:6px;flex:1;align-items:center">
+            <input id="proc_status_input" value="${(mat.procStatus||'').replace(/"/g,'&quot;')}" placeholder="e.g. Review, Order Needed…"
+                style="flex:1;padding:6px 10px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px"
+                onchange="saveMatStatus('${mat.id}',this.value)" />
+        </div>
+    </div>`;
+    if (mat.link) html += `<div class="mat-info-row"><span class="mat-info-label">Link</span><a href="${mat.link.replace(/"/g,'&quot;')}" target="_blank" rel="noopener" class="mat-info-link">View product ↗</a></div>`;
+    html += `</div>`;
 
     html += `<div class="mat-action-row">
         <button class="mat-action-btn" style="background:#475569;color:white" onclick="updateCount('${mat.id}')">&#9998; Update Count</button>
@@ -2283,6 +2288,13 @@ function renameMaterial(matId) {
         mat.name = name;
         persist(); closeModal(); render();
     });
+}
+
+function saveMatStatus(matId, val) {
+    const mat = state.materials.find(m => m.id === matId);
+    if (!mat) return;
+    mat.procStatus = val.trim();
+    persist(); render();
 }
 
 function editMatNotes(matId) {
