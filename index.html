@@ -4464,10 +4464,10 @@ async function syncPull() {
                 state.materials.push(mat);
                 added++;
             } else {
-                if (row['Brand/Type'])  mat.brand      = row['Brand/Type'];
-                if (row['Link'])        mat.link       = row['Link'];
-                if (row['Min Stock'])   mat.parQty     = parseFloat(row['Min Stock']) || mat.parQty || 0;
-                if (row['To Order'])    mat.reorderQty = parseFloat(row['To Order'])  || mat.reorderQty || 0;
+                mat.brand      = row['Brand/Type'] || mat.brand || '';
+                mat.link       = row['Link']       || mat.link  || '';
+                mat.parQty     = row['Min Stock'] !== '' && row['Min Stock'] !== undefined ? (parseFloat(row['Min Stock']) || 0) : (mat.parQty || 0);
+                mat.reorderQty = row['To Order']  !== '' && row['To Order']  !== undefined ? (parseFloat(row['To Order'])  || 0) : (mat.reorderQty || 0);
                 const matKey = (String(row['Trade']||'') + '||' + name).toLowerCase();
                 if (!confirmedKeys.has(matKey)) mat.procStatus = row['Order Status'] || mat.procStatus || '';
                 mat.notes = row['Notes'] || '';

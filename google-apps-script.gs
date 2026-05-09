@@ -64,9 +64,8 @@ function doPost(e) {
       if (r[matIdx]) rowMap[key] = i + 2;
     });
 
-    // Min Stock is sheet-only — everything else the app can update
-    const SHEET_ONLY = ['Min Stock'];
-    const APP_FIELDS = HEADERS.filter(h => !SHEET_ONLY.includes(h));
+    // All fields are app-managed (partial update still protects against full row wipe)
+    const APP_FIELDS = HEADERS;
 
     const updates = payload.materials || [];
     const newRows = [];
