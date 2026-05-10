@@ -4601,9 +4601,8 @@ async function syncPull() {
                 mat.link       = row['Link']       || mat.link  || '';
                 mat.parQty     = row['Min Stock'] !== '' && row['Min Stock'] !== undefined ? (parseFloat(row['Min Stock']) || 0) : (mat.parQty || 0);
                 const matKey = (String(row['Trade']||'') + '||' + name).toLowerCase();
+                mat.reorderQty = parseFloat(row['To Order']) || 0;
                 if (!confirmedKeys.has(matKey)) {
-                    const _sheetToOrder = parseFloat(row['To Order']);
-                    mat.reorderQty = !isNaN(_sheetToOrder) ? _sheetToOrder : (mat.reorderQty || 0);
                     mat.procStatus = row['Order Status'] || mat.procStatus || '';
                 }
                 mat.notes = row['Notes'] || '';
