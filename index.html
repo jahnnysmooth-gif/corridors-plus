@@ -4676,7 +4676,7 @@ async function syncPush() {
         localStorage.setItem('hallway_sheets_last_sync', new Date().toISOString());
         state.pendingConfirms  = [];
         persist();
-        _showSyncToast(`&#10003; Pushed to Google Sheets`, toast, 3500);
+        _showSyncToast(`&#10003; Pushed — updated:${result.updated ?? '?'} added:${result.added ?? 0} deleted:${result.deleted ?? 0}`, toast, 6000);
     } catch(err) {
         _showSyncToast('&#10007; Push failed: ' + err.message, toast, 5000);
     }
