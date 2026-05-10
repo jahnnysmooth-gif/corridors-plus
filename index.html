@@ -2603,7 +2603,6 @@ function confirmDelivery(matId) {
         if (by) entry.by = by;
         mat.log.push(entry);
         mat.procStatus = '';
-        mat.reorderQty = 0;
         if (!state.pendingConfirms) state.pendingConfirms = [];
         state.pendingConfirms.push({ name: mat.name, trade: mat.trade || '' });
         persist(); closeModal(); render();
