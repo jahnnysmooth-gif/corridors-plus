@@ -8,7 +8,7 @@ const HEADERS = [
   'Trade', 'Material', 'Brand/Type', 'Unit',
   'On Hand', 'Min Stock',
   'Last Delivery Date', 'Last Delivery Qty', 'Ordered By',
-  'To Order', 'Order Status',
+  'To Order', 'Order Status', 'Delivery ETA',
   'Link', 'Notes'
 ];
 
