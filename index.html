@@ -1366,7 +1366,7 @@ function _matCardHtml(mat, tradeBadge) {
     const cardHtml = `<div class="mat-card${low && !ordered ? ' low-stock' : ''}${ordered ? ' mat-card-ordered' : ''}" data-mat-name="${mat.name.toLowerCase()}" onclick="navigate('material',null,null,'${mat.id}','${trade}')">
         <div>
             <div class="mat-name">${mat.name}${low ? `<span class="low-badge">⚠ LOW</span>` : ''}${tradeBadge ? `<span class="mat-trade-badge">${trade}</span>` : ''}${ordered ? `<span class="proc-status-badge ordered-badge">&#128666; Ordered</span>` : (mat.procStatus ? `<span class="proc-status-badge">${mat.procStatus}</span>` : '')}</div>
-            <div class="mat-meta">${mat.unit}${deliv > 0 ? ` &nbsp;·&nbsp; <span style="color:#16a34a;font-weight:600">+${deliv} today</span>` : ''}${mat.parQty > 0 ? ` &nbsp;·&nbsp; min: ${mat.parQty}` : ''}${mat.reorderQty > 0 ? ` &nbsp;·&nbsp; <span style="color:${ordered ? '#16a34a' : '#dc2626'};font-weight:600">order: ${mat.reorderQty}</span>` : ''}</div>
+            <div class="mat-meta">${mat.unit}${deliv > 0 ? ` &nbsp;·&nbsp; <span style="color:#16a34a;font-weight:600">+${deliv} today</span>` : ''}${mat.parQty > 0 ? ` &nbsp;·&nbsp; min: ${mat.parQty}` : ''}${mat.reorderQty > 0 ? ` &nbsp;·&nbsp; <span style="color:${ordered ? '#16a34a' : low ? '#dc2626' : '#999'};font-weight:600">order: ${mat.reorderQty}</span>` : ''}</div>
         </div>
         <div class="mat-stock">
             ${stock !== null
