@@ -4603,7 +4603,7 @@ async function syncPull() {
                 const matKey = (String(row['Trade']||'') + '||' + name).toLowerCase();
                 if (!confirmedKeys.has(matKey)) {
                     const _sheetToOrder = parseFloat(row['To Order']);
-                    if (!isNaN(_sheetToOrder) && _sheetToOrder > 0) mat.reorderQty = _sheetToOrder;
+                    mat.reorderQty = !isNaN(_sheetToOrder) ? _sheetToOrder : (mat.reorderQty || 0);
                     mat.procStatus = row['Order Status'] || mat.procStatus || '';
                 }
                 mat.notes = row['Notes'] || '';
@@ -4658,7 +4658,7 @@ async function syncPush() {
             'Last Delivery Date':  lastDel ? lastDel.date : '',
             'Last Delivery Qty':   lastDel ? lastDel.qty  : '',
             'Ordered By':          lastDel ? (lastDel.by || '') : '',
-            'To Order':            mat.reorderQty > 0 ? mat.reorderQty : undefined,
+            'To Order':            mat.reorderQty > 0 ? mat.reorderQty : '',
             'Order Status':        mat.procStatus || '',
             'Link':                mat.link  || '',
             'Notes':               mat.notes || ''
