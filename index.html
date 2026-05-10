@@ -4602,7 +4602,8 @@ async function syncPull() {
                 mat.parQty     = row['Min Stock'] !== '' && row['Min Stock'] !== undefined ? (parseFloat(row['Min Stock']) || 0) : (mat.parQty || 0);
                 const matKey = (String(row['Trade']||'') + '||' + name).toLowerCase();
                 if (!confirmedKeys.has(matKey)) {
-                    mat.reorderQty = row['To Order'] !== '' && row['To Order'] !== undefined ? (parseFloat(row['To Order']) || 0) : (mat.reorderQty || 0);
+                    const _sheetToOrder = parseFloat(row['To Order']);
+                    if (!isNaN(_sheetToOrder) && _sheetToOrder > 0) mat.reorderQty = _sheetToOrder;
                     mat.procStatus = row['Order Status'] || mat.procStatus || '';
                 }
                 mat.notes = row['Notes'] || '';
