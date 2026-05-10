@@ -4732,7 +4732,7 @@ async function syncPull() {
             } else {
                 mat.brand      = row['Brand/Type'] || mat.brand || '';
                 mat.link       = row['Link']       || mat.link  || '';
-                mat.parQty     = row['Min Stock'] !== '' && row['Min Stock'] !== undefined ? (parseFloat(row['Min Stock']) || 0) : (mat.parQty || 0);
+                if (!(mat.parQty > 0)) { const _pq = parseFloat(row['Min Stock']); if (!isNaN(_pq)) mat.parQty = _pq; }
                 const matKey = (String(row['Trade']||'') + '||' + name).toLowerCase();
                 const _toOrder = parseFloat(row['To Order']);
                 if (!isNaN(_toOrder)) mat.reorderQty = _toOrder;
