@@ -53,7 +53,7 @@ function doPost(e) {
     }
 
     const allData  = sheet.getDataRange().getValues();
-    const hdr      = allData[0].map(h => String(h).trim());
+    const hdr      = allData[0].map(h => String(h).trim().replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' '));
     const matIdx   = hdr.indexOf('Material');
     const tradeIdx = hdr.indexOf('Trade');
 
