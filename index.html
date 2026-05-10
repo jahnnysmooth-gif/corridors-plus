@@ -627,6 +627,17 @@
         .mat-search-input:focus { border-color: #1a3a5c; }
         .mat-search-clear { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 20px; color: #aaa; cursor: pointer; line-height: 1; padding: 0; }
         .mat-trade-badge { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; padding: 2px 7px; border-radius: 99px; margin-left: 6px; vertical-align: middle; background: #e5e7eb; color: #555; }
+        /* ── On Hand screen ── */
+        .onhand-section { margin-bottom: 22px; }
+        .onhand-trade-header { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; padding: 8px 4px 6px; border-bottom: 2px solid currentColor; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+        .onhand-row { display: flex; align-items: center; padding: 10px 8px; border-bottom: 1px solid #f3f4f6; gap: 10px; }
+        .onhand-row:last-child { border-bottom: none; }
+        .onhand-name { flex: 1; font-size: 14px; color: #1a1a2e; font-weight: 500; }
+        .onhand-qty { font-size: 20px; font-weight: 800; color: #1a3a5c; min-width: 44px; text-align: right; }
+        .onhand-qty.low { color: #dc2626; }
+        .onhand-unit { font-size: 11px; color: #aaa; min-width: 36px; text-align: left; text-transform: uppercase; letter-spacing: 0.3px; }
+        .onhand-update-btn { padding: 5px 11px; background: #f1f5f9; border: none; border-radius: 7px; font-size: 12px; font-weight: 600; color: #475569; cursor: pointer; white-space: nowrap; }
+        .onhand-update-btn:hover { background: #e2e8f0; }
         .reorder-card { background: white; border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border-left: 4px solid #7c3aed; }
         .reorder-name { font-size: 16px; font-weight: 700; color: #1a1a2e; }
         .reorder-meta { font-size: 13px; color: #888; margin-top: 4px; }
@@ -1135,6 +1146,12 @@ function render() {
         title.textContent = mat ? mat.name : 'Material';
         app.innerHTML = renderMaterialDetail(mat);
 
+    } else if (view.screen === 'onhand') {
+        back.style.display = 'block';
+        back.onclick = () => navigate('materials');
+        title.textContent = 'On Hand';
+        app.innerHTML = renderOnHand();
+
     } else if (view.screen === 'orderhistory') {
         back.style.display = 'block';
         back.onclick = () => navigate('materials');
@@ -1431,7 +1448,8 @@ function renderMaterials() {
         </button>`;
     });
     html += `</div>`;
-    html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px;margin-top:20px;background:${lowCount > 0 ? '#7c3aed' : ''};color:${lowCount > 0 ? 'white' : ''};border-color:${lowCount > 0 ? '#7c3aed' : ''}" onclick="navigate('reorder')">&#128203; Reorder List${lowCount > 0 ? ` <span style="background:white;color:#7c3aed;font-size:11px;font-weight:800;padding:2px 7px;border-radius:99px;margin-left:4px">${lowCount}</span>` : ''}</button>`;
+    html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px;margin-top:20px" onclick="navigate('onhand')">&#128200; On Hand Overview</button>`;
+    html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px;background:${lowCount > 0 ? '#7c3aed' : ''};color:${lowCount > 0 ? 'white' : ''};border-color:${lowCount > 0 ? '#7c3aed' : ''}" onclick="navigate('reorder')">&#128203; Reorder List${lowCount > 0 ? ` <span style="background:white;color:#7c3aed;font-size:11px;font-weight:800;padding:2px 7px;border-radius:99px;margin-left:4px">${lowCount}</span>` : ''}</button>`;
     html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px" onclick="navigate('orderhistory')">&#128220; Order History</button>`;
     html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px" onclick="openMaterialsExportModal()">&#8681; Export Usage Report</button>`;
     html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px" onclick="openSheetsSync()">&#9729; Google Sheets Sync${localStorage.getItem('hallway_sheets_url') ? ' <span style="display:inline-block;width:7px;height:7px;background:#16a34a;border-radius:50%;margin-left:4px;vertical-align:middle"></span>' : ''}</button>`;
@@ -1613,6 +1631,121 @@ function renderOrderHistory() {
 }
 
 // ── Reorder List screen ───────────────────────────────────────────────────────
+function renderOnHand() {
+    const mats = state.materials || [];
+    if (mats.length === 0) return `<div class="empty-state">No materials yet.</div>`;
+
+    const byTrade = {};
+    mats.forEach(mat => {
+        const t = mat.trade || 'Other';
+        if (!byTrade[t]) byTrade[t] = [];
+        byTrade[t].push(mat);
+    });
+    const tradeKeys = TRADE_ORDER.filter(t => byTrade[t]);
+    Object.keys(byTrade).forEach(t => { if (!TRADE_ORDER.includes(t)) tradeKeys.push(t); });
+
+    const totalItems = mats.length;
+    const knownCount = mats.filter(m => matCurrentStock(m) !== null).length;
+    const isLow = m => { const s = matCurrentStock(m); return s !== null && m.parQty > 0 && s < m.parQty; };
+    const lowCount = mats.filter(isLow).length;
+
+    let html = `<div class="stats-row" style="grid-template-columns:1fr 1fr 1fr">
+        <div class="stat-card"><div class="stat-value">${totalItems}</div><div class="stat-label">Materials</div></div>
+        <div class="stat-card"><div class="stat-value">${knownCount}</div><div class="stat-label">Counted</div></div>
+        <div class="stat-card"><div class="stat-value" style="color:${lowCount > 0 ? '#dc2626' : 'inherit'}">${lowCount}</div><div class="stat-label">Low Stock</div></div>
+    </div>`;
+
+    html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:16px" onclick="printOnHand()">&#128438; Print / Share</button>`;
+
+    tradeKeys.forEach(trade => {
+        const tradeMats = byTrade[trade];
+        const color = TRADE_COLORS[trade] || '#475569';
+        const icon  = TRADE_ICONS[trade]  || '📦';
+        html += `<div class="onhand-section">
+            <div class="onhand-trade-header" style="color:${color}">${icon} ${trade}</div>`;
+        tradeMats.forEach(mat => {
+            const stock = matCurrentStock(mat);
+            const low   = stock !== null && mat.parQty > 0 && stock < mat.parQty;
+            const qtyDisplay = stock !== null ? stock : '—';
+            html += `<div class="onhand-row">
+                <div class="onhand-name">${mat.name}${low ? ' <span class="low-badge">LOW</span>' : ''}</div>
+                <div class="onhand-qty${low ? ' low' : ''}">${qtyDisplay}</div>
+                <div class="onhand-unit">${mat.unit || ''}</div>
+                <button class="onhand-update-btn" onclick="updateCountFromOnHand('${mat.id}')">Update</button>
+            </div>`;
+        });
+        html += `</div>`;
+    });
+
+    return html;
+}
+
+function updateCountFromOnHand(matId) {
+    const mat   = state.materials.find(m => m.id === matId);
+    const stock = matCurrentStock(mat);
+    openModal('Update Count — ' + mat.name, `
+        <div class="form-group">
+            <label>Current count on hand (${mat.unit || 'units'})</label>
+            <input id="count_qty" type="number" min="0" step="1" value="${stock !== null ? stock : ''}" placeholder="e.g. 15" autofocus />
+        </div>
+        <p style="font-size:12px;color:#999;margin-top:4px">Enter the quantity you physically counted. Future deliveries add on top.</p>
+    `, () => {
+        const val = parseFloat(document.getElementById('count_qty').value);
+        if (isNaN(val) || val < 0) { alert('Enter a valid count.'); return; }
+        if (!mat.log) mat.log = [];
+        mat.log.push({ id: uid(), date: today(), type: 'adjust', qty: val });
+        persist(); closeModal(); render();
+        if (localStorage.getItem('hallway_sheets_url')) syncPush();
+    });
+}
+
+function printOnHand() {
+    const mats = state.materials || [];
+    if (mats.length === 0) { alert('No materials to print.'); return; }
+
+    const byTrade = {};
+    mats.forEach(mat => {
+        const t = mat.trade || 'Other';
+        if (!byTrade[t]) byTrade[t] = [];
+        byTrade[t].push(mat);
+    });
+    const tradeKeys = TRADE_ORDER.filter(t => byTrade[t]);
+    Object.keys(byTrade).forEach(t => { if (!TRADE_ORDER.includes(t)) tradeKeys.push(t); });
+
+    let body = `<h2 style="margin-bottom:4px">On Hand Inventory</h2>
+        <div style="font-size:12px;color:#666;margin-bottom:20px">As of ${new Date().toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'})}</div>`;
+
+    tradeKeys.forEach(trade => {
+        body += `<h3 style="margin:16px 0 6px;border-bottom:1px solid #ddd;padding-bottom:4px">${trade}</h3>
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead><tr style="background:#f3f4f6">
+                <th style="text-align:left;padding:5px 8px;border:1px solid #e5e7eb">Material</th>
+                <th style="text-align:right;padding:5px 8px;border:1px solid #e5e7eb">On Hand</th>
+                <th style="text-align:left;padding:5px 8px;border:1px solid #e5e7eb">Unit</th>
+                <th style="text-align:right;padding:5px 8px;border:1px solid #e5e7eb">Min Stock</th>
+            </tr></thead><tbody>`;
+        byTrade[trade].forEach(mat => {
+            const stock = matCurrentStock(mat);
+            const low   = stock !== null && mat.parQty > 0 && stock < mat.parQty;
+            body += `<tr style="${low ? 'background:#fff5f5;color:#dc2626' : ''}">
+                <td style="padding:5px 8px;border:1px solid #e5e7eb">${mat.name}</td>
+                <td style="text-align:right;padding:5px 8px;border:1px solid #e5e7eb;font-weight:700">${stock !== null ? stock : '—'}</td>
+                <td style="padding:5px 8px;border:1px solid #e5e7eb;color:#888">${mat.unit || ''}</td>
+                <td style="text-align:right;padding:5px 8px;border:1px solid #e5e7eb;color:#888">${mat.parQty > 0 ? mat.parQty : '—'}</td>
+            </tr>`;
+        });
+        body += `</tbody></table>`;
+    });
+
+    const win = window.open('', '_blank');
+    win.document.write(`<!DOCTYPE html><html><head><title>On Hand Inventory</title>
+        <style>body{font-family:sans-serif;padding:24px;max-width:800px;margin:0 auto}@media print{body{padding:0}}</style>
+        </head><body>${body}</body></html>`);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 300);
+}
+
 function renderReorderList() {
     const mats  = state.materials || [];
     const isLow = m => { const s = matCurrentStock(m); return s !== null && m.parQty > 0 && s < m.parQty; };

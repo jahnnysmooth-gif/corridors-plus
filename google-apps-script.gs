@@ -23,7 +23,7 @@ function doGet(e) {
     const data = sheet.getDataRange().getValues();
     if (data.length < 2) return json([]);
 
-    const headers   = data[0].map(h => String(h).trim());
+    const headers   = data[0].map(h => String(h).trim().replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' '));
     const materials = data.slice(1)
       .filter(r => String(r[1] || r[0]).trim())
       .map(r => {
