@@ -993,10 +993,25 @@ function displayDate(iso) {
     return `${m}-${d}-${y}`;
 }
 
+function _normalizeEtaDate(str) {
+    if (!str) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+    const d = new Date(str);
+    if (isNaN(d.getTime())) return '';
+    return d.toISOString().slice(0, 10);
+}
+
 function etaDate(iso) {
     if (!iso) return '—';
-    const [y, m, d] = iso.split('-');
-    return `${parseInt(m)}-${parseInt(d)}-${y.slice(2)}`;
+    // Normalize to YYYY-MM-DD first in case sheet sends a full date string
+    let normalized = iso;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return iso;
+        normalized = d.toISOString().slice(0, 10);
+    }
+    const [y, m, d2] = normalized.split('-');
+    return `${parseInt(m)}-${parseInt(d2)}-${y.slice(2)}`;
 }
 
 function addWeeks(iso, weeks) {
@@ -1511,14 +1526,7 @@ function renderMaterialDetail(mat) {
                 onchange="saveMatStatus('${mat.id}',this.value)" />
         </div>
     </div>
-    <div class="mat-info-row">
-        <span class="mat-info-label">Delivery ETA</span>
-        <div style="display:flex;gap:6px;flex:1;align-items:center">
-            <input type="date" id="eta_input" value="${mat.deliveryEta || ''}"
-                style="flex:1;padding:6px 10px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px"
-                onchange="saveDeliveryEta('${mat.id}',this.value)" />
-        </div>
-    </div>`;
+    ${mat.deliveryEta ? `<div class="mat-info-row"><span class="mat-info-label">Delivery ETA</span><span style="font-weight:600;color:#b45309">${etaDate(mat.deliveryEta)}</span></div>` : ''}`;
     if (mat.link) html += `<div class="mat-info-row"><span class="mat-info-label">Link</span><a href="${mat.link.replace(/"/g,'&quot;')}" target="_blank" rel="noopener" class="mat-info-link">View product ↗</a></div>`;
     html += `</div>`;
 
@@ -2516,13 +2524,6 @@ function saveMatStatus(matId, val) {
     persist(); render();
 }
 
-function saveDeliveryEta(matId, val) {
-    const mat = state.materials.find(m => m.id === matId);
-    if (!mat) return;
-    mat.deliveryEta = val || '';
-    persist(); render();
-    if (localStorage.getItem('hallway_sheets_url')) syncPush();
-}
 
 function editMatNotes(matId) {
     const mat = state.materials.find(m => m.id === matId);
@@ -2627,22 +2628,16 @@ function placeOrder(matId) {
             <input id="po_qty" type="number" min="1" step="1" value="${mat.reorderQty || ''}" placeholder="e.g. 20" />
         </div>
         <div class="form-group">
-            <label>Expected delivery date <span style="font-weight:400;color:#aaa">(optional)</span></label>
-            <input id="po_eta" type="date" value="${mat.deliveryEta || ''}" />
-        </div>
-        <div class="form-group">
             <label>Notes (optional)</label>
             <input id="po_notes" placeholder="Vendor, SKU, urgency…" value="" />
         </div>
         <p style="font-size:12px;color:#999;margin-top:4px">Order status will be set to <strong>Review</strong> so the office can approve before ordering.</p>
     `, () => {
         const qty = parseFloat(document.getElementById('po_qty').value);
-        const eta = document.getElementById('po_eta').value;
         const notes = document.getElementById('po_notes').value.trim();
         if (!qty || qty <= 0) { alert('Enter a valid quantity.'); return; }
         mat.reorderQty = qty;
         mat.procStatus = 'Review';
-        mat.deliveryEta = eta || '';
         if (notes) mat.notes = mat.notes ? mat.notes + '\n' + notes : notes;
         persist(); closeModal(); render();
     });
@@ -4756,7 +4751,7 @@ async function syncPull() {
                     notes: row['Notes'] || '',
                     link: row['Link'] || '',
                     procStatus: row['Order Status'] || '',
-                    deliveryEta: row['Delivery ETA'] || ''
+                    deliveryEta: _normalizeEtaDate(row['Delivery ETA'] || '')
                 };
                 state.materials.push(mat);
                 added++;
@@ -4769,7 +4764,7 @@ async function syncPull() {
                 if (!isNaN(_toOrder)) mat.reorderQty = _toOrder;
                 if (!confirmedKeys.has(matKey)) {
                     mat.procStatus = row['Order Status'] || mat.procStatus || '';
-                    mat.deliveryEta = row['Delivery ETA'] || mat.deliveryEta || '';
+                    mat.deliveryEta = _normalizeEtaDate(row['Delivery ETA'] || '') || mat.deliveryEta || '';
                 }
                 mat.notes = row['Notes'] || '';
                 if (row['Trade']  && !mat.trade) mat.trade = row['Trade'];
