@@ -2750,6 +2750,7 @@ function confirmDelivery(matId) {
         if (by) entry.by = by;
         mat.log.push(entry);
         mat.procStatus = '';
+        mat.deliveryEta = '';
         if (!state.pendingConfirms) state.pendingConfirms = [];
         state.pendingConfirms.push({ name: mat.name, trade: mat.trade || '' });
         persist(); closeModal(); render();
@@ -2762,6 +2763,7 @@ function cancelOrder(matId) {
     if (!confirm('Cancel the order for ' + mat.name + '? This will clear the order status and quantity.')) return;
     mat.procStatus = '';
     mat.reorderQty = 0;
+    mat.deliveryEta = '';
     if (!state.pendingConfirms) state.pendingConfirms = [];
     state.pendingConfirms.push({ name: mat.name, trade: mat.trade || '' });
     persist(); render();
