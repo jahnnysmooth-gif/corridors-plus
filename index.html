@@ -3766,6 +3766,10 @@ function initFirebase() {
             if (!state.crew) state.crew = [];
             if (!state.reports) state.reports = {};
             if (!state.deletedMaterials) state.deletedMaterials = [];
+            // Auto-populate sheets URL from Firebase so new devices don't need to re-enter it
+            if (state.sheetsUrl && !localStorage.getItem('hallway_sheets_url')) {
+                localStorage.setItem('hallway_sheets_url', state.sheetsUrl);
+            }
             // Merge any local deletions the remote snapshot doesn't know about yet
             const _remoteDelKeys = new Set(state.deletedMaterials.map(d => (String(d.trade||'')+'||'+String(d.name||'')).toLowerCase()));
             _localDeleted.forEach(d => {
@@ -4691,6 +4695,8 @@ function openSheetsSync() {
             const val = document.getElementById('sheets_url_input').value.trim();
             if (!val.startsWith('https://')) { alert('Enter a valid Apps Script URL.'); return; }
             localStorage.setItem('hallway_sheets_url', val);
+            state.sheetsUrl = val;
+            persist();
             closeModal();
             syncPull();
         });
@@ -4702,7 +4708,7 @@ function openSheetsSync() {
         ${lastSyncStr ? `<div class="sheets-last-sync">Last synced: ${lastSyncStr}</div>` : ''}
         <p style="font-size:13px;color:#555;margin-bottom:16px">Syncing with Google Sheets…</p>
         <hr style="margin:0 0 12px;border:none;border-top:1px solid #eee">
-        <button onclick="if(confirm('Disconnect Google Sheets?')){localStorage.removeItem('hallway_sheets_url');closeModal();render();}" style="background:none;border:none;font-size:12px;color:#bbb;cursor:pointer;width:100%">Disconnect</button>
+        <button onclick="if(confirm('Disconnect Google Sheets?')){localStorage.removeItem('hallway_sheets_url');state.sheetsUrl='';persist();closeModal();render();}" style="background:none;border:none;font-size:12px;color:#bbb;cursor:pointer;width:100%">Disconnect</button>
     `, null, true);
 }
 
