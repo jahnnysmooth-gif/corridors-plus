@@ -1147,6 +1147,12 @@ function render() {
         title.textContent = mat ? mat.name : 'Material';
         app.innerHTML = renderMaterialDetail(mat);
 
+    } else if (view.screen === 'deliveries') {
+        back.style.display = 'block';
+        back.onclick = () => navigate('materials');
+        title.textContent = 'Upcoming Deliveries';
+        app.innerHTML = renderUpcomingDeliveries();
+
     } else if (view.screen === 'onhand') {
         back.style.display = 'block';
         back.onclick = () => navigate('materials');
@@ -1449,7 +1455,9 @@ function renderMaterials() {
         </button>`;
     });
     html += `</div>`;
-    html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px;margin-top:20px;background:${lowCount > 0 ? '#7c3aed' : ''};color:${lowCount > 0 ? 'white' : ''};border-color:${lowCount > 0 ? '#7c3aed' : ''}" onclick="navigate('reorder')">&#128203; Reorder List${lowCount > 0 ? ` <span style="background:white;color:#7c3aed;font-size:11px;font-weight:800;padding:2px 7px;border-radius:99px;margin-left:4px">${lowCount}</span>` : ''}</button>`;
+    const upcomingCount = (state.materials||[]).filter(m => m.deliveryEta).length;
+    html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px;margin-top:20px${upcomingCount > 0 ? ';background:#1a3a5c;color:white;border-color:#1a3a5c' : ''}" onclick="navigate('deliveries')">&#128666; Upcoming Deliveries${upcomingCount > 0 ? ` <span style="background:white;color:#1a3a5c;font-size:11px;font-weight:800;padding:2px 7px;border-radius:99px;margin-left:4px">${upcomingCount}</span>` : ''}</button>`;
+    html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px;background:${lowCount > 0 ? '#7c3aed' : ''};color:${lowCount > 0 ? 'white' : ''};border-color:${lowCount > 0 ? '#7c3aed' : ''}" onclick="navigate('reorder')">&#128203; Reorder List${lowCount > 0 ? ` <span style="background:white;color:#7c3aed;font-size:11px;font-weight:800;padding:2px 7px;border-radius:99px;margin-left:4px">${lowCount}</span>` : ''}</button>`;
     html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px" onclick="navigate('orderhistory')">&#128220; Order History</button>`;
     html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px" onclick="openMaterialsExportModal()">&#8681; Export Usage Report</button>`;
     html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px" onclick="openSheetsSync()">&#9729; Google Sheets Sync${localStorage.getItem('hallway_sheets_url') ? ' <span style="display:inline-block;width:7px;height:7px;background:#16a34a;border-radius:50%;margin-left:4px;vertical-align:middle"></span>' : ''}</button>`;
@@ -1631,6 +1639,102 @@ function renderOrderHistory() {
 }
 
 // ── Reorder List screen ───────────────────────────────────────────────────────
+function renderUpcomingDeliveries() {
+    const mats = (state.materials || []).filter(m => m.deliveryEta);
+    if (mats.length === 0) {
+        return `<div style="text-align:center;padding:60px 20px">
+            <div style="font-size:48px;margin-bottom:16px">📭</div>
+            <div style="font-size:18px;font-weight:700;color:#1a1a2e;margin-bottom:8px">No upcoming deliveries</div>
+            <div style="font-size:14px;color:#999">When the office sets a Delivery ETA in the sheet, it will appear here.</div>
+        </div>`;
+    }
+    const todayStr = today();
+    const sorted = [...mats].sort((a, b) => a.deliveryEta.localeCompare(b.deliveryEta));
+    const overdue  = sorted.filter(m => m.deliveryEta < todayStr);
+    const todayDel = sorted.filter(m => m.deliveryEta === todayStr);
+    const upcoming = sorted.filter(m => m.deliveryEta > todayStr);
+    let html = `<div class="stats-row" style="grid-template-columns:1fr 1fr 1fr">
+        <div class="stat-card"><div class="stat-value" style="color:${overdue.length > 0 ? '#dc2626' : 'inherit'}">${overdue.length}</div><div class="stat-label">Overdue</div></div>
+        <div class="stat-card"><div class="stat-value" style="color:${todayDel.length > 0 ? '#16a34a' : 'inherit'}">${todayDel.length}</div><div class="stat-label">Today</div></div>
+        <div class="stat-card"><div class="stat-value">${upcoming.length}</div><div class="stat-label">Upcoming</div></div>
+    </div>`;
+    function deliveryCard(mat, accent) {
+        const stock = matCurrentStock(mat);
+        const color = TRADE_COLORS[mat.trade] || '#475569';
+        return `<div style="background:white;border-radius:12px;padding:16px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,0.08);border-left:4px solid ${accent};cursor:pointer" onclick="navigate('material',null,null,'${mat.id}','${mat.trade||''}')">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                <div style="flex:1">
+                    <div style="font-size:15px;font-weight:700;color:#1a1a2e">${mat.name}</div>
+                    <div style="font-size:12px;color:${color};font-weight:600;margin-top:2px">${mat.trade || ''}</div>
+                    ${mat.reorderQty > 0 ? `<div style="font-size:13px;color:#555;margin-top:4px">Qty ordered: <strong>${mat.reorderQty} ${mat.unit || ''}</strong></div>` : ''}
+                    ${mat.procStatus ? `<div style="font-size:12px;color:#888;margin-top:2px">Status: ${mat.procStatus}</div>` : ''}
+                </div>
+                <div style="text-align:right;margin-left:12px">
+                    <div style="font-size:18px;font-weight:800;color:${accent}">${etaDate(mat.deliveryEta)}</div>
+                    <div style="font-size:11px;color:#aaa;margin-top:2px">${stock !== null ? `${stock} ${mat.unit || ''} on hand` : 'no count'}</div>
+                </div>
+            </div>
+            ${mat.procStatus && mat.procStatus.toLowerCase().includes('ordered') ? `<button onclick="event.stopPropagation();confirmDelivery('${mat.id}')" style="margin-top:10px;width:100%;padding:9px;background:#16a34a;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">✓ Confirm Delivery</button>` : ''}
+        </div>`;
+    }
+    if (overdue.length > 0) {
+        html += `<div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.6px;color:#dc2626;margin:16px 0 8px">Overdue</div>`;
+        overdue.forEach(m => { html += deliveryCard(m, '#dc2626'); });
+    }
+    if (todayDel.length > 0) {
+        html += `<div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.6px;color:#16a34a;margin:16px 0 8px">Today</div>`;
+        todayDel.forEach(m => { html += deliveryCard(m, '#16a34a'); });
+    }
+    if (upcoming.length > 0) {
+        html += `<div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.6px;color:#1a3a5c;margin:16px 0 8px">Upcoming</div>`;
+        upcoming.forEach(m => { html += deliveryCard(m, '#1a3a5c'); });
+    }
+    return html;
+}
+
+function renderOnHand() {
+    const mats = state.materials || [];
+    if (mats.length === 0) return `<div class="empty-state">No materials yet.</div>`;
+    const byTrade = {};
+    mats.forEach(mat => {
+        const t = mat.trade || 'Other';
+        if (!byTrade[t]) byTrade[t] = [];
+        byTrade[t].push(mat);
+    });
+    const tradeKeys = TRADE_ORDER.filter(t => byTrade[t]);
+    Object.keys(byTrade).forEach(t => { if (!TRADE_ORDER.includes(t)) tradeKeys.push(t); });
+    const totalItems = mats.length;
+    const knownCount = mats.filter(m => matCurrentStock(m) !== null).length;
+    const isLow = m => { const s = matCurrentStock(m); return s !== null && m.parQty > 0 && s < m.parQty; };
+    const lowCount = mats.filter(isLow).length;
+    let html = `<div class="stats-row" style="grid-template-columns:1fr 1fr 1fr">
+        <div class="stat-card"><div class="stat-value">${totalItems}</div><div class="stat-label">Materials</div></div>
+        <div class="stat-card"><div class="stat-value">${knownCount}</div><div class="stat-label">Counted</div></div>
+        <div class="stat-card"><div class="stat-value" style="color:${lowCount > 0 ? '#dc2626' : 'inherit'}">${lowCount}</div><div class="stat-label">Low Stock</div></div>
+    </div>`;
+    html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:16px" onclick="printOnHand()">&#128438; Print / Share</button>`;
+    tradeKeys.forEach(trade => {
+        const tradeMats = byTrade[trade];
+        const color = TRADE_COLORS[trade] || '#475569';
+        const icon  = TRADE_ICONS[trade]  || '📦';
+        html += `<div class="onhand-section">
+            <div class="onhand-trade-header" style="color:${color}">${icon} ${trade}</div>`;
+        tradeMats.forEach(mat => {
+            const stock = matCurrentStock(mat);
+            const low   = stock !== null && mat.parQty > 0 && stock < mat.parQty;
+            const qtyDisplay = stock !== null ? stock : '—';
+            html += `<div class="onhand-row">
+                <div class="onhand-name">${mat.name}${low ? ' <span class="low-badge">LOW</span>' : ''}</div>
+                <div class="onhand-qty${low ? ' low' : ''}">${qtyDisplay}</div>
+                <div class="onhand-unit">${mat.unit || ''}</div>
+                <button class="onhand-update-btn" onclick="updateCountFromOnHand('${mat.id}')">Update</button>
+            </div>`;
+        });
+        html += `</div>`;
+    });
+    return html;
+}
+
 function renderReorderList() {
     const mats  = state.materials || [];
     const isLow = m => { const s = matCurrentStock(m); return s !== null && m.parQty > 0 && s < m.parQty; };
