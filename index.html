@@ -2629,7 +2629,6 @@ function confirmDelivery(matId) {
         if (!state.pendingConfirms) state.pendingConfirms = [];
         state.pendingConfirms.push({ name: mat.name, trade: mat.trade || '' });
         persist(); closeModal(); render();
-        if (localStorage.getItem('hallway_sheets_url')) syncPush();
     });
 }
 
