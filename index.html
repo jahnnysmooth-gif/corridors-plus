@@ -4826,7 +4826,8 @@ async function syncPull() {
                     brand: row['Brand/Type'] || '',
                     notes: row['Notes'] || '',
                     link: row['Link'] || '',
-                    procStatus: row['Order Status'] || ''
+                    procStatus: row['Order Status'] || '',
+                    deliveryEta: _normalizeEtaDate(row['Delivery ETA'] || '')
                 };
                 state.materials.push(mat);
                 added++;
@@ -4838,7 +4839,8 @@ async function syncPull() {
                 const _toOrder = parseFloat(row['To Order']);
                 if (!isNaN(_toOrder)) mat.reorderQty = _toOrder;
                 if (!confirmedKeys.has(matKey)) {
-                    mat.procStatus = row['Order Status'] || mat.procStatus || '';
+                    mat.procStatus  = row['Order Status'] || mat.procStatus || '';
+                    mat.deliveryEta = _normalizeEtaDate(row['Delivery ETA'] || '');
                 }
                 mat.notes = row['Notes'] || '';
                 if (row['Trade']  && !mat.trade) mat.trade = row['Trade'];
@@ -4894,6 +4896,7 @@ async function syncPush() {
             'Ordered By':          lastDel ? (lastDel.by || '') : '',
             'To Order':            mat.reorderQty > 0 ? mat.reorderQty : '',
             'Order Status':        mat.procStatus || '',
+            'Delivery ETA':        mat.deliveryEta || '',
             'Link':                mat.link  || '',
             'Notes':               mat.notes || ''
         };
