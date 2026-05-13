@@ -993,6 +993,25 @@ function displayDate(iso) {
     return `${m}-${d}-${y}`;
 }
 
+function _normalizeEtaDate(str) {
+    if (!str) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+    const d = new Date(str);
+    if (isNaN(d.getTime())) return '';
+    return d.toISOString().slice(0, 10);
+}
+
+function etaDate(iso) {
+    if (!iso) return '—';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return iso;
+        iso = d.toISOString().slice(0, 10);
+    }
+    const [y, m, d2] = iso.split('-');
+    return `${parseInt(m)}-${parseInt(d2)}-${y.slice(2)}`;
+}
+
 function addWeeks(iso, weeks) {
     const d = new Date(iso + 'T00:00:00');
     d.setDate(d.getDate() + weeks * 7);
@@ -2746,6 +2765,67 @@ function cancelOrder(matId) {
     if (!state.pendingConfirms) state.pendingConfirms = [];
     state.pendingConfirms.push({ name: mat.name, trade: mat.trade || '' });
     persist(); render();
+}
+
+function updateCountFromOnHand(matId) {
+    const mat   = state.materials.find(m => m.id === matId);
+    const stock = matCurrentStock(mat);
+    openModal('Update Count — ' + mat.name, `
+        <div class="form-group">
+            <label>Current count on hand (${mat.unit || 'units'})</label>
+            <input id="count_qty" type="number" min="0" step="1" value="${stock !== null ? stock : ''}" placeholder="e.g. 15" autofocus />
+        </div>
+        <p style="font-size:12px;color:#999;margin-top:4px">Enter the quantity you physically counted. Future deliveries add on top.</p>
+    `, () => {
+        const val = parseFloat(document.getElementById('count_qty').value);
+        if (isNaN(val) || val < 0) { alert('Enter a valid count.'); return; }
+        if (!mat.log) mat.log = [];
+        mat.log.push({ id: uid(), date: today(), type: 'adjust', qty: val });
+        persist(); closeModal(); render();
+    });
+}
+
+function printOnHand() {
+    const mats = state.materials || [];
+    if (mats.length === 0) { alert('No materials to print.'); return; }
+    const byTrade = {};
+    mats.forEach(mat => {
+        const t = mat.trade || 'Other';
+        if (!byTrade[t]) byTrade[t] = [];
+        byTrade[t].push(mat);
+    });
+    const tradeKeys = TRADE_ORDER.filter(t => byTrade[t]);
+    Object.keys(byTrade).forEach(t => { if (!TRADE_ORDER.includes(t)) tradeKeys.push(t); });
+    let body = `<h2 style="margin-bottom:4px">On Hand Inventory</h2>
+        <div style="font-size:12px;color:#666;margin-bottom:20px">As of ${new Date().toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'})}</div>`;
+    tradeKeys.forEach(trade => {
+        body += `<h3 style="margin:16px 0 6px;border-bottom:1px solid #ddd;padding-bottom:4px">${trade}</h3>
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead><tr style="background:#f3f4f6">
+                <th style="text-align:left;padding:5px 8px;border:1px solid #e5e7eb">Material</th>
+                <th style="text-align:right;padding:5px 8px;border:1px solid #e5e7eb">On Hand</th>
+                <th style="text-align:left;padding:5px 8px;border:1px solid #e5e7eb">Unit</th>
+                <th style="text-align:right;padding:5px 8px;border:1px solid #e5e7eb">Min Stock</th>
+            </tr></thead><tbody>`;
+        byTrade[trade].forEach(mat => {
+            const stock = matCurrentStock(mat);
+            const low   = stock !== null && mat.parQty > 0 && stock < mat.parQty;
+            body += `<tr style="${low ? 'background:#fff5f5;color:#dc2626' : ''}">
+                <td style="padding:5px 8px;border:1px solid #e5e7eb">${mat.name}</td>
+                <td style="text-align:right;padding:5px 8px;border:1px solid #e5e7eb;font-weight:700">${stock !== null ? stock : '—'}</td>
+                <td style="padding:5px 8px;border:1px solid #e5e7eb;color:#888">${mat.unit || ''}</td>
+                <td style="text-align:right;padding:5px 8px;border:1px solid #e5e7eb;color:#888">${mat.parQty > 0 ? mat.parQty : '—'}</td>
+            </tr>`;
+        });
+        body += `</tbody></table>`;
+    });
+    const win = window.open('', '_blank');
+    win.document.write(`<!DOCTYPE html><html><head><title>On Hand Inventory</title>
+        <style>body{font-family:sans-serif;padding:24px;max-width:800px;margin:0 auto}@media print{body{padding:0}}</style>
+        </head><body>${body}</body></html>`);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 300);
 }
 
 function updateCount(matId) {
