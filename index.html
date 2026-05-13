@@ -4703,7 +4703,7 @@ function openSheetsSync() {
         return;
     }
 
-    syncPull().then(ok => { if (ok) syncPush(); });
+    syncPull().then(ok => { if (ok) syncPush(); }).then(() => closeModal());
     openModal('Google Sheets Sync', `
         ${lastSyncStr ? `<div class="sheets-last-sync">Last synced: ${lastSyncStr}</div>` : ''}
         <p style="font-size:13px;color:#555;margin-bottom:16px">Syncing with Google Sheets…</p>
