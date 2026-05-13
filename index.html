@@ -1043,8 +1043,9 @@ function floorProgress(floor) {
     return Math.round((done / floor.items.length) * 100);
 }
 
-function getWeekRange() {
+function getWeekRange(offsetWeeks) {
     const d   = new Date();
+    if (offsetWeeks) d.setDate(d.getDate() + offsetWeeks * 7);
     const day = d.getDay();
     const sun = new Date(d); sun.setDate(d.getDate() - day);
     const sat = new Date(sun); sat.setDate(sun.getDate() + 6);
@@ -3315,8 +3316,27 @@ function printDailyNotes(date) {
 }
 
 // ── Weekly summary export ─────────────────────────────────────────────────────
-function exportWeeklySummary() {
-    const { start, end } = getWeekRange();
+function exportWeeklySummary(offsetWeeks) {
+    if (offsetWeeks === undefined) {
+        // Show week picker modal first
+        openModal('Weekly Summary', `
+            <div class="form-group">
+                <label>Select week</label>
+                <select id="ws_offset" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px">
+                    ${[-0,-1,-2,-3,-4,-5,-6,-7,-8].map(o => {
+                        const { start, end } = getWeekRange(o);
+                        const label = o === 0 ? `This week (${displayDate(start)} – ${displayDate(end)})` : `${displayDate(start)} – ${displayDate(end)}`;
+                        return `<option value="${o}">${label}</option>`;
+                    }).join('')}
+                </select>
+            </div>
+        `, () => {
+            const offset = parseInt(document.getElementById('ws_offset').value);
+            exportWeeklySummary(offset);
+        });
+        return;
+    }
+    const { start, end } = getWeekRange(offsetWeeks);
     const inRange = d => d >= start && d <= end;
     const label   = `${displayDate(start)} – ${displayDate(end)}`;
 
