@@ -310,6 +310,7 @@ function setRowColors() {
   rules.push(SpreadsheetApp.newConditionalFormatRule()
     .whenFormulaSatisfied(`=AND($${onHandLetter}2<>"",$${minStockLetter}2<>"",$${minStockLetter}2>0,VALUE($${onHandLetter}2)<VALUE($${minStockLetter}2))`)
     .setBackground('#FF0000')
+    .setFontColor('#FFFFFF')
     .setRanges([range])
     .build());
 
@@ -317,6 +318,7 @@ function setRowColors() {
   rules.push(SpreadsheetApp.newConditionalFormatRule()
     .whenFormulaSatisfied(`=ISNUMBER(SEARCH("ordered",$${statusLetter}2))`)
     .setBackground('#008000')
+    .setFontColor('#FFFFFF')
     .setRanges([range])
     .build());
 
