@@ -962,7 +962,7 @@ function persist() {
     if (db && syncCode) {
         _localWrite = true;
         db.ref('projects/' + syncCode + '/state').set(state)
-          .then(() => setTimeout(() => { _localWrite = false; }, 500))
+          .then(() => setTimeout(() => { _localWrite = false; }, 2000))
           .catch(() => { _localWrite = false; });
     }
 }
@@ -4862,6 +4862,7 @@ async function syncPull() {
             if (deletedKeys.has(dKey)) return;
             let mat = state.materials.find(m => m.name.toLowerCase() === name.toLowerCase());
             if (mat && mat.archived) return;
+            const isNewMat = !mat;
             if (!mat) {
                 mat = {
                     id: uid(), name,
@@ -4897,7 +4898,8 @@ async function syncPull() {
                 if (row['Trade']) mat.trade = row['Trade'];
                 updated++;
             }
-            // Import last delivery as a delivery log entry if it's newer than the last recorded delivery
+            // Import last delivery — skip for brand new materials (startQty already accounts for it)
+            if (isNewMat) return;
             const isoDate  = parseSheetDate(row['Last Delivery Date']);
             const sheetQty = parseFloat(row['Last Delivery Qty']);
             if (isoDate && !isNaN(sheetQty) && sheetQty > 0) {
@@ -4963,6 +4965,10 @@ async function syncPush() {
         if (result.error) throw new Error(result.error);
         localStorage.setItem('hallway_sheets_last_sync', new Date().toISOString());
         state.pendingConfirms  = [];
+        // Trim deletedMaterials — sheet has processed them; keep last 100 as a safety buffer
+        if ((state.deletedMaterials || []).length > 100) {
+            state.deletedMaterials = state.deletedMaterials.slice(-100);
+        }
         persist();
         toast.style.opacity = '0';
         setTimeout(() => toast.remove(), 300);

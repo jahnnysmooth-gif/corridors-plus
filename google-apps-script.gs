@@ -39,8 +39,8 @@ function doGet(e) {
 
 // Called by the app to push material updates (POST request)
 function doPost(e) {
+  const lock = LockService.getScriptLock();
   try {
-    const lock = LockService.getScriptLock();
     lock.waitLock(15000);
 
     const payload = JSON.parse(e.postData.contents);
@@ -113,9 +113,8 @@ function doPost(e) {
         ah.setFontWeight('bold'); ah.setBackground('#4a1942'); ah.setFontColor('#ffffff');
         archSheet.setFrozenRows(1);
       }
-      const archHdr = archSheet.getDataRange().getValues()[0].map(h => String(h).trim());
-      const archMatIdx   = archHdr.indexOf('Material');
-      const archTradeIdx = archHdr.indexOf('Trade');
+      const archHdr    = archSheet.getDataRange().getValues()[0].map(h => String(h).trim());
+      const archMatIdx = archHdr.indexOf('Material');
       const freshData = sheet.getDataRange().getValues();
       const freshHdr  = freshData[0].map(h => String(h).trim().replace(/[\r\n]+/g,' ').replace(/\s+/g,' '));
       const fTrade = freshHdr.indexOf('Trade');
@@ -152,10 +151,11 @@ function doPost(e) {
       }
     }
 
-    lock.releaseLock();
     return json({ success: true, updated: updates.length, deleted: deletions.length, archived: archives.length });
   } catch (err) {
     return json({ error: err.toString() });
+  } finally {
+    try { lock.releaseLock(); } catch(e) {}
   }
 }
 
@@ -172,7 +172,7 @@ function setup() {
 
   // Columns: Trade | Material | Brand/Type | Unit | On Hand | Min Stock |
   //          Last Delivery Date | Last Delivery Qty | Ordered By |
-  //          To Order | Order Status | Link | Notes
+  //          To Order | Order Status | Delivery ETA | Link | Notes
   const data = [
     HEADERS,
     // Plaster
@@ -261,7 +261,12 @@ function setup() {
     ['Tools','Dust Free Pole Sander','Hyde','',4,'','05/08/2025',4,'jv','','ordered','','-'],
   ];
 
-  sheet.getRange(1, 1, data.length, HEADERS.length).setValues(data);
+  // Pad any rows that are shorter than HEADERS (e.g. missing Delivery ETA column)
+  const paddedData = data.map(row => {
+    while (row.length < HEADERS.length) row.push('');
+    return row.slice(0, HEADERS.length);
+  });
+  sheet.getRange(1, 1, paddedData.length, HEADERS.length).setValues(paddedData);
 
   // Style the header row
   const hdrRange = sheet.getRange(1, 1, 1, HEADERS.length);
