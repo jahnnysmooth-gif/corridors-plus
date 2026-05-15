@@ -103,7 +103,8 @@ function doPost(e) {
     // Handle archives — move rows from Master to Archived tab
     const archives = payload.archives || [];
     if (archives.length > 0) {
-      const archiveKeys = new Set(archives.map(d => (String(d.trade||'') + '||' + String(d.name||'')).toLowerCase()));
+      const archiveExactKeys = new Set(archives.map(d => (String(d.trade||'') + '||' + String(d.name||'')).toLowerCase()));
+      const archiveNameKeys  = new Set(archives.map(d => String(d.name||'').trim().toLowerCase()));
       let archSheet = ss.getSheetByName('Archived');
       if (!archSheet) {
         archSheet = ss.insertSheet('Archived');
@@ -113,18 +114,21 @@ function doPost(e) {
         archSheet.setFrozenRows(1);
       }
       const archHdr = archSheet.getDataRange().getValues()[0].map(h => String(h).trim());
+      const archMatIdx   = archHdr.indexOf('Material');
+      const archTradeIdx = archHdr.indexOf('Trade');
       const freshData = sheet.getDataRange().getValues();
       const freshHdr  = freshData[0].map(h => String(h).trim().replace(/[\r\n]+/g,' ').replace(/\s+/g,' '));
       const fTrade = freshHdr.indexOf('Trade');
       const fMat   = freshHdr.indexOf('Material');
       for (let i = freshData.length - 1; i >= 1; i--) {
-        const key = (String(freshData[i][fTrade]||'') + '||' + String(freshData[i][fMat]||'')).toLowerCase();
-        if (archiveKeys.has(key)) {
-          // Copy to Archived only if not already there
+        const rowName  = String(fMat   >= 0 ? freshData[i][fMat]   : '').trim().toLowerCase();
+        const rowTrade = String(fTrade >= 0 ? freshData[i][fTrade] : '').trim().toLowerCase();
+        const exactKey = rowTrade + '||' + rowName;
+        const matched  = archiveExactKeys.has(exactKey) || archiveNameKeys.has(rowName);
+        if (matched && rowName) {
+          // Copy to Archived only if not already there (match by name)
           const alreadyArchived = archSheet.getDataRange().getValues().slice(1).some(r => {
-            const aName  = String(r[archHdr.indexOf('Material')]||'').toLowerCase();
-            const aTrade = String(r[archHdr.indexOf('Trade')]   ||'').toLowerCase();
-            return key === (aTrade + '||' + aName);
+            return String(archMatIdx >= 0 ? r[archMatIdx] : '').trim().toLowerCase() === rowName;
           });
           if (!alreadyArchived) {
             archSheet.appendRow(HEADERS.map(h => { const ci = freshHdr.indexOf(h); return ci >= 0 ? freshData[i][ci] : ''; }));
