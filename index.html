@@ -4897,8 +4897,7 @@ async function syncPush() {
             'To Order':            mat.reorderQty > 0 ? mat.reorderQty : '',
             'Order Status':        mat.procStatus || '',
             'Delivery ETA':        mat.deliveryEta || '',
-            'Link':                mat.link  || '',
-            'Notes':               mat.notes || ''
+            'Link':                mat.link  || ''
         };
     });
     const deletions = (state.deletedMaterials || []).map(d => ({ name: d.name, trade: d.trade }));

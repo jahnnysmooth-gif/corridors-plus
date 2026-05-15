@@ -57,31 +57,43 @@ function doPost(e) {
     const matIdx   = hdr.indexOf('Material');
     const tradeIdx = hdr.indexOf('Trade');
 
-    // Build a map: "trade||material" → 1-based row number
-    const rowMap = {};
+    if (matIdx === -1) {
+      lock.releaseLock();
+      return json({ error: 'Material column not found in sheet headers. Re-run setup() or check the header row.' });
+    }
+
+    // Build two maps: trade+name (exact) and name-only (fallback)
+    const rowMap     = {};  // "trade||name" → 1-based row
+    const nameOnlyMap = {}; // "name" → 1-based row (fallback when trade is missing/mismatched)
     allData.slice(1).forEach((r, i) => {
-      const key = [String(r[tradeIdx] || ''), String(r[matIdx] || '')].join('||').toLowerCase();
-      if (r[matIdx]) rowMap[key] = i + 2;
+      const name  = String(r[matIdx] || '').trim().toLowerCase();
+      const trade = tradeIdx >= 0 ? String(r[tradeIdx] || '').trim().toLowerCase() : '';
+      if (!name) return;
+      rowMap[trade + '||' + name] = i + 2;
+      if (!nameOnlyMap[name]) nameOnlyMap[name] = i + 2; // first occurrence wins
     });
 
-    // All fields are app-managed (partial update still protects against full row wipe)
-    const APP_FIELDS = HEADERS;
+    // Fields the app is allowed to overwrite — Notes is sheet-managed, never overwritten by app
+    const APP_FIELDS = HEADERS.filter(h => h !== 'Notes');
 
     const updates = payload.materials || [];
     const newRows = [];
 
     updates.forEach(mat => {
-      const key = [String(mat['Trade'] || ''), String(mat['Material'] || '')].join('||').toLowerCase();
-      if (rowMap[key]) {
-        // Partial update — only overwrite app-managed columns, leave Min Stock, Brand, Link, Notes etc. alone
+      const name     = String(mat['Material'] || '').trim().toLowerCase();
+      const trade    = String(mat['Trade']    || '').trim().toLowerCase();
+      const exactKey = trade + '||' + name;
+      // Prefer exact trade+name match; fall back to name-only so a trade mismatch doesn't create duplicates
+      const rowNum   = rowMap[exactKey] || nameOnlyMap[name];
+      if (rowNum) {
         APP_FIELDS.forEach(field => {
           const colIdx = hdr.indexOf(field);
           if (colIdx >= 0 && mat[field] !== undefined) {
-            sheet.getRange(rowMap[key], colIdx + 1).setValue(mat[field]);
+            sheet.getRange(rowNum, colIdx + 1).setValue(mat[field]);
           }
         });
       } else {
-        // New row — push all fields
+        // Genuinely new material — append a row
         newRows.push(HEADERS.map(h => (mat[h] !== undefined ? mat[h] : '')));
       }
     });
