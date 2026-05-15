@@ -316,7 +316,7 @@ function setRowColors() {
   // ── Priority 2: Ordered — green ───────────────────────────────────────────────
   rules.push(SpreadsheetApp.newConditionalFormatRule()
     .whenFormulaSatisfied(`=ISNUMBER(SEARCH("ordered",$${statusLetter}2))`)
-    .setBackground('#bbf7d0')
+    .setBackground('#008000')
     .setRanges([range])
     .build());
 
