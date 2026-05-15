@@ -309,7 +309,7 @@ function setRowColors() {
   // ── Priority 1: Low stock — red ──────────────────────────────────────────────
   rules.push(SpreadsheetApp.newConditionalFormatRule()
     .whenFormulaSatisfied(`=AND($${onHandLetter}2<>"",$${minStockLetter}2<>"",$${minStockLetter}2>0,VALUE($${onHandLetter}2)<VALUE($${minStockLetter}2))`)
-    .setBackground('#f28b82')
+    .setBackground('#ea9999')
     .setRanges([range])
     .build());
 
