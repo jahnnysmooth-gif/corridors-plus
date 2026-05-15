@@ -100,6 +100,40 @@ function doPost(e) {
 
     newRows.forEach(row => sheet.appendRow(row));
 
+    // Handle archives — move rows from Master to Archived tab
+    const archives = payload.archives || [];
+    if (archives.length > 0) {
+      const archiveKeys = new Set(archives.map(d => (String(d.trade||'') + '||' + String(d.name||'')).toLowerCase()));
+      let archSheet = ss.getSheetByName('Archived');
+      if (!archSheet) {
+        archSheet = ss.insertSheet('Archived');
+        archSheet.appendRow(HEADERS);
+        const ah = archSheet.getRange(1, 1, 1, HEADERS.length);
+        ah.setFontWeight('bold'); ah.setBackground('#4a1942'); ah.setFontColor('#ffffff');
+        archSheet.setFrozenRows(1);
+      }
+      const archHdr = archSheet.getDataRange().getValues()[0].map(h => String(h).trim());
+      const freshData = sheet.getDataRange().getValues();
+      const freshHdr  = freshData[0].map(h => String(h).trim().replace(/[\r\n]+/g,' ').replace(/\s+/g,' '));
+      const fTrade = freshHdr.indexOf('Trade');
+      const fMat   = freshHdr.indexOf('Material');
+      for (let i = freshData.length - 1; i >= 1; i--) {
+        const key = (String(freshData[i][fTrade]||'') + '||' + String(freshData[i][fMat]||'')).toLowerCase();
+        if (archiveKeys.has(key)) {
+          // Copy to Archived only if not already there
+          const alreadyArchived = archSheet.getDataRange().getValues().slice(1).some(r => {
+            const aName  = String(r[archHdr.indexOf('Material')]||'').toLowerCase();
+            const aTrade = String(r[archHdr.indexOf('Trade')]   ||'').toLowerCase();
+            return key === (aTrade + '||' + aName);
+          });
+          if (!alreadyArchived) {
+            archSheet.appendRow(HEADERS.map(h => { const ci = freshHdr.indexOf(h); return ci >= 0 ? freshData[i][ci] : ''; }));
+          }
+          sheet.deleteRow(i + 1);
+        }
+      }
+    }
+
     // Handle deletions — remove sheet rows for materials deleted in the app
     const deletions = payload.deletions || [];
     if (deletions.length > 0) {
@@ -115,7 +149,7 @@ function doPost(e) {
     }
 
     lock.releaseLock();
-    return json({ success: true, updated: updates.length, deleted: deletions.length });
+    return json({ success: true, updated: updates.length, deleted: deletions.length, archived: archives.length });
   } catch (err) {
     return json({ error: err.toString() });
   }

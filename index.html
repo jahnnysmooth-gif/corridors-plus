@@ -1257,6 +1257,7 @@ function renderHome() {
         const d = matLastEodDate(m); return d && d > latest ? d : latest;
     }, '');
     const lowCount     = (state.materials || []).filter(m => {
+        if (m.archived) return false;
         const s = matCurrentStock(m);
         return m.parQty > 0 && s !== null && s < m.parQty;
     }).length;
@@ -1407,7 +1408,7 @@ function _matCardHtml(mat, tradeBadge) {
 }
 
 function renderMaterials() {
-    const mats = state.materials || [];
+    const mats = (state.materials || []).filter(m => !m.archived);
     let html = '';
 
     if (mats.length === 0) {
@@ -1489,11 +1490,38 @@ function renderMaterials() {
     mats.forEach(mat => { html += _matCardHtml(mat, true); });
     html += `</div>`;
 
+    // Archived section
+    const archivedMats = (state.materials || []).filter(m => m.archived);
+    if (archivedMats.length > 0) {
+        html += `<div style="margin-top:24px">
+            <button onclick="this.parentElement.querySelector('.archived-list').style.display = this.parentElement.querySelector('.archived-list').style.display === 'none' ? 'block' : 'none'; this.textContent = this.textContent.includes('Show') ? '&#128230; Archived (${archivedMats.length}) ▲' : '&#128230; Archived (${archivedMats.length}) ▼';"
+                style="width:100%;padding:10px 14px;background:#f3f4f6;border:1.5px solid #e5e7eb;border-radius:10px;font-size:13px;font-weight:700;color:#666;cursor:pointer;text-align:left">
+                &#128230; Archived (${archivedMats.length}) ▼</button>
+            <div class="archived-list" style="display:none;margin-top:8px">`;
+        archivedMats.forEach(mat => {
+            html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:white;border-radius:10px;margin-bottom:6px;border:1px solid #e5e7eb;opacity:0.7">
+                <div>
+                    <div style="font-size:14px;font-weight:700;color:#555">${mat.name}</div>
+                    <div style="font-size:12px;color:#aaa">${mat.trade || 'Other'}</div>
+                </div>
+                <button onclick="unarchiveMaterial('${mat.id}')" style="padding:6px 14px;background:#92400e;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">Unarchive</button>
+            </div>`;
+        });
+        html += `</div></div>`;
+    }
+
     return html;
 }
 
 function renderMaterialDetail(mat) {
     if (!mat) return `<div class="empty-state">Material not found.</div>`;
+    if (mat.archived) {
+        return `<div style="background:#fef3c7;border:1.5px solid #d97706;border-radius:12px;padding:16px;margin-bottom:16px;text-align:center">
+            <div style="font-size:15px;font-weight:700;color:#92400e">&#128230; Archived</div>
+            <div style="font-size:13px;color:#78350f;margin-top:4px">This material is archived and hidden from the main list.</div>
+            <button onclick="unarchiveMaterial('${mat.id}')" style="margin-top:12px;padding:10px 24px;background:#92400e;color:white;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">&#8593; Unarchive</button>
+        </div>`;
+    }
     const stock    = matCurrentStock(mat);
     const totalDel = (mat.log||[]).filter(e => e.type==='delivery').reduce((s,e) => s+e.qty, 0);
     const low      = stock !== null && mat.parQty > 0 && stock < mat.parQty;
@@ -1591,6 +1619,7 @@ function renderMaterialDetail(mat) {
             <button class="btn btn-secondary btn-sm" onclick="renameMaterial('${mat.id}')">&#9998; Rename</button>
             <button class="btn btn-secondary btn-sm" onclick="setParQty('${mat.id}')">&#9651; Min${mat.parQty > 0 ? ': ' + mat.parQty : ''}</button>
             <button class="btn btn-secondary btn-sm" onclick="setReorderQty('${mat.id}')">&#128666; Order qty${mat.reorderQty > 0 ? ': ' + mat.reorderQty : ''}</button>
+            <button class="btn btn-secondary btn-sm" style="background:#92400e;color:white;border-color:#92400e" onclick="archiveMaterial('${mat.id}')">&#128230; Archive</button>
             <button class="btn btn-danger btn-sm" onclick="deleteMaterial('${mat.id}')">Delete</button>
         </div>
     </div>`;
@@ -1659,7 +1688,7 @@ function renderOrderHistory() {
 
 // ── Reorder List screen ───────────────────────────────────────────────────────
 function renderUpcomingDeliveries() {
-    const mats = (state.materials || []).filter(m => m.deliveryEta);
+    const mats = (state.materials || []).filter(m => m.deliveryEta && !m.archived);
     if (mats.length === 0) {
         return `<div style="text-align:center;padding:60px 20px">
             <div style="font-size:48px;margin-bottom:16px">📭</div>
@@ -1712,7 +1741,7 @@ function renderUpcomingDeliveries() {
 }
 
 function renderOnHand() {
-    const mats = state.materials || [];
+    const mats = (state.materials || []).filter(m => !m.archived);
     if (mats.length === 0) return `<div class="empty-state">No materials yet.</div>`;
     const byTrade = {};
     mats.forEach(mat => {
@@ -1755,7 +1784,7 @@ function renderOnHand() {
 }
 
 function renderReorderList() {
-    const mats  = state.materials || [];
+    const mats  = (state.materials || []).filter(m => !m.archived);
     const isLow = m => { const s = matCurrentStock(m); return s !== null && m.parQty > 0 && s < m.parQty; };
     const low   = mats.filter(isLow);
 
@@ -1811,7 +1840,7 @@ function renderReorderList() {
 }
 
 function printReorderList() {
-    const mats  = state.materials || [];
+    const mats  = (state.materials || []).filter(m => !m.archived);
     const isLow = m => { const s = matCurrentStock(m); return s !== null && m.parQty > 0 && s < m.parQty; };
     const low   = mats.filter(isLow);
     if (low.length === 0) { alert('Nothing to reorder — all materials are above minimum stock.'); return; }
@@ -2671,6 +2700,23 @@ function setStartQty(matId) {
         mat.startQty = val;
         persist(); closeModal(); render();
     });
+}
+
+function archiveMaterial(matId) {
+    const mat = state.materials.find(m => m.id === matId);
+    if (!mat) return;
+    if (!confirm('Archive "' + mat.name + '"? It will be hidden from the app and moved to an Archived tab in the sheet on next sync.')) return;
+    mat.archived = true;
+    persist();
+    navigate('materials');
+}
+
+function unarchiveMaterial(matId) {
+    const mat = state.materials.find(m => m.id === matId);
+    if (!mat) return;
+    mat.archived = false;
+    persist();
+    render();
 }
 
 function deleteMaterial(matId) {
@@ -4811,10 +4857,11 @@ async function syncPull() {
         (rows || []).forEach(row => {
             const name = String(row['Material'] || '').trim();
             if (!name) return;
-            // Skip materials that were deleted in the app
+            // Skip materials that were deleted or archived in the app
             const dKey = (String(row['Trade']||'') + '||' + name).toLowerCase();
             if (deletedKeys.has(dKey)) return;
             let mat = state.materials.find(m => m.name.toLowerCase() === name.toLowerCase());
+            if (mat && mat.archived) return;
             if (!mat) {
                 mat = {
                     id: uid(), name,
@@ -4885,7 +4932,7 @@ async function syncPush() {
     const url = localStorage.getItem('hallway_sheets_url');
     if (!url) return;
     const toast = _showSyncToast('Pushing to Google Sheets…');
-    const materials = (state.materials || []).map(mat => {
+    const materials = (state.materials || []).filter(m => !m.archived).map(mat => {
         const lastDel = (mat.log || []).filter(e => e.type === 'delivery').sort((a,b) => b.date.localeCompare(a.date))[0];
         const stock = matCurrentStock(mat);
         return {
@@ -4905,11 +4952,12 @@ async function syncPush() {
         };
     });
     const deletions = (state.deletedMaterials || []).map(d => ({ name: d.name, trade: d.trade }));
+    const archives  = (state.materials || []).filter(m => m.archived).map(m => ({ name: m.name, trade: m.trade || '' }));
     try {
         const resp = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ materials, deletions })
+            body: JSON.stringify({ materials, deletions, archives })
         });
         const result = await resp.json().catch(() => ({}));
         if (result.error) throw new Error(result.error);
