@@ -4894,7 +4894,7 @@ async function syncPull() {
                     mat.deliveryEta = _normalizeEtaDate(row['Delivery ETA'] || '');
                 }
                 mat.notes = row['Notes'] || '';
-                if (row['Trade']  && !mat.trade) mat.trade = row['Trade'];
+                if (row['Trade']) mat.trade = row['Trade'];
                 updated++;
             }
             // Import last delivery as a delivery log entry if it's newer than the last recorded delivery
