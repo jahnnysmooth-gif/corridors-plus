@@ -326,7 +326,7 @@ function setRowColors() {
     ['Paint',        '#ede9fe'], // purple
     ['Wallcovering', '#fce7f3'], // pink
     ['Carpentry',    '#fef3c7'], // amber
-    ['Electrical',   '#fefce8'], // yellow
+    ['Electrical',   '#cffafe'], // cyan
     ['Misc.',        '#f3f4f6'], // gray
     ['Tools',        '#ccfbf1'], // teal
   ];
