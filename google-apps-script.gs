@@ -278,3 +278,77 @@ function json(data) {
   return ContentService.createTextOutput(JSON.stringify(data))
                        .setMimeType(ContentService.MimeType.JSON);
 }
+
+// ── Run this ONCE to set up row color-coding on the Master sheet ──────────────
+// Trade colors are the base. Red (low stock) and green (ordered) take priority.
+function setRowColors() {
+  const ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(MASTER_SHEET);
+  if (!sheet) { Logger.log('Master sheet not found — run setup() first.'); return; }
+
+  // Clear existing conditional format rules
+  sheet.clearConditionalFormatRules();
+
+  const lastRow  = Math.max(sheet.getLastRow(), 200);
+  const numCols  = HEADERS.length;
+  const range    = sheet.getRange(2, 1, lastRow - 1, numCols);
+
+  // Column indices (1-based) for formula references
+  const onHandCol   = HEADERS.indexOf('On Hand')       + 1; // E
+  const minStockCol = HEADERS.indexOf('Min Stock')      + 1; // F
+  const statusCol   = HEADERS.indexOf('Order Status')   + 1; // K
+  const tradeCol    = 1;                                      // A
+
+  const onHandLetter   = columnLetter(onHandCol);
+  const minStockLetter = columnLetter(minStockCol);
+  const statusLetter   = columnLetter(statusCol);
+  const tradeLetter    = columnLetter(tradeCol);
+
+  const rules = [];
+
+  // ── Priority 1: Low stock — red ──────────────────────────────────────────────
+  rules.push(SpreadsheetApp.newConditionalFormatRule()
+    .whenFormulaSatisfied(`=AND($${onHandLetter}2<>"",$${minStockLetter}2<>"",$${minStockLetter}2>0,VALUE($${onHandLetter}2)<VALUE($${minStockLetter}2))`)
+    .setBackground('#fca5a5')
+    .setRanges([range])
+    .build());
+
+  // ── Priority 2: Ordered — green ───────────────────────────────────────────────
+  rules.push(SpreadsheetApp.newConditionalFormatRule()
+    .whenFormulaSatisfied(`=ISNUMBER(SEARCH("ordered",$${statusLetter}2))`)
+    .setBackground('#bbf7d0')
+    .setRanges([range])
+    .build());
+
+  // ── Trade group colors (lower priority) ──────────────────────────────────────
+  const tradeColors = [
+    ['Plaster',      '#dbeafe'], // blue
+    ['Paint',        '#ede9fe'], // purple
+    ['Wallcovering', '#fce7f3'], // pink
+    ['Carpentry',    '#fef3c7'], // amber
+    ['Electrical',   '#fefce8'], // yellow
+    ['Misc.',        '#f3f4f6'], // gray
+    ['Tools',        '#ccfbf1'], // teal
+  ];
+
+  tradeColors.forEach(([trade, color]) => {
+    rules.push(SpreadsheetApp.newConditionalFormatRule()
+      .whenFormulaSatisfied(`=$${tradeLetter}2="${trade}"`)
+      .setBackground(color)
+      .setRanges([range])
+      .build());
+  });
+
+  sheet.setConditionalFormatRules(rules);
+  Logger.log('Row colors applied! Low stock = red, Ordered = green, trade groups color-coded.');
+}
+
+function columnLetter(col) {
+  let letter = '';
+  while (col > 0) {
+    const rem = (col - 1) % 26;
+    letter = String.fromCharCode(65 + rem) + letter;
+    col = Math.floor((col - 1) / 26);
+  }
+  return letter;
+}
