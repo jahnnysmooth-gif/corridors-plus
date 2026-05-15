@@ -2749,8 +2749,9 @@ function confirmDelivery(matId) {
         const entry = { id: uid(), date: today(), type: 'delivery', qty: val };
         if (by) entry.by = by;
         mat.log.push(entry);
-        mat.procStatus = '';
+        mat.procStatus  = '';
         mat.deliveryEta = '';
+        mat.reorderQty  = 0;
         if (!state.pendingConfirms) state.pendingConfirms = [];
         state.pendingConfirms.push({ name: mat.name, trade: mat.trade || '' });
         persist(); closeModal(); render();
@@ -4835,10 +4836,13 @@ async function syncPull() {
                 mat.brand      = row['Brand/Type'] || mat.brand || '';
                 mat.link       = row['Link']       || mat.link  || '';
                 mat.parQty     = row['Min Stock'] !== '' && row['Min Stock'] !== undefined ? (parseFloat(row['Min Stock']) || 0) : (mat.parQty || 0);
-                const matKey = (String(row['Trade']||'') + '||' + name).toLowerCase();
+                // Check confirmedKeys using both the sheet's trade and the app's trade (handles mismatch)
+                const matKeyByRow = (String(row['Trade']||'') + '||' + name).toLowerCase();
+                const matKeyByMat = (String(mat.trade||'')   + '||' + name).toLowerCase();
+                const _isConfirmed = confirmedKeys.has(matKeyByRow) || confirmedKeys.has(matKeyByMat);
                 const _toOrder = parseFloat(row['To Order']);
-                if (!isNaN(_toOrder)) mat.reorderQty = _toOrder;
-                if (!confirmedKeys.has(matKey)) {
+                if (!_isConfirmed) {
+                    if (!isNaN(_toOrder)) mat.reorderQty = _toOrder;
                     mat.procStatus  = row['Order Status'] || mat.procStatus || '';
                     mat.deliveryEta = _normalizeEtaDate(row['Delivery ETA'] || '');
                 }
