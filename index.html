@@ -3711,8 +3711,8 @@ function viewReceipt(id) {
     const overlay = document.createElement('div');
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column';
     overlay.innerHTML = `
-        <button onclick="this.parentElement.remove()" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.15);border:none;color:white;font-size:28px;width:44px;height:44px;border-radius:50%;cursor:pointer;line-height:1">✕</button>
-        <img src="${r.thumb}" style="max-width:100%;max-height:90vh;object-fit:contain;border-radius:8px" />`;
+        <img src="${r.thumb}" style="max-width:100%;max-height:80vh;object-fit:contain;border-radius:8px" />
+        <button onclick="this.parentElement.remove()" style="margin-top:24px;background:rgba(255,255,255,0.2);border:none;color:white;font-size:16px;font-weight:700;padding:14px 48px;border-radius:99px;cursor:pointer;letter-spacing:1px">CLOSE</button>`;
     overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
     document.body.appendChild(overlay);
 }
