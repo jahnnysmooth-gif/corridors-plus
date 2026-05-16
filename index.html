@@ -3605,7 +3605,12 @@ function renderReceipts() {
             ${r.vendor ? `<div style="font-size:13px;color:#555;margin-top:2px">${r.vendor}</div>` : ''}
             ${r.floorName ? `<div style="font-size:12px;color:#888;margin-top:2px">📍 ${r.floorName}</div>` : ''}
                 <div style="font-size:11px;color:#aaa;margin-top:4px">${displayDate(r.date)}</div>
-            ${r.driveUrl ? `<a href="${r.driveUrl}" target="_blank" style="font-size:11px;color:#1a73e8;margin-top:4px;display:block">☁ View in Drive</a>` : `<span style="font-size:11px;color:#ccc;margin-top:4px;display:block">Uploading…</span>`}
+            ${r.driveUrl
+                ? `<a href="${r.driveUrl}" target="_blank" style="font-size:11px;color:#1a73e8;margin-top:4px;display:block">☁ View in Drive</a>`
+                : r.driveErr
+                    ? `<span style="font-size:11px;color:#dc2626;margin-top:4px;display:block">⚠ ${r.driveErr} — <span style="cursor:pointer;text-decoration:underline" onclick="retryReceiptUpload('${r.id}')">Retry</span></span>`
+                    : `<span style="font-size:11px;color:#aaa;margin-top:4px;display:block">⏳ Uploading…</span>`
+            }
         </div>
         <button onclick="deleteReceipt('${r.id}')" style="background:none;border:none;color:#dc2626;font-size:18px;cursor:pointer;padding:4px">🗑</button>
     </div>`).join('')}`;
@@ -3664,27 +3669,54 @@ function saveReceipt() {
 
     // Upload to Google Drive in the background
     const gasUrl = localStorage.getItem('hallway_sheets_url');
-    if (gasUrl) {
-        const dataCopy  = receipt.thumb;
-        const receiptId = receipt.id;
-        const filename  = `${category.replace(/\s+/g,'-')}_${today()}${vendor ? '_' + vendor.replace(/\s+/g,'-') : ''}.jpg`;
-        fetch(gasUrl, {
-            method: 'POST',
-            body:   JSON.stringify({ type: 'receipt', data: dataCopy, filename }),
-        })
-        .then(r => r.json())
-        .then(res => {
-            if (res.url) {
-                const idx = (state.receipts||[]).findIndex(r => r.id === receiptId);
-                if (idx >= 0) {
-                    state.receipts[idx].driveUrl = res.url;
-                    persist();
-                    if (view.screen === 'receipts') document.getElementById('app').innerHTML = renderReceipts();
-                }
-            }
-        })
-        .catch(() => {}); // silent — receipt is already saved locally
-    }
+    if (gasUrl) uploadReceiptToDrive(receipt.id, receipt.thumb, receipt.category, receipt.vendor);
+}
+
+function uploadReceiptToDrive(receiptId, dataUrl, category, vendor) {
+    const gasUrl   = localStorage.getItem('hallway_sheets_url');
+    if (!gasUrl) return;
+    const filename = `${(category||'Receipt').replace(/\s+/g,'-')}_${today()}${vendor ? '_' + vendor.replace(/\s+/g,'-') : ''}.jpg`;
+    const ctrl     = new AbortController();
+    const timer    = setTimeout(() => ctrl.abort(), 30000); // 30s timeout
+
+    fetch(gasUrl, {
+        method:  'POST',
+        signal:  ctrl.signal,
+        body:    JSON.stringify({ type: 'receipt', data: dataUrl, filename }),
+    })
+    .then(r => r.json())
+    .then(res => {
+        clearTimeout(timer);
+        const idx = (state.receipts||[]).findIndex(r => r.id === receiptId);
+        if (idx < 0) return;
+        if (res.url) {
+            state.receipts[idx].driveUrl  = res.url;
+            state.receipts[idx].driveErr  = null;
+        } else {
+            state.receipts[idx].driveErr = res.error || 'Upload failed';
+        }
+        persist();
+        if (view.screen === 'receipts') document.getElementById('app').innerHTML = renderReceipts();
+    })
+    .catch(err => {
+        clearTimeout(timer);
+        const idx = (state.receipts||[]).findIndex(r => r.id === receiptId);
+        if (idx >= 0) {
+            state.receipts[idx].driveErr = err.name === 'AbortError' ? 'Timed out' : (err.message || 'Network error');
+            persist();
+            if (view.screen === 'receipts') document.getElementById('app').innerHTML = renderReceipts();
+        }
+    });
+}
+
+function retryReceiptUpload(id) {
+    const r = (state.receipts||[]).find(r => r.id === id);
+    if (!r) return;
+    const idx = state.receipts.findIndex(r => r.id === id);
+    state.receipts[idx].driveErr = null;
+    persist();
+    document.getElementById('app').innerHTML = renderReceipts();
+    uploadReceiptToDrive(r.id, r.thumb, r.category, r.vendor);
 }
 
 function viewReceipt(id) {
