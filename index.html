@@ -3578,13 +3578,6 @@ function renderReceipts() {
             </select>
         </div>
         <div class="form-group">
-            <label>Floor / Job (optional)</label>
-            <select id="rc_floor" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px">
-                <option value="">— General —</option>
-                ${floorOptions}
-            </select>
-        </div>
-        <div class="form-group">
             <label>Vendor / Description (optional)</label>
             <input id="rc_vendor" type="text" placeholder="e.g. Home Depot, plaster supplies" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;box-sizing:border-box" />
         </div>
@@ -3601,7 +3594,6 @@ function renderReceipts() {
         <div style="flex:1;min-width:0">
             <div style="font-weight:700;font-size:14px;color:#1a3a5c">${r.category}</div>
             ${r.vendor ? `<div style="font-size:13px;color:#555;margin-top:2px">${r.vendor}</div>` : ''}
-            ${r.floorName ? `<div style="font-size:12px;color:#888;margin-top:2px">📍 ${r.floorName}</div>` : ''}
                 <div style="font-size:11px;color:#aaa;margin-top:4px">${displayDate(r.date)}</div>
             ${r.driveUrl
                 ? `<a href="${r.driveUrl}" target="_blank" style="font-size:11px;color:#1a73e8;margin-top:4px;display:block">☁ View in Drive</a>`
@@ -3644,19 +3636,15 @@ function rcFileSelected(input) {
 
 function saveReceipt() {
     if (!_rcDataUrl) return;
-    const category  = document.getElementById('rc_category')?.value || 'Receipt';
-    const floorId   = document.getElementById('rc_floor')?.value || '';
-    const vendor    = (document.getElementById('rc_vendor')?.value || '').trim();
-    const floor     = floorId ? (state.floors||[]).find(f => f.id === floorId) : null;
+    const category = document.getElementById('rc_category')?.value || 'Receipt';
+    const vendor   = (document.getElementById('rc_vendor')?.value || '').trim();
     const receipt = {
-        id:        uid(),
-        date:      today(),
+        id:       uid(),
+        date:     today(),
         category,
-        floorId:   floorId || null,
-        floorName: floor ? floor.name : null,
-        vendor:    vendor || null,
-        thumb:     _rcDataUrl,
-        driveUrl:  null,
+        vendor:   vendor || null,
+        thumb:    _rcDataUrl,
+        driveUrl: null,
     };
     if (!state.receipts) state.receipts = [];
     state.receipts.push(receipt);
@@ -3720,9 +3708,13 @@ function retryReceiptUpload(id) {
 function viewReceipt(id) {
     const r = (state.receipts||[]).find(r => r.id === id);
     if (!r) return;
-    const win = window.open('', '_blank');
-    win.document.write(`<html><body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh">
-        <img src="${r.thumb}" style="max-width:100%;max-height:100vh;object-fit:contain" /></body></html>`);
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column';
+    overlay.innerHTML = `
+        <button onclick="this.parentElement.remove()" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.15);border:none;color:white;font-size:28px;width:44px;height:44px;border-radius:50%;cursor:pointer;line-height:1">✕</button>
+        <img src="${r.thumb}" style="max-width:100%;max-height:90vh;object-fit:contain;border-radius:8px" />`;
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
 }
 
 function deleteReceipt(id) {
