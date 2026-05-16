@@ -4,7 +4,7 @@
 
 const SPREADSHEET_ID     = '1u13Ai9uvKcau_cB4NjubcFnHkn2xXnsW3UmduOgbA0c';
 const MASTER_SHEET       = 'Master';
-const RECEIPTS_FOLDER_ID = '1GxTFqBDmGK6AruHeFmNLOXH2zqUlmXZK';
+const RECEIPTS_FOLDER_ID = '19TGCyD8v0j0UyahztXXuwIEGLVyk3LVJ';
 
 const HEADERS = [
   'Trade', 'Material', 'Brand/Type', 'Unit',
