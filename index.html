@@ -3581,6 +3581,10 @@ function renderReceipts() {
             <label>Vendor / Description (optional)</label>
             <input id="rc_vendor" type="text" placeholder="e.g. Home Depot, plaster supplies" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;box-sizing:border-box" />
         </div>
+        <div class="form-group">
+            <label>Amount (optional)</label>
+            <input id="rc_amount" type="number" min="0" step="0.01" placeholder="0.00" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;box-sizing:border-box" />
+        </div>
         <input type="file" id="rc_file" accept="image/*" capture="environment" style="display:none" onchange="rcFileSelected(this)" />
         <button class="btn btn-primary" style="width:100%" onclick="document.getElementById('rc_file').click()">📷 Choose Photo / Take Picture</button>
         <div id="rc_preview" style="margin-top:12px;display:none">
@@ -3588,11 +3592,19 @@ function renderReceipts() {
             <button class="btn btn-primary" style="width:100%;margin-top:10px" onclick="saveReceipt()">Save Receipt</button>
         </div>
     </div>
-    ${receipts.length === 0 ? `<div style="text-align:center;color:#aaa;padding:32px;font-size:14px">No receipts saved yet.</div>` : receipts.map(r => `
+    ${receipts.length === 0 ? `<div style="text-align:center;color:#aaa;padding:32px;font-size:14px">No receipts saved yet.</div>` : `
+    <div class="card" style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:13px;color:#888">${receipts.length} receipt${receipts.length !== 1 ? 's' : ''}</div>
+        ${receipts.some(r => r.amount) ? `<div style="font-size:16px;font-weight:800;color:#1a3a5c">$${receipts.filter(r=>r.amount).reduce((s,r)=>s+r.amount,0).toFixed(2)} total</div>` : ''}
+    </div>
+    ` + receipts.map(r => `
     <div class="card" style="margin-bottom:10px;display:flex;gap:12px;align-items:flex-start">
         <img src="${r.thumb}" style="width:72px;height:72px;object-fit:cover;border-radius:8px;flex-shrink:0;cursor:pointer" onclick="viewReceipt('${r.id}')" />
         <div style="flex:1;min-width:0">
-            <div style="font-weight:700;font-size:14px;color:#1a3a5c">${r.category}</div>
+            <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                <div style="font-weight:700;font-size:14px;color:#1a3a5c">${r.category}</div>
+                ${r.amount ? `<div style="font-weight:800;font-size:15px;color:#1a3a5c">$${r.amount.toFixed(2)}</div>` : ''}
+            </div>
             ${r.vendor ? `<div style="font-size:13px;color:#555;margin-top:2px">${r.vendor}</div>` : ''}
                 <div style="font-size:11px;color:#aaa;margin-top:4px">${displayDate(r.date)}</div>
             ${r.driveUrl
@@ -3638,11 +3650,13 @@ function saveReceipt() {
     if (!_rcDataUrl) return;
     const category = document.getElementById('rc_category')?.value || 'Receipt';
     const vendor   = (document.getElementById('rc_vendor')?.value || '').trim();
+    const amount   = parseFloat(document.getElementById('rc_amount')?.value) || null;
     const receipt = {
         id:       uid(),
         date:     today(),
         category,
         vendor:   vendor || null,
+        amount,
         thumb:    _rcDataUrl,
         driveUrl: null,
     };
@@ -3655,13 +3669,13 @@ function saveReceipt() {
 
     // Upload to Google Drive in the background
     const gasUrl = localStorage.getItem('hallway_sheets_url');
-    if (gasUrl) uploadReceiptToDrive(receipt.id, receipt.thumb, receipt.category, receipt.vendor);
+    if (gasUrl) uploadReceiptToDrive(receipt.id, receipt.thumb, receipt.category, receipt.vendor, receipt.amount);
 }
 
-function uploadReceiptToDrive(receiptId, dataUrl, category, vendor) {
+function uploadReceiptToDrive(receiptId, dataUrl, category, vendor, amount) {
     const gasUrl   = localStorage.getItem('hallway_sheets_url');
     if (!gasUrl) return;
-    const filename = `${(category||'Receipt').replace(/\s+/g,'-')}_${today()}${vendor ? '_' + vendor.replace(/\s+/g,'-') : ''}.jpg`;
+    const filename = `${(category||'Receipt').replace(/\s+/g,'-')}_${today()}${vendor ? '_' + vendor.replace(/\s+/g,'-') : ''}${amount ? '_$'+Number(amount).toFixed(2) : ''}.jpg`;
     const ctrl     = new AbortController();
     const timer    = setTimeout(() => ctrl.abort(), 30000); // 30s timeout
 
@@ -3702,7 +3716,7 @@ function retryReceiptUpload(id) {
     state.receipts[idx].driveErr = null;
     persist();
     document.getElementById('app').innerHTML = renderReceipts();
-    uploadReceiptToDrive(r.id, r.thumb, r.category, r.vendor);
+    uploadReceiptToDrive(r.id, r.thumb, r.category, r.vendor, r.amount);
 }
 
 function viewReceipt(id) {
