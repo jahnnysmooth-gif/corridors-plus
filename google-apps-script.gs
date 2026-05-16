@@ -1,9 +1,11 @@
-// Corridor's Plus — Google Sheets Sync
+// Corridor's Plus — Google Sheets Sync + Receipt Upload
 // Paste this entire file into: Google Sheet → Extensions → Apps Script
 // Then: run setup() once, then deploy as a Web App (Deploy → New deployment → Web app → Anyone)
 
-const SPREADSHEET_ID = '1u13Ai9uvKcau_cB4NjubcFnHkn2xXnsW3UmduOgbA0c';
-const MASTER_SHEET  = 'Master';
+const SPREADSHEET_ID     = '1u13Ai9uvKcau_cB4NjubcFnHkn2xXnsW3UmduOgbA0c';
+const MASTER_SHEET       = 'Master';
+const RECEIPTS_FOLDER_ID = '19TGCyD8v0j0UyahztXXuwIEGLVyk3LVJ';
+
 const HEADERS = [
   'Trade', 'Material', 'Brand/Type', 'Unit',
   'On Hand', 'Min Stock',
@@ -12,7 +14,7 @@ const HEADERS = [
   'Link', 'Notes'
 ];
 
-// Called by the app to pull all materials (GET request)
+// ── GET — pull all materials into the app ─────────────────────────────────────
 function doGet(e) {
   try {
     const ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
@@ -37,15 +39,53 @@ function doGet(e) {
   }
 }
 
-// Called by the app to push material updates (POST request)
+// ── POST — route to receipt upload or materials sync ─────────────────────────
 function doPost(e) {
+  try {
+    const payload = JSON.parse(e.postData.contents);
+
+    // Receipt upload request — handle separately (no sheet lock needed)
+    if (payload.type === 'receipt') {
+      return uploadReceipt(payload);
+    }
+
+    // Materials sync request
+    return syncMaterials(payload);
+
+  } catch (err) {
+    return json({ error: err.toString() });
+  }
+}
+
+// ── Receipt upload — save image to Drive folder ───────────────────────────────
+function uploadReceipt(payload) {
+  try {
+    if (!payload.data) return json({ error: 'No image data received.' });
+
+    const parts    = payload.data.split(',');
+    const mimeType = parts[0].split(';')[0].split(':')[1] || 'image/jpeg';
+    const base64   = parts[1];
+    const bytes    = Utilities.base64Decode(base64);
+    const blob     = Utilities.newBlob(bytes, mimeType, payload.filename || 'receipt.jpg');
+
+    const folder = DriveApp.getFolderById(RECEIPTS_FOLDER_ID);
+    const file   = folder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+    return json({ success: true, url: file.getUrl(), fileId: file.getId() });
+  } catch (err) {
+    return json({ error: err.toString() });
+  }
+}
+
+// ── Materials sync — update/add/delete/archive rows in Master sheet ───────────
+function syncMaterials(payload) {
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(15000);
 
-    const payload = JSON.parse(e.postData.contents);
-    const ss      = SpreadsheetApp.openById(SPREADSHEET_ID);
-    let   sheet   = ss.getSheetByName(MASTER_SHEET);
+    const ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+    let   sheet = ss.getSheetByName(MASTER_SHEET);
 
     if (!sheet) {
       sheet = ss.insertSheet(MASTER_SHEET, 0);
@@ -58,22 +98,21 @@ function doPost(e) {
     const tradeIdx = hdr.indexOf('Trade');
 
     if (matIdx === -1) {
-      lock.releaseLock();
       return json({ error: 'Material column not found in sheet headers. Re-run setup() or check the header row.' });
     }
 
     // Build two maps: trade+name (exact) and name-only (fallback)
-    const rowMap     = {};  // "trade||name" → 1-based row
-    const nameOnlyMap = {}; // "name" → 1-based row (fallback when trade is missing/mismatched)
+    const rowMap      = {};  // "trade||name" → 1-based row
+    const nameOnlyMap = {};  // "name" → 1-based row (fallback when trade is missing/mismatched)
     allData.slice(1).forEach((r, i) => {
       const name  = String(r[matIdx] || '').trim().toLowerCase();
       const trade = tradeIdx >= 0 ? String(r[tradeIdx] || '').trim().toLowerCase() : '';
       if (!name) return;
       rowMap[trade + '||' + name] = i + 2;
-      if (!nameOnlyMap[name]) nameOnlyMap[name] = i + 2; // first occurrence wins
+      if (!nameOnlyMap[name]) nameOnlyMap[name] = i + 2;
     });
 
-    // Fields the app is allowed to overwrite — Notes is sheet-managed, never overwritten by app
+    // Fields the app is allowed to overwrite — Notes is sheet-managed
     const APP_FIELDS = HEADERS.filter(h => h !== 'Notes');
 
     const updates = payload.materials || [];
@@ -83,7 +122,6 @@ function doPost(e) {
       const name     = String(mat['Material'] || '').trim().toLowerCase();
       const trade    = String(mat['Trade']    || '').trim().toLowerCase();
       const exactKey = trade + '||' + name;
-      // Prefer exact trade+name match; fall back to name-only so a trade mismatch doesn't create duplicates
       const rowNum   = rowMap[exactKey] || nameOnlyMap[name];
       if (rowNum) {
         APP_FIELDS.forEach(field => {
@@ -93,7 +131,6 @@ function doPost(e) {
           }
         });
       } else {
-        // Genuinely new material — append a row
         newRows.push(HEADERS.map(h => (mat[h] !== undefined ? mat[h] : '')));
       }
     });
@@ -115,8 +152,8 @@ function doPost(e) {
       }
       const archHdr    = archSheet.getDataRange().getValues()[0].map(h => String(h).trim());
       const archMatIdx = archHdr.indexOf('Material');
-      const freshData = sheet.getDataRange().getValues();
-      const freshHdr  = freshData[0].map(h => String(h).trim().replace(/[\r\n]+/g,' ').replace(/\s+/g,' '));
+      const freshData  = sheet.getDataRange().getValues();
+      const freshHdr   = freshData[0].map(h => String(h).trim().replace(/[\r\n]+/g,' ').replace(/\s+/g,' '));
       const fTrade = freshHdr.indexOf('Trade');
       const fMat   = freshHdr.indexOf('Material');
       for (let i = freshData.length - 1; i >= 1; i--) {
@@ -125,7 +162,6 @@ function doPost(e) {
         const exactKey = rowTrade + '||' + rowName;
         const matched  = archiveExactKeys.has(exactKey) || archiveNameKeys.has(rowName);
         if (matched && rowName) {
-          // Copy to Archived only if not already there (match by name)
           const alreadyArchived = archSheet.getDataRange().getValues().slice(1).some(r => {
             return String(archMatIdx >= 0 ? r[archMatIdx] : '').trim().toLowerCase() === rowName;
           });
@@ -141,10 +177,9 @@ function doPost(e) {
     const deletions = payload.deletions || [];
     if (deletions.length > 0) {
       const delKeys = new Set(deletions.map(d => (String(d.trade||'') + '||' + String(d.name||'')).toLowerCase()));
-      const freshData = sheet.getDataRange().getValues();
+      const freshData     = sheet.getDataRange().getValues();
       const freshHdrTrade = freshData[0].map(h => String(h).trim()).indexOf('Trade');
       const freshHdrMat   = freshData[0].map(h => String(h).trim()).indexOf('Material');
-      // Work backwards so row deletion doesn't shift indices
       for (let i = freshData.length - 1; i >= 1; i--) {
         const key = (String(freshData[i][freshHdrTrade]||'') + '||' + String(freshData[i][freshHdrMat]||'')).toLowerCase();
         if (delKeys.has(key)) sheet.deleteRow(i + 1);
@@ -159,7 +194,7 @@ function doPost(e) {
   }
 }
 
-// ── Run this ONCE from the Apps Script editor to create the Master sheet ──────
+// ── Run this ONCE to create and populate the Master sheet ─────────────────────
 function setup() {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   let sheet = ss.getSheetByName(MASTER_SHEET);
@@ -170,9 +205,6 @@ function setup() {
     sheet = ss.insertSheet(MASTER_SHEET, 0);
   }
 
-  // Columns: Trade | Material | Brand/Type | Unit | On Hand | Min Stock |
-  //          Last Delivery Date | Last Delivery Qty | Ordered By |
-  //          To Order | Order Status | Delivery ETA | Link | Notes
   const data = [
     HEADERS,
     // Plaster
@@ -261,14 +293,12 @@ function setup() {
     ['Tools','Dust Free Pole Sander','Hyde','',4,'','05/08/2025',4,'jv','','ordered','','-'],
   ];
 
-  // Pad any rows that are shorter than HEADERS (e.g. missing Delivery ETA column)
   const paddedData = data.map(row => {
     while (row.length < HEADERS.length) row.push('');
     return row.slice(0, HEADERS.length);
   });
   sheet.getRange(1, 1, paddedData.length, HEADERS.length).setValues(paddedData);
 
-  // Style the header row
   const hdrRange = sheet.getRange(1, 1, 1, HEADERS.length);
   hdrRange.setFontWeight('bold');
   hdrRange.setBackground('#1a3a5c');
@@ -279,30 +309,22 @@ function setup() {
   Logger.log('Setup complete! ' + (data.length - 1) + ' materials loaded into the Master sheet.');
 }
 
-function json(data) {
-  return ContentService.createTextOutput(JSON.stringify(data))
-                       .setMimeType(ContentService.MimeType.JSON);
-}
-
-// ── Run this ONCE to set up row color-coding on the Master sheet ──────────────
-// Trade colors are the base. Red (low stock) and green (ordered) take priority.
+// ── Run this ONCE to apply color-coding rules to the Master sheet ─────────────
 function setRowColors() {
   const ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
   const sheet = ss.getSheetByName(MASTER_SHEET);
   if (!sheet) { Logger.log('Master sheet not found — run setup() first.'); return; }
 
-  // Clear existing conditional format rules
   sheet.clearConditionalFormatRules();
 
-  const lastRow  = Math.max(sheet.getLastRow(), 200);
-  const numCols  = HEADERS.length;
-  const range    = sheet.getRange(2, 1, lastRow - 1, numCols);
+  const lastRow = Math.max(sheet.getLastRow(), 200);
+  const numCols = HEADERS.length;
+  const range   = sheet.getRange(2, 1, lastRow - 1, numCols);
 
-  // Column indices (1-based) for formula references
-  const onHandCol   = HEADERS.indexOf('On Hand')       + 1; // E
-  const minStockCol = HEADERS.indexOf('Min Stock')      + 1; // F
-  const statusCol   = HEADERS.indexOf('Order Status')   + 1; // K
-  const tradeCol    = 1;                                      // A
+  const onHandCol   = HEADERS.indexOf('On Hand')     + 1;
+  const minStockCol = HEADERS.indexOf('Min Stock')    + 1;
+  const statusCol   = HEADERS.indexOf('Order Status') + 1;
+  const tradeCol    = 1;
 
   const onHandLetter   = columnLetter(onHandCol);
   const minStockLetter = columnLetter(minStockCol);
@@ -311,7 +333,7 @@ function setRowColors() {
 
   const rules = [];
 
-  // ── Priority 1: Low stock — red ──────────────────────────────────────────────
+  // Priority 1: Low stock — red
   rules.push(SpreadsheetApp.newConditionalFormatRule()
     .whenFormulaSatisfied(`=AND($${onHandLetter}2<>"",$${minStockLetter}2<>"",$${minStockLetter}2>0,VALUE($${onHandLetter}2)<VALUE($${minStockLetter}2))`)
     .setBackground('#FF0000')
@@ -319,7 +341,7 @@ function setRowColors() {
     .setRanges([range])
     .build());
 
-  // ── Priority 2: Ordered — green ───────────────────────────────────────────────
+  // Priority 2: Ordered — green
   rules.push(SpreadsheetApp.newConditionalFormatRule()
     .whenFormulaSatisfied(`=ISNUMBER(SEARCH("ordered",$${statusLetter}2))`)
     .setBackground('#008000')
@@ -327,15 +349,15 @@ function setRowColors() {
     .setRanges([range])
     .build());
 
-  // ── Trade group colors (lower priority) ──────────────────────────────────────
+  // Trade group colors (lower priority)
   const tradeColors = [
-    ['Plaster',      '#dbeafe'], // blue
-    ['Paint',        '#ede9fe'], // purple
-    ['Wallcovering', '#fce7f3'], // pink
-    ['Carpentry',    '#fef3c7'], // amber
-    ['Electrical',   '#cffafe'], // cyan
-    ['Misc.',        '#f3f4f6'], // gray
-    ['Tools',        '#ccfbf1'], // teal
+    ['Plaster',      '#dbeafe'],
+    ['Paint',        '#ede9fe'],
+    ['Wallcovering', '#fce7f3'],
+    ['Carpentry',    '#fef3c7'],
+    ['Electrical',   '#cffafe'],
+    ['Misc.',        '#f3f4f6'],
+    ['Tools',        '#ccfbf1'],
   ];
 
   tradeColors.forEach(([trade, color]) => {
@@ -350,6 +372,7 @@ function setRowColors() {
   Logger.log('Row colors applied! Low stock = red, Ordered = green, trade groups color-coded.');
 }
 
+// ── Helper: convert column number to letter (e.g. 1 → A, 27 → AA) ─────────────
 function columnLetter(col) {
   let letter = '';
   while (col > 0) {
@@ -358,4 +381,10 @@ function columnLetter(col) {
     col = Math.floor((col - 1) / 26);
   }
   return letter;
+}
+
+// ── Helper: return JSON response ──────────────────────────────────────────────
+function json(data) {
+  return ContentService.createTextOutput(JSON.stringify(data))
+                       .setMimeType(ContentService.MimeType.JSON);
 }
