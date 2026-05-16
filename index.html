@@ -782,9 +782,7 @@ let _selectedIds  = new Set();
 let _matSearch    = '';
 
 // ── Data ──────────────────────────────────────────────────────────────────────
-if (!localStorage.getItem('hallway_sheets_url')) {
-    localStorage.setItem('hallway_sheets_url', 'https://script.google.com/macros/s/AKfycbwtD19JGfOKNv95P5n1p8ZTjBrDOpDpD0TiUdyY0CsFLx2NsHlJlhClMHfpCe5V7N_P/exec');
-}
+localStorage.setItem('hallway_sheets_url', 'https://script.google.com/macros/s/AKfycbwn62-AarcAt_4rv6HOTwX45f9Unvyuaekcnb_WbfWsgNtvtqLb6mCrJNoxCztyGz4X/exec');
 let state = JSON.parse(localStorage.getItem('hallway_tracker_v2') || '{"floors":[],"materials":[]}');
 
 // Normalize missing arrays
