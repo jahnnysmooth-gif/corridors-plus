@@ -1048,6 +1048,22 @@ function handlePayroll(payload) {
     // Convert to a native Sheets table (adds filter dropdowns + Table1 label)
     sheet.getRange(1, 1, numDataRows, numCols).createFilter();
 
+    // Protect all cells — script can still write, nobody can edit manually
+    const protection = sheet.protect().setDescription('Managed by Corridor\'s Plus — do not edit manually');
+    protection.removeEditors(protection.getEditors());
+    if (protection.canDomainEdit()) protection.setDomainEdit(false);
+
+    // Sort payroll tabs: most recent start date on the left
+    const tabPattern = /^\d{2}\/\d{2}–\d{2}\/\d{2}$/;
+    const payrollTabs = ss.getSheets().filter(function(s) { return tabPattern.test(s.getName()); });
+    payrollTabs.sort(function(a, b) {
+      return b.getName().split('–')[0].localeCompare(a.getName().split('–')[0]);
+    });
+    payrollTabs.forEach(function(s, i) {
+      ss.setActiveSheet(s);
+      ss.moveActiveSheet(i + 1);
+    });
+
     SpreadsheetApp.flush();
 
     const spreadsheetUrl = ss.getUrl();
