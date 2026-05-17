@@ -2599,39 +2599,47 @@ function applyOrderToAllFloors(floorId) {
     const template = state.floors.find(f => f.id === floorId);
     if (!template) return;
     const others = state.floors.filter(f => f.id !== floorId);
-    if (!confirm(`Sync all ${others.length} other floors to match this floor's item list and order?\n\n• Missing items will be added\n• Items not in this template (with no logged hours) will be removed\n• Items with logged hours are never deleted`)) return;
+    if (!confirm(`Sync all ${others.length} other floors to match this floor's item list and order?\n\n• Missing items will be added\n• Renamed items will be renamed everywhere\n• Items not in this template (with no logged hours) will be removed\n• Items with logged hours are never deleted`)) return;
 
-    const templateOrder = template.items.map(i => i.name.trim().toLowerCase());
+    // Template: index → { name, lowerName }
+    const templateItems = template.items.map((ti, pos) => ({ pos, name: ti.name, key: ti.name.trim().toLowerCase() }));
+    const templateKeys  = new Set(templateItems.map(t => t.key));
 
     others.forEach(f => {
-        const matched   = [];
-        const unmatched = [];
-        f.items.forEach(item => {
-            const key = item.name.trim().toLowerCase();
-            const pos = templateOrder.indexOf(key);
-            if (pos !== -1) matched.push({ pos, item });
-            else unmatched.push(item);
+        // Each floor item gets matched to a template slot by index position
+        // (items were synced before, so same-position items are the "same" item even if renamed)
+        const result = [];
+
+        templateItems.forEach(ti => {
+            // 1. Exact name match — item already in sync
+            const exact = f.items.find(i => i.name.trim().toLowerCase() === ti.key);
+            if (exact) {
+                result.push({ pos: ti.pos, item: exact });
+                return;
+            }
+            // 2. No exact match — check if there's an item at the same position on this floor
+            //    that doesn't match any template key (i.e. it was renamed on the template side)
+            const samePos = f.items[ti.pos];
+            if (samePos && !templateKeys.has(samePos.name.trim().toLowerCase())) {
+                // Rename it in-place, preserving all logged data
+                samePos.name = ti.name;
+                result.push({ pos: ti.pos, item: samePos });
+                return;
+            }
+            // 3. Genuinely missing — add a new empty item
+            result.push({ pos: ti.pos, item: { id: uid(), name: ti.name, hoursLog: [], status: 'pending' } });
         });
 
-        matched.sort((a, b) => a.pos - b.pos);
+        result.sort((a, b) => a.pos - b.pos);
 
-        // Keep unmatched items only if they have logged hours (protect data)
-        const keepUnmatched = unmatched.filter(item => (item.hoursLog || []).length > 0);
+        // Collect floor items that had no template match and haven't been placed yet
+        const placedIds = new Set(result.map(r => r.item.id));
+        const leftover  = f.items.filter(i => !placedIds.has(i.id));
 
-        // Add any template items that don't exist on this floor yet
-        const existingKeys = new Set(f.items.map(i => i.name.trim().toLowerCase()));
-        const missing = template.items
-            .filter(ti => !existingKeys.has(ti.name.trim().toLowerCase()))
-            .map(ti => ({ id: uid(), name: ti.name, hoursLog: [], status: 'pending' }));
+        // Keep leftover items only if they have logged hours
+        const keepLeftover = leftover.filter(i => (i.hoursLog || []).length > 0);
 
-        // Build ordered list: matched in template order, kept unmatched at end
-        const allItems = [...matched.map(m => m.item), ...keepUnmatched];
-        missing.forEach(newItem => {
-            const pos = templateOrder.indexOf(newItem.name.trim().toLowerCase());
-            allItems.splice(pos, 0, newItem);
-        });
-
-        f.items = allItems;
+        f.items = [...result.map(r => r.item), ...keepLeftover];
     });
 
     persist();
