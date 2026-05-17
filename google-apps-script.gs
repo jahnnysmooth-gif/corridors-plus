@@ -3,7 +3,7 @@
 // Then: run setup() once, then deploy as a Web App (Deploy → New deployment → Web app → Anyone)
 
 const SPREADSHEET_ID     = '1u13Ai9uvKcau_cB4NjubcFnHkn2xXnsW3UmduOgbA0c';
-const MASTER_SHEET       = 'Master';
+const MASTER_SHEET       = 'Materials List';
 const RECEIPTS_FOLDER_ID = '19TGCyD8v0j0UyahztXXuwIEGLVyk3LVJ';
 
 const HEADERS = [
@@ -230,14 +230,6 @@ const VENDOR_PALETTE = [
   '#ffedd5', '#dcfce7', '#fef2f2', '#e0f2fe', '#fdf4ff',
 ];
 
-// Category colors used in Summary tab only
-const CATEGORY_COLORS = {
-  'Materials & Supplies': '#dbeafe',
-  'Tools & Equipment':    '#ccfbf1',
-  'Subcontractors':       '#fce7f3',
-  'Food & Meals':         '#fef3c7',
-  'Other':                '#f3f4f6',
-};
 
 function getVendorColor(vendor) {
   const props     = PropertiesService.getScriptProperties();
@@ -309,7 +301,8 @@ function logReceiptToSheet({ date, vendor, category, amount, url, items }) {
     }
   }
 
-  const newRow = [date, vendor, category, amount ? Number(amount) : '', url];
+  const dateObj = new Date(date + 'T12:00:00'); // store as Date so Sheets can format it
+  const newRow = [dateObj, vendor, category, amount ? Number(amount) : '', url];
   let   range;
 
   if (insertAfter > 0) {
@@ -324,7 +317,7 @@ function logReceiptToSheet({ date, vendor, category, amount, url, items }) {
 
   styleReceiptRow(range, bgColor, items);
   rebuildVendorMonthlyTotals(sheet, vendor);
-  refreshSummarySheet(ss);
+  ensureReceiptFilter(sheet);
 }
 
 // ── Rebuild monthly subtotal rows for a specific vendor ───────────────────────
@@ -388,9 +381,10 @@ function rebuildVendorMonthlyTotals(sheet, vendor) {
 
 function styleReceiptRow(range, bgColor, items) {
   range.setBackground(bgColor);
-  range.setFontColor('#111111'); // explicit dark font — prevents inheriting white from header
+  range.setFontColor('#111111');
   range.setFontSize(11);
   range.setVerticalAlignment('middle');
+  range.getCell(1, 1).setNumberFormat('mmm d, yyyy'); // e.g. "May 8, 2026"
   range.getCell(1, 4).setNumberFormat('$#,##0.00');
 
   // Add line items as a hover note on the Amount cell
@@ -408,6 +402,12 @@ function styleReceiptRow(range, bgColor, items) {
   }
 }
 
+function ensureReceiptFilter(sheet) {
+  if (!sheet.getFilter()) {
+    sheet.getRange(1, 1, sheet.getLastRow(), RECEIPT_HEADERS.length).createFilter();
+  }
+}
+
 
 function setupReceiptSheet(sheet) {
   // Header row
@@ -418,80 +418,12 @@ function setupReceiptSheet(sheet) {
   hdr.setFontColor('#ffffff');
   hdr.setFontSize(12);
   sheet.setFrozenRows(1);
-  sheet.setColumnWidth(1, 110); // Date
+  sheet.setColumnWidth(1, 120); // Date
   sheet.setColumnWidth(2, 160); // Vendor
   sheet.setColumnWidth(3, 180); // Category
   sheet.setColumnWidth(4, 100); // Amount
   sheet.setColumnWidth(5, 130); // Drive Link
-}
-
-// ── Summary tab — totals by vendor and by category ───────────────────────────
-const SUMMARY_SHEET = 'Receipt Summary';
-
-function refreshSummarySheet(ss) {
-  let sheet = ss.getSheetByName(SUMMARY_SHEET);
-  if (!sheet) {
-    sheet = ss.insertSheet(SUMMARY_SHEET);
-  } else {
-    sheet.clearContents();
-    sheet.clearFormats();
-  }
-
-  const src  = ss.getSheetByName(RECEIPT_SHEET);
-  if (!src) return;
-  const tz3  = Session.getScriptTimeZone();
-  const data = src.getDataRange().getValues().slice(1).filter(r => {
-    const d = r[0] instanceof Date ? Utilities.formatDate(r[0], tz3, 'yyyy-MM-dd') : String(r[0] || '');
-    return d && !d.startsWith('TOTAL:'); // skip blanks and subtotal rows
-  });
-
-  // Aggregate by vendor
-  const byVendor = {};
-  const byCat    = {};
-  let   grandTotal = 0;
-
-  data.forEach(r => {
-    const vendor   = String(r[1] || 'Unknown').trim();
-    const category = String(r[2] || 'Other').trim();
-    const amount   = parseFloat(r[3]) || 0;
-    byVendor[vendor]   = (byVendor[vendor]   || 0) + amount;
-    byCat[category]    = (byCat[category]    || 0) + amount;
-    grandTotal        += amount;
-  });
-
-  let row = 1;
-
-  // Title
-  sheet.getRange(row, 1, 1, 3).merge().setValue('Receipt Summary').setFontWeight('bold').setFontSize(14).setBackground('#1a3a5c').setFontColor('#ffffff');
-  // no timestamp — removed
-  row += 2;
-
-  // By Category
-  sheet.getRange(row, 1, 1, 2).setValues([['CATEGORY', 'TOTAL']]);
-  sheet.getRange(row, 1, 1, 2).setFontWeight('bold').setBackground('#334155').setFontColor('#ffffff');
-  row++;
-  Object.entries(byCat).sort((a,b) => b[1]-a[1]).forEach(([cat, total]) => {
-    const bg = CATEGORY_COLORS[cat] || '#f9fafb';
-    sheet.getRange(row, 1).setValue(cat).setBackground(bg);
-    sheet.getRange(row, 2).setValue(total).setNumberFormat('$#,##0.00').setBackground(bg);
-    row++;
-  });
-  sheet.getRange(row, 1).setValue('TOTAL').setFontWeight('bold');
-  sheet.getRange(row, 2).setValue(grandTotal).setNumberFormat('$#,##0.00').setFontWeight('bold');
-  row += 2;
-
-  // By Vendor
-  sheet.getRange(row, 1, 1, 2).setValues([['VENDOR', 'TOTAL']]);
-  sheet.getRange(row, 1, 1, 2).setFontWeight('bold').setBackground('#334155').setFontColor('#ffffff');
-  row++;
-  Object.entries(byVendor).sort((a,b) => b[1]-a[1]).forEach(([vendor, total]) => {
-    sheet.getRange(row, 1).setValue(vendor);
-    sheet.getRange(row, 2).setValue(total).setNumberFormat('$#,##0.00');
-    row++;
-  });
-
-  sheet.setColumnWidth(1, 200);
-  sheet.setColumnWidth(2, 120);
+  sheet.getRange(2, 1, 1000, 1).setNumberFormat('mmm d, yyyy');
 }
 
 // ── Materials sync — update/add/delete/archive rows in Master sheet ───────────
@@ -590,15 +522,23 @@ function syncMaterials(payload) {
     }
 
     // Handle deletions — remove sheet rows for materials deleted in the app
+    // Skip any item that is also present in the materials payload (re-added after deletion)
     const deletions = payload.deletions || [];
     if (deletions.length > 0) {
-      const delKeys = new Set(deletions.map(d => (String(d.trade||'') + '||' + String(d.name||'')).toLowerCase()));
-      const freshData     = sheet.getDataRange().getValues();
-      const freshHdrTrade = freshData[0].map(h => String(h).trim()).indexOf('Trade');
-      const freshHdrMat   = freshData[0].map(h => String(h).trim()).indexOf('Material');
-      for (let i = freshData.length - 1; i >= 1; i--) {
-        const key = (String(freshData[i][freshHdrTrade]||'') + '||' + String(freshData[i][freshHdrMat]||'')).toLowerCase();
-        if (delKeys.has(key)) sheet.deleteRow(i + 1);
+      const activeKeys = new Set(updates.map(m => (String(m['Trade']||'') + '||' + String(m['Material']||'')).toLowerCase()));
+      const delKeys = new Set(
+        deletions
+          .filter(d => !activeKeys.has((String(d.trade||'') + '||' + String(d.name||'')).toLowerCase()))
+          .map(d => (String(d.trade||'') + '||' + String(d.name||'')).toLowerCase())
+      );
+      if (delKeys.size > 0) {
+        const freshData     = sheet.getDataRange().getValues();
+        const freshHdrTrade = freshData[0].map(h => String(h).trim()).indexOf('Trade');
+        const freshHdrMat   = freshData[0].map(h => String(h).trim()).indexOf('Material');
+        for (let i = freshData.length - 1; i >= 1; i--) {
+          const key = (String(freshData[i][freshHdrTrade]||'') + '||' + String(freshData[i][freshHdrMat]||'')).toLowerCase();
+          if (delKeys.has(key)) sheet.deleteRow(i + 1);
+        }
       }
     }
 
@@ -817,7 +757,6 @@ function recalculateAllTotals() {
   }
 
   vendors.forEach(vendor => rebuildVendorMonthlyTotals(sheet, vendor));
-  refreshSummarySheet(ss);
   SpreadsheetApp.getUi().alert('Totals recalculated for ' + vendors.size + ' vendor(s).');
 }
 
