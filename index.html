@@ -862,6 +862,21 @@ const DEFAULT_MATERIALS = [
 
 // Backfill trade onto existing materials that predate the trade field
 
+(function addMissingItems() {
+    const toAdd = ['Carpet', 'Apt Door Painting', 'Service Door Painting'];
+    let dirty = false;
+    (state.floors || []).forEach(f => {
+        const existing = new Set((f.items || []).map(i => i.name.trim().toLowerCase()));
+        toAdd.forEach(name => {
+            if (!existing.has(name.toLowerCase())) {
+                f.items.push({ id: uid(), name, hoursLog: [], status: 'pending' });
+                dirty = true;
+            }
+        });
+    });
+    if (dirty) persist();
+})();
+
 (function migrateTrades() {
     const lookup = {};
     DEFAULT_MATERIALS.forEach(d => { lookup[d.name.toLowerCase()] = d.trade; });
