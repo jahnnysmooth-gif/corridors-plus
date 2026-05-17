@@ -62,8 +62,9 @@ function uploadReceipt(payload) {
     const mimeType = parts[0].split(';')[0].split(':')[1] || 'image/jpeg';
     const base64   = parts[1];
 
-    // Ask Claude to analyze the receipt
-    const analysis = analyzeReceiptWithClaude(base64, mimeType);
+    // Ask Claude to analyze all pages of the receipt together
+    const extraPages = Array.isArray(payload.extraPages) ? payload.extraPages : [];
+    const analysis = analyzeReceiptWithClaude(base64, mimeType, extraPages);
 
     // Build filename from analysis
     const vendor   = analysis.vendor   || payload.vendor   || 'Unknown';
@@ -82,7 +83,6 @@ function uploadReceipt(payload) {
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
     // Upload any extra pages to the same folder
-    const extraPages = Array.isArray(payload.extraPages) ? payload.extraPages : [];
     extraPages.forEach(function(page) {
       try {
         const ep     = page.data.split(',');
@@ -112,32 +112,26 @@ function uploadReceipt(payload) {
   }
 }
 
-// ── Call Claude API to read the receipt image ─────────────────────────────────
-function analyzeReceiptWithClaude(base64, mimeType) {
+// ── Call Claude API to read all pages of the receipt ─────────────────────────
+function analyzeReceiptWithClaude(base64, mimeType, extraPages) {
   try {
     const apiKey = PropertiesService.getScriptProperties().getProperty('RECEIPT_API_KEY');
     if (!apiKey) return {};
 
-    const response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
-      method:  'post',
-      headers: {
-        'x-api-key':         apiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type':      'application/json',
-      },
-      payload: JSON.stringify({
-        model:      'claude-haiku-4-5-20251001',
-        max_tokens: 512,
-        messages: [{
-          role: 'user',
-          content: [
-            {
-              type:   'image',
-              source: { type: 'base64', media_type: mimeType, data: base64 },
-            },
-            {
-              type: 'text',
-              text: `You are reading a contractor's receipt or invoice. Extract the key details and respond ONLY with a JSON object — no explanation, no markdown.
+    // Build content array: one image block per page, then the prompt
+    const content = [];
+    content.push({ type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } });
+    (extraPages || []).forEach(function(page) {
+      try {
+        const ep     = page.data.split(',');
+        const epMime = ep[0].split(';')[0].split(':')[1] || 'image/jpeg';
+        const epB64  = ep[1];
+        content.push({ type: 'image', source: { type: 'base64', media_type: epMime, data: epB64 } });
+      } catch(e) {}
+    });
+    content.push({
+      type: 'text',
+      text: `You are reading a contractor's receipt or invoice. There may be multiple pages — treat them as one document. Extract the key details and respond ONLY with a JSON object — no explanation, no markdown.
 
 Return exactly this shape:
 {
@@ -151,12 +145,22 @@ Return exactly this shape:
 Rules:
 - vendor: the business name on the receipt (e.g. "Home Depot", "Grainger")
 - date: the date printed on the receipt in YYYY-MM-DD format. null if not visible.
-- amount: the total amount paid as a number, no $ sign. null if not visible.
+- amount: the grand total paid across all pages as a number, no $ sign. null if not visible.
 - category: pick the best match from the five options above based on what was purchased.
 - items: list each line item as "qty x description — $price". Max 10 items. Empty array if not readable.`
-            }
-          ]
-        }]
+    });
+
+    const response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+      method:  'post',
+      headers: {
+        'x-api-key':         apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type':      'application/json',
+      },
+      payload: JSON.stringify({
+        model:      'claude-haiku-4-5-20251001',
+        max_tokens: 512,
+        messages:   [{ role: 'user', content: content }],
       }),
       muteHttpExceptions: true,
     });
@@ -230,6 +234,22 @@ function logReceiptToSheet({ date, vendor, category, amount, url, items }) {
   if (!sheet) {
     sheet = ss.insertSheet(RECEIPT_SHEET);
     setupReceiptSheet(sheet);
+  }
+
+  // Ensure the header row matches RECEIPT_HEADERS (repairs sheets created before Status column was added)
+  const currentHdr = sheet.getRange(1, 1, 1, RECEIPT_HEADERS.length).getValues()[0];
+  const hdrMatch   = RECEIPT_HEADERS.every(function(h, i) { return String(currentHdr[i] || '').trim() === h; });
+  if (!hdrMatch) {
+    const hdrRange = sheet.getRange(1, 1, 1, RECEIPT_HEADERS.length);
+    hdrRange.setValues([RECEIPT_HEADERS]);
+    hdrRange.setFontWeight('bold').setBackground('#1a3a5c').setFontColor('#ffffff').setFontSize(12);
+    sheet.setFrozenRows(1);
+    sheet.setColumnWidth(1, 110);
+    sheet.setColumnWidth(2, 160);
+    sheet.setColumnWidth(3, 180);
+    sheet.setColumnWidth(4, 100);
+    sheet.setColumnWidth(5, 100);
+    sheet.setColumnWidth(6, 130);
   }
 
   const data       = sheet.getDataRange().getValues();
