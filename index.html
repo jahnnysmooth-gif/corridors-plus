@@ -5579,13 +5579,17 @@ async function sendPayrollToSheets(start, end) {
     const crew       = state.crew || [];
     const attendance = state.attendance || [];
 
-    // Build ordered date array for the period (Wed → Tue)
+    // Build ordered date array for the period (Wed → Fri, Mon → Tue — no weekends)
     const dates = [];
     const cur   = new Date(start + 'T00:00:00');
     const endD  = new Date(end   + 'T00:00:00');
-    while (cur <= endD) { dates.push(cur.toISOString().slice(0, 10)); cur.setDate(cur.getDate() + 1); }
+    while (cur <= endD) {
+        const day = cur.getDay();
+        if (day !== 0 && day !== 6) dates.push(cur.toISOString().slice(0, 10));
+        cur.setDate(cur.getDate() + 1);
+    }
 
-    // Build per-worker data
+    // Build per-worker data — only include workers with hours this period
     const workers = crew.map(w => {
         const dayHours = dates.map(date => {
             const att = attendance.find(a => a.date === date);
@@ -5593,7 +5597,7 @@ async function sendPayrollToSheets(start, end) {
             return (att.details?.[w.id]?.hours) || 0;
         });
         return { name: w.name, trade: w.trade || '', dayHours, total: dayHours.reduce((s, h) => s + h, 0) };
-    });
+    }).filter(w => w.total > 0);
 
     openModal('Sending…', `<p style="text-align:center;padding:24px 0;color:#888;font-size:14px">Pushing to Google Sheets…</p>`, null, true);
 
