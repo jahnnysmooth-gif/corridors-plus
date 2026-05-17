@@ -3588,8 +3588,9 @@ function renderReceipts() {
         <input type="file" id="rc_file" accept="image/*" capture="environment" style="display:none" onchange="rcFileSelected(this)" />
         <button class="btn btn-primary" style="width:100%" onclick="document.getElementById('rc_file').click()">📷 Choose Photo / Take Picture</button>
         <div id="rc_preview" style="margin-top:12px;display:none">
-            <img id="rc_img" style="width:100%;border-radius:10px;max-height:260px;object-fit:cover" />
-            <button class="btn btn-primary" style="width:100%;margin-top:10px" onclick="saveReceipt()">Save Receipt</button>
+            <div id="rc_thumbs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px"></div>
+            <button class="btn btn-secondary" style="width:100%;margin-bottom:8px" onclick="document.getElementById('rc_file').click()">+ Add Another Page</button>
+            <button class="btn btn-primary" style="width:100%" onclick="saveReceipt()">Save Receipt</button>
         </div>
     </div>
     ${receipts.length === 0 ? `<div style="text-align:center;color:#aaa;padding:32px;font-size:14px">No receipts saved yet.</div>` : `
@@ -3599,7 +3600,10 @@ function renderReceipts() {
     </div>
     ` + receipts.map(r => `
     <div class="card" style="margin-bottom:10px;display:flex;gap:12px;align-items:flex-start;border-left:4px solid ${r.status==='paid' ? '#16a34a' : '#d97706'}">
-        <img src="${r.thumb}" style="width:72px;height:72px;object-fit:cover;border-radius:8px;flex-shrink:0;cursor:pointer" onclick="viewReceipt('${r.id}')" />
+        <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+            ${(r.pages||[r.thumb]).map((src,pi) => `<img src="${src}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="viewReceiptPage('${r.id}',${pi})" />`).join('')}
+            ${(r.pages||[r.thumb]).length > 1 ? `<div style="font-size:10px;color:#aaa;text-align:center">${(r.pages||[r.thumb]).length} pages</div>` : ''}
+        </div>
         <div style="flex:1;min-width:0">
             <div style="display:flex;justify-content:space-between;align-items:flex-start">
                 <div style="font-weight:700;font-size:14px;color:#1a3a5c">${r.category}</div>
@@ -3621,16 +3625,15 @@ function renderReceipts() {
     </div>`).join('')}`;
 }
 
-let _rcDataUrl = null;
+let _rcPages = [];
 
 function rcFileSelected(input) {
     if (!input.files || !input.files[0]) return;
-    const file = input.files[0];
-    const img  = new Image();
+    const file   = input.files[0];
+    const img    = new Image();
     const reader = new FileReader();
     reader.onload = e => {
         img.onload = () => {
-            // Resize to max 1400px on longest side, JPEG quality 0.82
             const MAX = 1400;
             let w = img.width, h = img.height;
             if (w > MAX || h > MAX) {
@@ -3640,17 +3643,41 @@ function rcFileSelected(input) {
             const canvas = document.createElement('canvas');
             canvas.width = w; canvas.height = h;
             canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-            _rcDataUrl = canvas.toDataURL('image/jpeg', 0.82);
-            document.getElementById('rc_img').src = _rcDataUrl;
+            _rcPages.push(canvas.toDataURL('image/jpeg', 0.82));
+            // Re-render thumbnails
+            const thumbs = document.getElementById('rc_thumbs');
+            if (thumbs) {
+                thumbs.innerHTML = _rcPages.map((src, i) => `
+                    <div style="position:relative">
+                        <img src="${src}" style="width:72px;height:72px;object-fit:cover;border-radius:8px" />
+                        <button onclick="_rcPages.splice(${i},1);document.getElementById('rc_file').value='';rcRefreshThumbs()" style="position:absolute;top:-6px;right:-6px;background:#dc2626;border:none;color:white;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;line-height:1">✕</button>
+                    </div>`).join('');
+            }
             document.getElementById('rc_preview').style.display = 'block';
+            // Reset file input so same file can be re-selected
+            input.value = '';
         };
         img.src = e.target.result;
     };
     reader.readAsDataURL(file);
 }
 
+function rcRefreshThumbs() {
+    const thumbs = document.getElementById('rc_thumbs');
+    if (!thumbs) return;
+    if (_rcPages.length === 0) {
+        document.getElementById('rc_preview').style.display = 'none';
+        return;
+    }
+    thumbs.innerHTML = _rcPages.map((src, i) => `
+        <div style="position:relative">
+            <img src="${src}" style="width:72px;height:72px;object-fit:cover;border-radius:8px" />
+            <button onclick="_rcPages.splice(${i},1);rcRefreshThumbs()" style="position:absolute;top:-6px;right:-6px;background:#dc2626;border:none;color:white;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;line-height:1">✕</button>
+        </div>`).join('');
+}
+
 function saveReceipt() {
-    if (!_rcDataUrl) return;
+    if (_rcPages.length === 0) return;
     const category = document.getElementById('rc_category')?.value || 'Receipt';
     const vendor   = (document.getElementById('rc_vendor')?.value || '').trim();
     const amount   = parseFloat(document.getElementById('rc_amount')?.value) || null;
@@ -3661,32 +3688,36 @@ function saveReceipt() {
         vendor:   vendor || null,
         amount,
         status:   'pending',
-        thumb:    _rcDataUrl,
+        thumb:    _rcPages[0],
+        pages:    [..._rcPages],
         driveUrl: null,
     };
     if (!state.receipts) state.receipts = [];
     state.receipts.push(receipt);
     persist();
-    _rcDataUrl = null;
-    // Refresh the screen immediately so the new receipt appears
+    _rcPages = [];
     document.getElementById('app').innerHTML = renderReceipts();
 
-    // Upload to Google Drive in the background
+    // Upload all pages to Google Drive in the background
     const gasUrl = localStorage.getItem('hallway_sheets_url');
-    if (gasUrl) uploadReceiptToDrive(receipt.id, receipt.thumb, receipt.category, receipt.vendor, receipt.amount);
+    if (gasUrl) uploadReceiptToDrive(receipt.id, receipt.pages, receipt.category, receipt.vendor, receipt.amount);
 }
 
-function uploadReceiptToDrive(receiptId, dataUrl, category, vendor, amount) {
+function uploadReceiptToDrive(receiptId, pages, category, vendor, amount) {
     const gasUrl   = localStorage.getItem('hallway_sheets_url');
     if (!gasUrl) return;
-    const filename = `${(category||'Receipt').replace(/\s+/g,'-')}_${today()}${vendor ? '_' + vendor.replace(/\s+/g,'-') : ''}${amount ? '_$'+Number(amount).toFixed(2) : ''}.jpg`;
-    const ctrl     = new AbortController();
-    const timer    = setTimeout(() => ctrl.abort(), 60000); // 60s timeout (Claude analysis adds time)
+    const pagesArr    = Array.isArray(pages) ? pages : [pages];
+    const amountStr   = amount ? '_$' + Number(amount).toFixed(2) : '';
+    const base        = `${(category||'Receipt').replace(/\s+/g,'-')}_${today()}${vendor ? '_' + vendor.replace(/\s+/g,'-') : ''}${amountStr}`;
+    const filename    = pagesArr.length > 1 ? `${base}_p1.jpg` : `${base}.jpg`;
+    const extraPages  = pagesArr.slice(1).map((d, i) => ({ data: d, filename: `${base}_p${i+2}.jpg` }));
+    const ctrl        = new AbortController();
+    const timer       = setTimeout(() => ctrl.abort(), 60000);
 
     fetch(gasUrl, {
         method:  'POST',
         signal:  ctrl.signal,
-        body:    JSON.stringify({ type: 'receipt', data: dataUrl, filename, category, vendor, amount }),
+        body:    JSON.stringify({ type: 'receipt', data: pagesArr[0], filename, category, vendor, amount, extraPages }),
     })
     .then(r => r.json())
     .then(res => {
@@ -3742,19 +3773,41 @@ function retryReceiptUpload(id) {
     state.receipts[idx].driveErr = null;
     persist();
     document.getElementById('app').innerHTML = renderReceipts();
-    uploadReceiptToDrive(r.id, r.thumb, r.category, r.vendor, r.amount);
+    uploadReceiptToDrive(r.id, r.pages || [r.thumb], r.category, r.vendor, r.amount);
 }
 
-function viewReceipt(id) {
+function viewReceiptPage(id, pageIndex) {
     const r = (state.receipts||[]).find(r => r.id === id);
     if (!r) return;
-    const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column';
-    overlay.innerHTML = `
-        <img src="${r.thumb}" style="max-width:100%;max-height:80vh;object-fit:contain;border-radius:8px" />
-        <button onclick="this.parentElement.remove()" style="margin-top:24px;background:rgba(255,255,255,0.2);border:none;color:white;font-size:16px;font-weight:700;padding:14px 48px;border-radius:99px;cursor:pointer;letter-spacing:1px">CLOSE</button>`;
-    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-    document.body.appendChild(overlay);
+    const pages = r.pages || [r.thumb];
+    let current = pageIndex || 0;
+
+    function buildOverlay() {
+        const existing = document.getElementById('rc_overlay');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'rc_overlay';
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column';
+
+        const navHtml = pages.length > 1 ? `
+            <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px">
+                <button onclick="(function(){window._rcOvCurrent=Math.max(0,window._rcOvCurrent-1);document.getElementById('rc_overlay').remove();window._rcOvBuild();})()" style="background:rgba(255,255,255,0.2);border:none;color:white;font-size:20px;padding:8px 18px;border-radius:99px;cursor:pointer">‹</button>
+                <span style="color:white;font-size:14px">${current + 1} / ${pages.length}</span>
+                <button onclick="(function(){window._rcOvCurrent=Math.min(${pages.length-1},window._rcOvCurrent+1);document.getElementById('rc_overlay').remove();window._rcOvBuild();})()" style="background:rgba(255,255,255,0.2);border:none;color:white;font-size:20px;padding:8px 18px;border-radius:99px;cursor:pointer">›</button>
+            </div>` : '';
+
+        overlay.innerHTML = `
+            ${navHtml}
+            <img src="${pages[current]}" style="max-width:100%;max-height:75vh;object-fit:contain;border-radius:8px" />
+            <button onclick="document.getElementById('rc_overlay').remove()" style="margin-top:24px;background:rgba(255,255,255,0.2);border:none;color:white;font-size:16px;font-weight:700;padding:14px 48px;border-radius:99px;cursor:pointer;letter-spacing:1px">CLOSE</button>`;
+        overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+        document.body.appendChild(overlay);
+    }
+
+    window._rcOvCurrent = current;
+    window._rcOvBuild = buildOverlay;
+    buildOverlay();
 }
 
 function deleteReceipt(id) {

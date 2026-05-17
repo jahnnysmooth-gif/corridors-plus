@@ -80,6 +80,19 @@ function uploadReceipt(payload) {
     const file   = folder.createFile(blob);
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
+    // Upload any extra pages to the same folder
+    const extraPages = Array.isArray(payload.extraPages) ? payload.extraPages : [];
+    extraPages.forEach(function(page) {
+      try {
+        const ep     = page.data.split(',');
+        const epMime = ep[0].split(';')[0].split(':')[1] || 'image/jpeg';
+        const epB64  = ep[1];
+        const epBlob = Utilities.newBlob(Utilities.base64Decode(epB64), epMime, page.filename || 'page.jpg');
+        const epFile = folder.createFile(epBlob);
+        epFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      } catch(e) { /* skip failed extra page */ }
+    });
+
     // Log to the Receipts sheet
     const items = Array.isArray(analysis.items) ? analysis.items : [];
     logReceiptToSheet({ date: dateStr, vendor, category, amount, url: file.getUrl(), items });
