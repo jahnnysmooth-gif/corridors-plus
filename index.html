@@ -1220,11 +1220,6 @@ function render() {
         exp.textContent = 'PDF';
         app.innerHTML = renderReport(view.reportDate);
 
-    } else if (view.screen === 'dailynotes') {
-        back.style.display = 'block';
-        back.onclick = () => navigate('home');
-        title.textContent = 'Daily Notes';
-        app.innerHTML = renderDailyNotes();
     } else if (view.screen === 'receipts') {
         back.style.display = 'block';
         back.onclick = () => navigate('home');
@@ -1306,14 +1301,9 @@ function renderHome() {
                 <div class="home-tile-sub">${todayWorkers > 0 ? `${todayWorkers} worker${todayWorkers !== 1 ? 's' : ''} today` : 'No sign-ins today'}</div>
             </button>
             <button class="home-tile" style="border-top:4px solid #7c3aed" onclick="navigate('reports')">
-                <span class="home-tile-icon">📄</span>
-                <div class="home-tile-label">Daily Reports</div>
-                <div class="home-tile-sub">${reportDaysCount > 0 ? `${reportDaysCount} day${reportDaysCount !== 1 ? 's' : ''} with data` : 'Tap to view'}</div>
-            </button>
-            <button class="home-tile" style="border-top:4px solid #d97706" onclick="navigate('dailynotes')">
-                <span class="home-tile-icon">📝</span>
-                <div class="home-tile-label">Daily Notes</div>
-                <div class="home-tile-sub">${(state.reports||{})[today()]?.notes ? 'Notes saved for today' : 'Tap to add today\'s notes'}</div>
+                <span class="home-tile-icon">📋</span>
+                <div class="home-tile-label">Daily</div>
+                <div class="home-tile-sub">${(state.reports||{})[today()]?.notes ? 'Notes saved for today' : reportDaysCount > 0 ? `${reportDaysCount} day${reportDaysCount !== 1 ? 's' : ''} logged` : 'Tap to view'}</div>
             </button>
             <button class="home-tile" style="border-top:4px solid #e11d48" onclick="navigate('receipts')">
                 <span class="home-tile-icon">🧾</span>
@@ -3670,34 +3660,6 @@ function exportCrossFloorSummary(floors, inRange, periodLabel) {
 }
 
 // ── Daily Notes screen ────────────────────────────────────────────────────────
-let _dnDate = null; // null means today
-
-function renderDailyNotes() {
-    const date = _dnDate || today();
-    const isToday = date === today();
-    const isYest  = date === (() => { const d = new Date(); d.setDate(d.getDate()-1); return d.toISOString().slice(0,10); })();
-    const notes   = (state.reports || {})[date]?.notes || '';
-
-    return `
-    <div style="display:flex;gap:8px;margin-bottom:16px">
-        <button onclick="_dnDate=null;document.getElementById('app').innerHTML=renderDailyNotes()"
-            style="padding:8px 18px;border-radius:99px;border:none;font-size:14px;font-weight:700;cursor:pointer;background:${isToday?'#1a3a5c':'#e5e7eb'};color:${isToday?'white':'#555'}">Today</button>
-        <button onclick="_dnDate=(()=>{const d=new Date();d.setDate(d.getDate()-1);return d.toISOString().slice(0,10)})();document.getElementById('app').innerHTML=renderDailyNotes()"
-            style="padding:8px 18px;border-radius:99px;border:none;font-size:14px;font-weight:700;cursor:pointer;background:${isYest?'#1a3a5c':'#e5e7eb'};color:${isYest?'white':'#555'}">Yesterday</button>
-        <input type="date" value="${date}" onchange="if(this.value){_dnDate=this.value;document.getElementById('app').innerHTML=renderDailyNotes()}"
-            style="padding:8px;border:1.5px solid #e0e0e0;border-radius:10px;font-size:14px;color:#1a1a2e" />
-    </div>
-    <div style="text-align:center;font-size:13px;font-weight:700;color:#1a3a5c;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px">${displayDate(date)}</div>
-    <div class="card" style="padding:0;overflow:hidden">
-        <textarea id="dn_text" rows="16" placeholder="Write your notes for the day — observations, delays, scope changes, site conditions…"
-            style="width:100%;padding:16px;border:none;outline:none;font-size:15px;line-height:1.7;resize:none;font-family:inherit;color:#1a1a2e;box-sizing:border-box">${notes.replace(/</g,'&lt;')}</textarea>
-    </div>
-    <div style="display:flex;gap:10px;margin-top:12px">
-        <button class="btn btn-primary" style="flex:2" onclick="saveDailyNotes('${date}')">Save</button>
-        <button class="btn btn-secondary" style="flex:2" onclick="printDailyNotes('${date}')">&#8681; Print</button>
-        ${notes ? `<button class="btn btn-danger" style="flex:1" onclick="deleteDailyNotes('${date}')">Delete</button>` : ''}
-    </div>`;
-}
 
 function saveDailyNotes(date) {
     const text = document.getElementById('dn_text')?.value || '';
@@ -3717,7 +3679,7 @@ function deleteDailyNotes(date) {
         if (Object.keys(state.reports[date]).length === 0) delete state.reports[date];
     }
     persist();
-    document.getElementById('app').innerHTML = renderDailyNotes();
+    navigate('report', null, null, null, null, date);
 }
 
 function printDailyNotes(date) {
@@ -5181,19 +5143,16 @@ function renderReport(date) {
         html += `</div>`;
     }
 
-    // ── Notes
-    html += `<div class="section-header" style="display:flex;align-items:center;justify-content:space-between">
-        <span class="section-title">Notes</span>
-        <div style="display:flex;gap:8px">
-            ${report.notes ? `<button class="notes-edit-btn" onclick="deleteDailyNotes('${date}')">Delete</button>` : ''}
-            <button class="notes-edit-btn" onclick="_dnDate='${date}';navigate('dailynotes')">${report.notes ? 'Edit' : '+ Add Note'}</button>
-        </div>
+    // ── Notes (inline editor)
+    html += `<div class="section-header"><span class="section-title">Notes</span></div>
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:8px">
+        <textarea id="dn_text" rows="6" placeholder="Observations, delays, scope changes, site conditions…"
+            style="width:100%;padding:14px;border:none;outline:none;font-size:14px;line-height:1.7;resize:vertical;font-family:inherit;color:#1a1a2e;box-sizing:border-box">${(report.notes||'').replace(/</g,'&lt;')}</textarea>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+        <button class="btn btn-primary" style="flex:2" onclick="saveDailyNotes('${date}')">Save Notes</button>
+        <button class="btn btn-secondary" style="flex:1" onclick="printDailyNotes('${date}')">&#8681; Print</button>
     </div>`;
-    if (report.notes) {
-        html += `<div class="notes-card"><div class="notes-card-text">${report.notes.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>')}</div></div>`;
-    } else {
-        html += `<div class="report-section"><div style="color:#bbb;font-style:italic;font-size:14px">No notes for this day.</div></div>`;
-    }
 
     // ── Claude Daily Report
     const cr = report.claudeReport || null;
