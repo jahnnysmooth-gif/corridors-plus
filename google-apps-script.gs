@@ -155,14 +155,22 @@ Rules:
   }
 }
 
-// ── Get or create a subfolder inside the receipts folder ─────────────────────
+// ── Get or create category → month subfolder inside the receipts folder ───────
 function getOrCreateSubfolder(category) {
-  const parent    = DriveApp.getFolderById(RECEIPTS_FOLDER_ID);
-  const existing  = parent.getFoldersByName(category);
-  if (existing.hasNext()) return existing.next();
-  const subfolder = parent.createFolder(category);
-  subfolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  return subfolder;
+  const root      = DriveApp.getFolderById(RECEIPTS_FOLDER_ID);
+  const monthName = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM MMMM');
+
+  // category folder
+  const catFolders = root.getFoldersByName(category);
+  const catFolder  = catFolders.hasNext() ? catFolders.next() : root.createFolder(category);
+  catFolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+  // month folder inside category
+  const monFolders = catFolder.getFoldersByName(monthName);
+  const monFolder  = monFolders.hasNext() ? monFolders.next() : catFolder.createFolder(monthName);
+  monFolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+  return monFolder;
 }
 
 // ── Log a receipt row to the Receipts sheet, grouped by vendor ────────────────
@@ -234,7 +242,65 @@ function logReceiptToSheet({ date, vendor, category, amount, url, items }) {
   }
 
   styleReceiptRow(range, bgColor, items);
+  rebuildVendorMonthlyTotals(sheet, vendor);
   refreshSummarySheet(ss);
+}
+
+// ── Rebuild monthly subtotal rows for a specific vendor ───────────────────────
+function rebuildVendorMonthlyTotals(sheet, vendor) {
+  const vendorKey = vendor.trim().toLowerCase();
+
+  // Remove existing subtotal rows for this vendor first
+  const data = sheet.getDataRange().getValues();
+  for (let i = data.length - 1; i >= 1; i--) {
+    const rowVendor = String(data[i][1] || '').trim().toLowerCase();
+    const isTotal   = String(data[i][0] || '').startsWith('TOTAL:');
+    if (isTotal && rowVendor === vendorKey) {
+      sheet.deleteRow(i + 1);
+    }
+  }
+
+  // Re-read after deletions
+  const fresh     = sheet.getDataRange().getValues();
+  const dateCol   = 0;
+  const vendorCol = 1;
+  const amountCol = 3;
+
+  // Collect all receipt rows for this vendor with their sheet row index
+  const vendorRows = [];
+  for (let i = 1; i < fresh.length; i++) {
+    const v = String(fresh[i][vendorCol] || '').trim().toLowerCase();
+    const d = String(fresh[i][dateCol]   || '');
+    if (v === vendorKey && !d.startsWith('TOTAL:')) {
+      vendorRows.push({ sheetRow: i + 1, date: d, amount: parseFloat(fresh[i][amountCol]) || 0 });
+    }
+  }
+  if (vendorRows.length === 0) return;
+
+  // Group by YYYY-MM
+  const byMonth = {};
+  vendorRows.forEach(r => {
+    const month = r.date.substring(0, 7); // "2026-05"
+    if (!byMonth[month]) byMonth[month] = [];
+    byMonth[month].push(r);
+  });
+
+  // Insert a subtotal row after each month's last row (process in reverse to keep row numbers valid)
+  const months = Object.keys(byMonth).sort().reverse();
+  months.forEach(month => {
+    const rows      = byMonth[month];
+    const lastRow   = Math.max(...rows.map(r => r.sheetRow));
+    const total     = rows.reduce((s, r) => s + r.amount, 0);
+    const label     = Utilities.formatDate(new Date(month + '-15'), Session.getScriptTimeZone(), 'MMMM yyyy');
+    sheet.insertRowAfter(lastRow);
+    const range = sheet.getRange(lastRow + 1, 1, 1, RECEIPT_HEADERS.length);
+    range.setValues([[`TOTAL: ${label}`, vendor, '', total, '', '']]);
+    range.setBackground('#1a3a5c');
+    range.setFontColor('#ffffff');
+    range.setFontWeight('bold');
+    range.setFontSize(11);
+    range.getCell(1, 4).setNumberFormat('$#,##0.00');
+  });
 }
 
 function styleReceiptRow(range, bgColor, items) {
