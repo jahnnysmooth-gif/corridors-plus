@@ -4635,35 +4635,17 @@ function toggleSignIn(workerId, date) {
 function openSignInDetailModal(workerId, day, afterSave) {
     const member = (state.crew || []).find(c => c.id === workerId);
     const existingDetail = (day.details || {})[workerId] || {};
-    const floorCheckboxes = (state.floors || []).map(f =>
-        `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f0f0f0">
-            <input type="checkbox" id="floor_cb_${f.id}" ${(existingDetail.floorIds||[]).includes(f.id) ? 'checked' : ''} style="width:18px;height:18px;accent-color:#0891b2;cursor:pointer" />
-            <label for="floor_cb_${f.id}" style="font-size:14px;cursor:pointer">${f.name}</label>
-        </div>`
-    ).join('') || '<div style="color:#aaa;font-style:italic;font-size:13px">No floors added yet.</div>';
     openModal(
-        (member ? member.name + ' — ' : '') + 'Sign In Details',
+        (member ? member.name + ' — ' : '') + 'Sign In',
         `<div class="form-group">
             <label>Hours Worked</label>
             <input id="signin_hours" type="number" min="1" max="24" step="0.5" placeholder="e.g. 8" value="${existingDetail.hours || ''}" />
-        </div>
-        <div class="form-group">
-            <label>Task</label>
-            <input id="signin_task" type="text" placeholder="e.g. Skim Coat, Priming" value="${(existingDetail.task||'').replace(/"/g,'&quot;')}" />
-        </div>
-        <div class="form-group">
-            <label>Floor(s)</label>
-            <div style="max-height:200px;overflow-y:auto;border:1.5px solid #e0e0e0;border-radius:8px;padding:0 12px">
-                ${floorCheckboxes}
-            </div>
         </div>`,
         () => {
             const hours = parseFloat(document.getElementById('signin_hours')?.value) || 0;
-            const task = (document.getElementById('signin_task')?.value || '').trim();
-            const floorIds = (state.floors || []).filter(f => document.getElementById('floor_cb_' + f.id)?.checked).map(f => f.id);
             if (!day.details) day.details = {};
             if (!day.workerIds.includes(workerId)) day.workerIds.push(workerId);
-            day.details[workerId] = { hours, task, floorIds };
+            day.details[workerId] = { hours };
             persist();
             closeModal();
             if (afterSave) afterSave(); else document.getElementById('app').innerHTML = renderAttendance();
@@ -4835,7 +4817,7 @@ function selectAllWorkers(date) {
     day.workerIds = state.crew.map(c => c.id);
     day.details = day.details || {};
     state.crew.forEach(c => {
-        if (!day.details[c.id]) day.details[c.id] = { task: '', floorIds: [] };
+        if (!day.details[c.id]) day.details[c.id] = {};
     });
     persist();
     document.getElementById('app').innerHTML = renderAttendance();
@@ -4982,9 +4964,8 @@ function renderAttendance() {
         crew.forEach(w => {
             const checked = checkedIds.has(w.id);
             const detail = (currentDay?.details || {})[w.id];
-            const floorNames = (detail?.floorIds || []).map(fid => (state.floors||[]).find(f=>f.id===fid)?.name).filter(Boolean);
-            const detailLine = checked && detail && (detail.hours || detail.task || floorNames.length > 0)
-                ? `<div style="font-size:11px;color:#0891b2;margin-top:2px">${[detail.hours ? detail.hours + ' hrs' : '', detail.task, floorNames.join(', ')].filter(Boolean).join(' · ')}</div>`
+            const detailLine = checked && detail?.hours
+                ? `<div style="font-size:11px;color:#0891b2;margin-top:2px">${detail.hours} hrs</div>`
                 : '';
             html += `<div class="worker-row att-row${checked?' att-checked':''}" onclick="toggleSignIn('${w.id}','${_attendanceDate}')" style="cursor:pointer">
                 <div style="display:flex;align-items:center;gap:12px">
@@ -5132,11 +5113,10 @@ function renderReport(date) {
             const member = crew.find(c => c.id === wid);
             if (!member) return;
             const detail = (att.details || {})[wid] || {};
-            const floorNames = (detail.floorIds || []).map(fid => floors.find(f=>f.id===fid)?.name).filter(Boolean);
             html += `<div class="report-worker-row" style="display:flex;justify-content:space-between;align-items:center">
                 <div>
                     <div style="font-weight:700;font-size:14px">${member.name}</div>
-                    <div style="font-size:12px;color:#999;margin-top:2px">${member.trade || ''}${detail.task ? ' · ' + detail.task : ''}${floorNames.length > 0 ? ' · ' + floorNames.join(', ') : ''}</div>
+                    <div style="font-size:12px;color:#999;margin-top:2px">${[member.trade, detail.hours ? detail.hours + ' hrs' : ''].filter(Boolean).join(' · ')}</div>
                 </div>
                 <div style="white-space:nowrap;display:flex;gap:6px">
                     <button class="edit-row" style="font-size:14px" onclick="editSignInDetail('${wid}','${date}')">&#9998;</button>
@@ -5311,9 +5291,7 @@ function exportDailyReportPDF(date) {
             const m = crew.find(c=>c.id===wid);
             if (!m) return '';
             const detail = (att.details||{})[wid]||{};
-            const floorNames = (detail.floorIds||[]).map(fid=>floors.find(f=>f.id===fid)?.name).filter(Boolean);
-            const taskStr = [detail.task, floorNames.join(', ')].filter(Boolean).join(' · ');
-            return `<tr><td>${m.name}</td><td>${m.trade||'—'}</td><td>${taskStr||'—'}</td></tr>`;
+            return `<tr><td>${m.name}</td><td>${m.trade||'—'}</td><td>${detail.hours ? detail.hours + ' hrs' : '—'}</td></tr>`;
           }).join('')
         : '<tr><td colspan="3" style="color:#aaa;font-style:italic">No attendance logged</td></tr>';
 
@@ -5361,7 +5339,7 @@ function exportDailyReportPDF(date) {
     </div>
 
     <h2>Workers on Site</h2>
-    <table><thead><tr><th>Name</th><th>Trade</th><th>Task / Floor</th></tr></thead><tbody>${workerRows}</tbody></table>
+    <table><thead><tr><th>Name</th><th>Trade</th><th>Hours</th></tr></thead><tbody>${workerRows}</tbody></table>
 
     ${laborRows ? `<h2>Labor</h2><table><thead><tr><th>Floor</th><th>Work</th><th>Man-Hrs</th></tr></thead><tbody>${laborRows}</tbody></table>` : ''}
 
