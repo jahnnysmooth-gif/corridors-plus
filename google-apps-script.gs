@@ -1045,6 +1045,9 @@ function handlePayroll(payload) {
     const maxCols = sheet.getMaxColumns();
     if (maxCols > numCols) sheet.deleteColumns(numCols + 1, maxCols - numCols);
 
+    // Convert to a native Sheets table (adds filter dropdowns + Table1 label)
+    sheet.getRange(1, 1, numDataRows, numCols).createFilter();
+
     SpreadsheetApp.flush();
 
     const spreadsheetUrl = ss.getUrl();
