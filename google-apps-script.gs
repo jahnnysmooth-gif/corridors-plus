@@ -84,6 +84,9 @@ function uploadReceipt(payload) {
     const file   = folder.createFile(blob);
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
+    // Log to the Receipts sheet
+    logReceiptToSheet({ date: dateStr, vendor, category, amount, url: file.getUrl() });
+
     return json({
       success:  true,
       url:      file.getUrl(),
@@ -161,6 +164,159 @@ function getOrCreateSubfolder(category) {
   const subfolder = parent.createFolder(category);
   subfolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   return subfolder;
+}
+
+// ── Log a receipt row to the Receipts sheet, grouped by vendor ────────────────
+const RECEIPT_SHEET  = 'Receipts';
+const RECEIPT_HEADERS = ['Date', 'Vendor', 'Category', 'Amount', 'Drive Link'];
+
+// Category color map
+const CATEGORY_COLORS = {
+  'Materials & Supplies': '#dbeafe',
+  'Tools & Equipment':    '#ccfbf1',
+  'Subcontractors':       '#fce7f3',
+  'Food & Meals':         '#fef3c7',
+  'Other':                '#f3f4f6',
+};
+
+function logReceiptToSheet({ date, vendor, category, amount, url }) {
+  const ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let   sheet = ss.getSheetByName(RECEIPT_SHEET);
+
+  // Create the sheet if it doesn't exist
+  if (!sheet) {
+    sheet = ss.insertSheet(RECEIPT_SHEET);
+    setupReceiptSheet(sheet);
+  }
+
+  const data       = sheet.getDataRange().getValues();
+  const numRows    = data.length;
+  const vendorCol  = 1; // column B (0-indexed)
+  const bgColor    = CATEGORY_COLORS[category] || '#f9fafb';
+
+  // Find the last row belonging to this vendor (case-insensitive)
+  let insertAfter = -1;
+  for (let i = numRows - 1; i >= 1; i--) {
+    if (String(data[i][vendorCol] || '').trim().toLowerCase() === vendor.trim().toLowerCase()) {
+      insertAfter = i + 1; // 1-based sheet row
+      break;
+    }
+  }
+
+  const newRow = [date, vendor, category, amount ? Number(amount) : '', url];
+
+  if (insertAfter > 0) {
+    // Insert directly after the last matching vendor row
+    sheet.insertRowAfter(insertAfter);
+    const range = sheet.getRange(insertAfter + 1, 1, 1, RECEIPT_HEADERS.length);
+    range.setValues([newRow]);
+    styleReceiptRow(range, bgColor, amount);
+  } else {
+    // Vendor not seen before — append at the bottom
+    sheet.appendRow(newRow);
+    const lastRow = sheet.getLastRow();
+    const range   = sheet.getRange(lastRow, 1, 1, RECEIPT_HEADERS.length);
+    styleReceiptRow(range, bgColor, amount);
+  }
+
+  // Refresh the Summary tab
+  refreshSummarySheet(ss);
+}
+
+function styleReceiptRow(range, bgColor, amount) {
+  range.setBackground(bgColor);
+  range.setFontSize(11);
+  range.setVerticalAlignment('middle');
+  // Format amount column as currency
+  range.getCell(1, 4).setNumberFormat('$#,##0.00');
+  // Make Drive Link clickable
+  const linkCell = range.getCell(1, 5);
+  const url      = linkCell.getValue();
+  if (url) {
+    linkCell.setFormula(`=HYPERLINK("${url}","View Receipt")`);
+    linkCell.setFontColor('#1a73e8');
+  }
+}
+
+function setupReceiptSheet(sheet) {
+  // Header row
+  sheet.appendRow(RECEIPT_HEADERS);
+  const hdr = sheet.getRange(1, 1, 1, RECEIPT_HEADERS.length);
+  hdr.setFontWeight('bold');
+  hdr.setBackground('#1a3a5c');
+  hdr.setFontColor('#ffffff');
+  hdr.setFontSize(12);
+  sheet.setFrozenRows(1);
+  sheet.setColumnWidth(1, 110); // Date
+  sheet.setColumnWidth(2, 160); // Vendor
+  sheet.setColumnWidth(3, 180); // Category
+  sheet.setColumnWidth(4, 100); // Amount
+  sheet.setColumnWidth(5, 130); // Drive Link
+}
+
+// ── Summary tab — totals by vendor and by category ───────────────────────────
+const SUMMARY_SHEET = 'Receipt Summary';
+
+function refreshSummarySheet(ss) {
+  let sheet = ss.getSheetByName(SUMMARY_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(SUMMARY_SHEET);
+  } else {
+    sheet.clearContents();
+    sheet.clearFormats();
+  }
+
+  const src  = ss.getSheetByName(RECEIPT_SHEET);
+  if (!src) return;
+  const data = src.getDataRange().getValues().slice(1).filter(r => r[0]); // skip header + blanks
+
+  // Aggregate by vendor
+  const byVendor = {};
+  const byCat    = {};
+  let   grandTotal = 0;
+
+  data.forEach(r => {
+    const vendor   = String(r[1] || 'Unknown').trim();
+    const category = String(r[2] || 'Other').trim();
+    const amount   = parseFloat(r[3]) || 0;
+    byVendor[vendor]   = (byVendor[vendor]   || 0) + amount;
+    byCat[category]    = (byCat[category]    || 0) + amount;
+    grandTotal        += amount;
+  });
+
+  let row = 1;
+
+  // Title
+  sheet.getRange(row, 1, 1, 3).merge().setValue('Receipt Summary').setFontWeight('bold').setFontSize(14).setBackground('#1a3a5c').setFontColor('#ffffff');
+  sheet.getRange(row, 4).setValue(new Date()).setNumberFormat('mmm d, yyyy').setFontColor('#888888');
+  row += 2;
+
+  // By Category
+  sheet.getRange(row, 1, 1, 2).setValues([['CATEGORY', 'TOTAL']]);
+  sheet.getRange(row, 1, 1, 2).setFontWeight('bold').setBackground('#334155').setFontColor('#ffffff');
+  row++;
+  Object.entries(byCat).sort((a,b) => b[1]-a[1]).forEach(([cat, total]) => {
+    const bg = CATEGORY_COLORS[cat] || '#f9fafb';
+    sheet.getRange(row, 1).setValue(cat).setBackground(bg);
+    sheet.getRange(row, 2).setValue(total).setNumberFormat('$#,##0.00').setBackground(bg);
+    row++;
+  });
+  sheet.getRange(row, 1).setValue('TOTAL').setFontWeight('bold');
+  sheet.getRange(row, 2).setValue(grandTotal).setNumberFormat('$#,##0.00').setFontWeight('bold');
+  row += 2;
+
+  // By Vendor
+  sheet.getRange(row, 1, 1, 2).setValues([['VENDOR', 'TOTAL']]);
+  sheet.getRange(row, 1, 1, 2).setFontWeight('bold').setBackground('#334155').setFontColor('#ffffff');
+  row++;
+  Object.entries(byVendor).sort((a,b) => b[1]-a[1]).forEach(([vendor, total]) => {
+    sheet.getRange(row, 1).setValue(vendor);
+    sheet.getRange(row, 2).setValue(total).setNumberFormat('$#,##0.00');
+    row++;
+  });
+
+  sheet.setColumnWidth(1, 200);
+  sheet.setColumnWidth(2, 120);
 }
 
 // ── Materials sync — update/add/delete/archive rows in Master sheet ───────────
