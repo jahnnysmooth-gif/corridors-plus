@@ -44,7 +44,8 @@ function doPost(e) {
   try {
     const payload = JSON.parse(e.postData.contents);
 
-    if (payload.type === 'receipt') return uploadReceipt(payload);
+    if (payload.type === 'receipt')      return uploadReceipt(payload);
+    if (payload.type === 'daily_report') return generateDailyReport(payload);
     return syncMaterials(payload);
 
   } catch (err) {
@@ -136,6 +137,75 @@ function normalizeVendor(raw) {
   // Strip trailing store/location numbers like "#1234" or "Store 1234"
   v = v.replace(/\s+(?:Store\s*)?\#\d+$/i, '').trim();
   return v;
+}
+
+function generateDailyReport(payload) {
+  try {
+    const apiKey = PropertiesService.getScriptProperties().getProperty('RECEIPT_API_KEY');
+    if (!apiKey) return json({ error: 'API key not set in Script Properties.' });
+
+    const { date, projectName, crew, floors, notes, defaultItemOrder } = payload;
+
+    // Build context for Claude
+    let ctx = `Project: ${projectName}\nDate: ${date}\n\n`;
+
+    ctx += `CREW ON SITE (${crew.length}):\n`;
+    crew.forEach(function(w) { ctx += `- ${w.name} (${w.trade || 'unspecified'})\n`; });
+
+    ctx += `\nWORK LOGGED TODAY:\n`;
+    floors.forEach(function(f) {
+      if (!f.entries || f.entries.length === 0) return;
+      ctx += `\n${f.name}:\n`;
+      f.entries.forEach(function(e) {
+        const parts = [];
+        if (e.skilled > 0)  parts.push(`${e.skilled} skilled × ${e.skilledHours} hrs`);
+        if (e.laborer > 0)  parts.push(`${e.laborer} laborer × ${e.laborerHours} hrs`);
+        ctx += `  - ${e.itemName} [${e.status}]: ${parts.join(', ')} = ${e.manHours} man-hrs`;
+        if (e.workerNames && e.workerNames.length) ctx += ` (${e.workerNames.join(', ')})`;
+        if (e.note) ctx += ` — "${e.note}"`;
+        ctx += '\n';
+      });
+    });
+
+    ctx += `\nITEMS STILL IN PROGRESS:\n`;
+    var anyInProgress = false;
+    floors.forEach(function(f) {
+      const ip = (f.allItems || []).filter(function(i) { return i.status === 'active'; });
+      if (ip.length) { ctx += `  ${f.name}: ${ip.map(function(i){return i.name;}).join(', ')}\n`; anyInProgress = true; }
+    });
+    if (!anyInProgress) ctx += '  None\n';
+
+    ctx += `\nSTANDARD WORK SEQUENCE: ${(defaultItemOrder||[]).join(' → ')}\n`;
+    if (notes) ctx += `\nFOREMAN NOTES:\n${notes}\n`;
+
+    const prompt = `You are writing sections of a daily field report for a NYC hallway contractor. Use the data below.
+
+${ctx}
+
+Respond with ONLY a JSON object in this exact shape — no markdown, no explanation:
+{"summary":"...","nextDayPlan":"..."}
+
+Rules:
+- summary: 2-3 sentences describing what was accomplished today. Incorporate any foreman notes naturally. Professional tone, past tense.
+- nextDayPlan: 2-3 sentences on what should happen tomorrow, based on what is still in progress and the standard work sequence. Be specific about floors and tasks.
+- Do not repeat crew names or man-hour numbers (those are shown separately in the report).
+- Plain paragraph prose, no bullet points.`;
+
+    const response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+      method: 'post',
+      headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      payload: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 512, messages: [{ role: 'user', content: prompt }] }),
+      muteHttpExceptions: true,
+    });
+
+    const result  = JSON.parse(response.getContentText());
+    const text    = result?.content?.[0]?.text || '{}';
+    const clean   = text.replace(/```json|```/g, '').trim();
+    const report  = JSON.parse(clean);
+    return json({ success: true, report });
+  } catch(err) {
+    return json({ error: err.toString() });
+  }
 }
 
 function analyzeReceiptWithClaude(base64, mimeType, extraPages) {
@@ -697,7 +767,15 @@ function setRowColors() {
     .setRanges([range])
     .build());
 
-  // Priority 2: Ordered — green
+  // Priority 2: Review — red (needs attention)
+  rules.push(SpreadsheetApp.newConditionalFormatRule()
+    .whenFormulaSatisfied(`=ISNUMBER(SEARCH("review",$${statusLetter}2))`)
+    .setBackground('#FF0000')
+    .setFontColor('#FFFFFF')
+    .setRanges([range])
+    .build());
+
+  // Priority 3: Ordered — green
   rules.push(SpreadsheetApp.newConditionalFormatRule()
     .whenFormulaSatisfied(`=ISNUMBER(SEARCH("ordered",$${statusLetter}2))`)
     .setBackground('#008000')
@@ -734,6 +812,7 @@ function onOpen() {
     .createMenu("Corridor's Plus")
     .addItem('Export Monthly Receipts PDF', 'exportMonthlyPDF')
     .addItem('Recalculate Receipt Totals', 'recalculateAllTotals')
+    .addItem('Reapply Row Colors', 'setRowColors')
     .addToUi();
 }
 
