@@ -1960,7 +1960,10 @@ function renderFloor(floor) {
             const s      = (item.hoursLog || []).length;
             const status = item.status || 'pending';
             const color  = TILE_COLORS[idx % TILE_COLORS.length];
-            html += `<div class="item-tile" style="background:${color.bg};color:${color.text}" onclick="navigate('item','${floor.id}','${item.id}')">
+            html += `<div class="item-tile" style="background:${color.bg};color:${color.text};position:relative"
+                onclick="navigate('item','${floor.id}','${item.id}')"
+                oncontextmenu="quickStatusPicker(event,'${floor.id}','${item.id}');return false"
+                data-hold-floor="${floor.id}" data-hold-item="${item.id}">
                 <span class="tile-status-dot dot-${status}"></span>
                 <div class="item-tile-name">${item.name}</div>
                 <div class="item-tile-footer">
@@ -2293,6 +2296,73 @@ function setStatus(floorId, itemId, status) {
         if (h) h.focus();
     }, 50);
 }
+
+// ── Quick status picker — right-click or long-press on floor tile ─────────────
+function quickStatusPicker(e, floorId, itemId) {
+    e.preventDefault();
+    e.stopPropagation();
+    document.getElementById('_qsp')?.remove();
+
+    const floor  = state.floors.find(f => f.id === floorId);
+    const item   = floor?.items.find(i => i.id === itemId);
+    if (!item) return;
+
+    const current = item.status || 'pending';
+    const options = [
+        { label: '⬜ Not Started', value: 'pending' },
+        { label: '🟡 In Progress', value: 'active'  },
+        { label: '🟢 Done',        value: 'done'    },
+    ];
+
+    const menu = document.createElement('div');
+    menu.id = '_qsp';
+    menu.style.cssText = 'position:fixed;z-index:9999;background:white;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.22);padding:6px;min-width:170px;';
+
+    const title = document.createElement('div');
+    title.style.cssText = 'font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.5px;padding:6px 10px 4px';
+    title.textContent = item.name;
+    menu.appendChild(title);
+
+    options.forEach(opt => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.style.cssText = `display:block;width:100%;text-align:left;padding:9px 14px;border:none;border-radius:8px;font-size:14px;font-weight:${opt.value === current ? '700' : '500'};background:${opt.value === current ? '#f0f4ff' : 'transparent'};cursor:pointer;color:#1a1a2e`;
+        btn.textContent = opt.label;
+        btn.onclick = function() {
+            setStatus(floorId, itemId, opt.value);
+            menu.remove();
+        };
+        menu.appendChild(btn);
+    });
+
+    // Position near tap/click
+    const x = e.clientX || (e.touches && e.touches[0]?.clientX) || window.innerWidth / 2;
+    const y = e.clientY || (e.touches && e.touches[0]?.clientY) || window.innerHeight / 2;
+    menu.style.left = Math.min(x, window.innerWidth  - 190) + 'px';
+    menu.style.top  = Math.min(y, window.innerHeight - 160) + 'px';
+
+    document.body.appendChild(menu);
+    setTimeout(() => document.addEventListener('click', function dismiss() {
+        menu.remove(); document.removeEventListener('click', dismiss);
+    }), 10);
+}
+
+// Long-press support for touch devices
+(function() {
+    let _holdTimer = null;
+    document.addEventListener('touchstart', function(e) {
+        const tile = e.target.closest('[data-hold-floor]');
+        if (!tile) return;
+        _holdTimer = setTimeout(() => {
+            _holdTimer = null;
+            const fid = tile.dataset.holdFloor;
+            const iid = tile.dataset.holdItem;
+            quickStatusPicker(e.touches[0], fid, iid);
+        }, 500);
+    }, { passive: true });
+    document.addEventListener('touchend',   function() { clearTimeout(_holdTimer); _holdTimer = null; });
+    document.addEventListener('touchmove',  function() { clearTimeout(_holdTimer); _holdTimer = null; });
+})();
 
 // ── Modal helpers ─────────────────────────────────────────────────────────────
 function openModal(title, bodyHtml, saveFn, hideActions) {
