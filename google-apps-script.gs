@@ -163,7 +163,7 @@ Rules:
 - date: the date printed on the receipt in YYYY-MM-DD format. null if not visible.
 - amount: the grand total paid across all pages as a number, no $ sign. null if not visible.
 - category: pick the best match from the five options above based on what was purchased.
-- items: list each line item as "qty x description — $price". Max 10 items. Empty array if not readable.`
+- items: list each line item as "qty x description — $price". Max 20 items across all pages. Empty array if not readable.`
     });
 
     const response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
@@ -175,7 +175,7 @@ Rules:
       },
       payload: JSON.stringify({
         model:      'claude-haiku-4-5-20251001',
-        max_tokens: 512,
+        max_tokens: 1024,
         messages:   [{ role: 'user', content: content }],
       }),
       muteHttpExceptions: true,
@@ -380,6 +380,7 @@ function rebuildVendorMonthlyTotals(sheet, vendor) {
 
 function styleReceiptRow(range, bgColor, items) {
   range.setBackground(bgColor);
+  range.setFontColor('#111111'); // explicit dark font — prevents inheriting white from header
   range.setFontSize(11);
   range.setVerticalAlignment('middle');
   range.getCell(1, 4).setNumberFormat('$#,##0.00');

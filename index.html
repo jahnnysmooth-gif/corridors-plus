@@ -3612,9 +3612,10 @@ function renderReceipts() {
 }
 
 function rcCardHtml(r) {
-    const pages = _rcPending[r.id] || [];
-    const thumbsHtml = pages.length > 0
-        ? pages.map((src, pi) => `<img src="${src}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="viewReceiptPage('${r.id}',${pi})" />`).join('')
+    const pendingPages = _rcPending[r.id] || [];
+    const displayPages = pendingPages.length > 0 ? pendingPages : (r.thumbs || []);
+    const thumbsHtml = displayPages.length > 0
+        ? displayPages.map((src, pi) => `<img src="${src}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="viewReceiptPage('${r.id}',${pi})" />`).join('')
         : r.driveUrl
             ? `<a href="${r.driveUrl}" target="_blank" style="display:flex;align-items:center;justify-content:center;width:64px;height:64px;background:#f0f4ff;border-radius:6px;font-size:22px;text-decoration:none">🖼</a>`
             : `<div style="width:64px;height:64px;background:#f3f4f6;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:22px">📄</div>`;
@@ -3671,6 +3672,7 @@ function _rcRenderCards() {
 }
 
 let _rcPages   = [];
+let _rcThumbs  = []; // tiny 200px thumbnails — safe to persist in state
 let _rcPending = {}; // receiptId → full-size pages array (in memory only, never persisted)
 
 function rcFileSelected(input) {
@@ -3680,6 +3682,7 @@ function rcFileSelected(input) {
     const reader = new FileReader();
     reader.onload = e => {
         img.onload = () => {
+            // Full-size for upload (memory only)
             const MAX = 1400;
             let w = img.width, h = img.height;
             if (w > MAX || h > MAX) {
@@ -3690,17 +3693,27 @@ function rcFileSelected(input) {
             canvas.width = w; canvas.height = h;
             canvas.getContext('2d').drawImage(img, 0, 0, w, h);
             _rcPages.push(canvas.toDataURL('image/jpeg', 0.82));
-            // Re-render thumbnails
+
+            // Tiny thumbnail for persistent display (~3–5 KB each)
+            const TH = 200;
+            let tw = img.width, th = img.height;
+            if (tw > th) { th = Math.round(th * TH / tw); tw = TH; }
+            else         { tw = Math.round(tw * TH / th); th = TH; }
+            const tCanvas = document.createElement('canvas');
+            tCanvas.width = tw; tCanvas.height = th;
+            tCanvas.getContext('2d').drawImage(img, 0, 0, tw, th);
+            _rcThumbs.push(tCanvas.toDataURL('image/jpeg', 0.45));
+
+            // Re-render thumbnails using full-size for preview quality
             const thumbs = document.getElementById('rc_thumbs');
             if (thumbs) {
                 thumbs.innerHTML = _rcPages.map((src, i) => `
                     <div style="position:relative">
                         <img src="${src}" style="width:72px;height:72px;object-fit:cover;border-radius:8px" />
-                        <button onclick="_rcPages.splice(${i},1);document.getElementById('rc_file').value='';rcRefreshThumbs()" style="position:absolute;top:-6px;right:-6px;background:#dc2626;border:none;color:white;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;line-height:1">✕</button>
+                        <button onclick="_rcPages.splice(${i},1);_rcThumbs.splice(${i},1);document.getElementById('rc_file').value='';rcRefreshThumbs()" style="position:absolute;top:-6px;right:-6px;background:#dc2626;border:none;color:white;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;line-height:1">✕</button>
                     </div>`).join('');
             }
             document.getElementById('rc_preview').style.display = 'block';
-            // Reset file input so same file can be re-selected
             input.value = '';
         };
         img.src = e.target.result;
@@ -3718,7 +3731,7 @@ function rcRefreshThumbs() {
     thumbs.innerHTML = _rcPages.map((src, i) => `
         <div style="position:relative">
             <img src="${src}" style="width:72px;height:72px;object-fit:cover;border-radius:8px" />
-            <button onclick="_rcPages.splice(${i},1);rcRefreshThumbs()" style="position:absolute;top:-6px;right:-6px;background:#dc2626;border:none;color:white;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;line-height:1">✕</button>
+            <button onclick="_rcPages.splice(${i},1);_rcThumbs.splice(${i},1);rcRefreshThumbs()" style="position:absolute;top:-6px;right:-6px;background:#dc2626;border:none;color:white;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;line-height:1">✕</button>
         </div>`).join('');
 }
 
@@ -3729,7 +3742,7 @@ function saveReceipt() {
     const amount   = parseFloat(document.getElementById('rc_amount')?.value) || null;
     const id       = uid();
 
-    // Keep full-size pages in memory only — never write them to localStorage
+    // Full-size pages: memory only, for upload
     _rcPending[id] = [..._rcPages];
 
     const receipt = {
@@ -3739,12 +3752,14 @@ function saveReceipt() {
         vendor:   vendor || null,
         amount,
         status:   'pending',
+        thumbs:   [..._rcThumbs], // tiny ~3-5KB each — safe for localStorage
         driveUrl: null,
     };
     if (!state.receipts) state.receipts = [];
     state.receipts.push(receipt);
     persist();
-    _rcPages = [];
+    _rcPages  = [];
+    _rcThumbs = [];
     document.getElementById('app').innerHTML = renderReceipts();
 
     // Upload all pages to Google Drive in the background
@@ -3835,7 +3850,7 @@ function retryReceiptUpload(id) {
 function viewReceiptPage(id, pageIndex) {
     const r = (state.receipts||[]).find(r => r.id === id);
     if (!r) return;
-    const pages = _rcPending[id] || [];
+    const pages = _rcPending[id] && _rcPending[id].length > 0 ? _rcPending[id] : (r.thumbs || []);
     if (pages.length === 0) return;
     let current = pageIndex || 0;
 
