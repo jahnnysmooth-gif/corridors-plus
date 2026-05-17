@@ -794,6 +794,8 @@ if (!state.deletedMaterials) state.deletedMaterials = [];
 if (!state.pendingConfirms)  state.pendingConfirms  = [];
 if (!state.reports) state.reports = {};
 if (!state.receipts) state.receipts = [];
+// Strip any base64 image data that was stored in older versions (freed from localStorage)
+state.receipts.forEach(r => { delete r.pages; delete r.thumb; });
 state.floors.forEach(f => {
     (f.items || []).forEach(i => { if (!i.hoursLog) i.hoursLog = []; });
 });
@@ -3610,12 +3612,18 @@ function renderReceipts() {
 }
 
 function rcCardHtml(r) {
+    const pages = _rcPending[r.id] || [];
+    const thumbsHtml = pages.length > 0
+        ? pages.map((src, pi) => `<img src="${src}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="viewReceiptPage('${r.id}',${pi})" />`).join('')
+        : r.driveUrl
+            ? `<a href="${r.driveUrl}" target="_blank" style="display:flex;align-items:center;justify-content:center;width:64px;height:64px;background:#f0f4ff;border-radius:6px;font-size:22px;text-decoration:none">🖼</a>`
+            : `<div style="width:64px;height:64px;background:#f3f4f6;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:22px">📄</div>`;
     return `
     <div class="rc-card card" style="margin-bottom:10px;display:flex;gap:12px;align-items:flex-start;border-left:4px solid ${r.status==='paid' ? '#16a34a' : '#d97706'}"
          data-vendor="${(r.vendor||'').toLowerCase()}" data-category="${(r.category||'').toLowerCase()}" data-date="${r.date||''}">
         <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
-            ${(r.pages||[r.thumb]).map((src,pi) => `<img src="${src}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="viewReceiptPage('${r.id}',${pi})" />`).join('')}
-            ${(r.pages||[r.thumb]).length > 1 ? `<div style="font-size:10px;color:#aaa;text-align:center">${(r.pages||[r.thumb]).length} pages</div>` : ''}
+            ${thumbsHtml}
+            ${pages.length > 1 ? `<div style="font-size:10px;color:#aaa;text-align:center">${pages.length} pages</div>` : ''}
         </div>
         <div style="flex:1;min-width:0">
             <div style="display:flex;justify-content:space-between;align-items:flex-start">
@@ -3662,7 +3670,8 @@ function _rcRenderCards() {
     rcApplySearch();
 }
 
-let _rcPages = [];
+let _rcPages   = [];
+let _rcPending = {}; // receiptId → full-size pages array (in memory only, never persisted)
 
 function rcFileSelected(input) {
     if (!input.files || !input.files[0]) return;
@@ -3718,15 +3727,18 @@ function saveReceipt() {
     const category = document.getElementById('rc_category')?.value || 'Receipt';
     const vendor   = (document.getElementById('rc_vendor')?.value || '').trim();
     const amount   = parseFloat(document.getElementById('rc_amount')?.value) || null;
+    const id       = uid();
+
+    // Keep full-size pages in memory only — never write them to localStorage
+    _rcPending[id] = [..._rcPages];
+
     const receipt = {
-        id:       uid(),
+        id,
         date:     today(),
         category,
         vendor:   vendor || null,
         amount,
         status:   'pending',
-        thumb:    _rcPages[0],
-        pages:    [..._rcPages],
         driveUrl: null,
     };
     if (!state.receipts) state.receipts = [];
@@ -3737,7 +3749,7 @@ function saveReceipt() {
 
     // Upload all pages to Google Drive in the background
     const gasUrl = localStorage.getItem('hallway_sheets_url');
-    if (gasUrl) uploadReceiptToDrive(receipt.id, receipt.pages, receipt.category, receipt.vendor, receipt.amount);
+    if (gasUrl) uploadReceiptToDrive(id, _rcPending[id], category, vendor || null, amount);
 }
 
 function uploadReceiptToDrive(receiptId, pages, category, vendor, amount) {
@@ -3769,6 +3781,8 @@ function uploadReceiptToDrive(receiptId, pages, category, vendor, amount) {
             if (res.amount   && !state.receipts[idx].amount)   state.receipts[idx].amount   = res.amount;
             if (res.category && !state.receipts[idx].category) state.receipts[idx].category = res.category;
             if (res.date)                                       state.receipts[idx].date     = res.date;
+            // Photos are safely on Drive — free memory
+            delete _rcPending[receiptId];
         } else {
             state.receipts[idx].driveErr = res.error || 'Upload failed';
         }
@@ -3807,17 +3821,22 @@ function toggleReceiptStatus(id) {
 function retryReceiptUpload(id) {
     const r = (state.receipts||[]).find(r => r.id === id);
     if (!r) return;
+    if (!_rcPending[id] || _rcPending[id].length === 0) {
+        alert('Photos are no longer in memory. Please delete this receipt and re-upload the photo.');
+        return;
+    }
     const idx = state.receipts.findIndex(r => r.id === id);
     state.receipts[idx].driveErr = null;
     persist();
     _rcRenderCards();
-    uploadReceiptToDrive(r.id, r.pages || [r.thumb], r.category, r.vendor, r.amount);
+    uploadReceiptToDrive(id, _rcPending[id], r.category, r.vendor, r.amount);
 }
 
 function viewReceiptPage(id, pageIndex) {
     const r = (state.receipts||[]).find(r => r.id === id);
     if (!r) return;
-    const pages = r.pages || [r.thumb];
+    const pages = _rcPending[id] || [];
+    if (pages.length === 0) return;
     let current = pageIndex || 0;
 
     function buildOverlay() {
