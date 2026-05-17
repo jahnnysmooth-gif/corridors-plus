@@ -2217,10 +2217,13 @@ let _qlWorkerIds = new Set();
 function _qlWorkerChipsHtml(date) {
     const att     = (state.attendance || []).find(a => a.date === date);
     const crew    = state.crew || [];
-    const present = att ? (att.workerIds || []).map(id => crew.find(c => c.id === id)).filter(Boolean) : [];
+    const present = att
+        ? (att.workerIds || []).map(id => crew.find(c => c.id === id)).filter(Boolean)
+        : crew;
     if (present.length === 0) return '';
+    const label = att ? 'Who worked this task?' : 'Who worked this task? (all crew)';
     return `<div style="margin-top:10px">
-        <div style="font-size:11px;color:#888;font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">Who worked this task?</div>
+        <div style="font-size:11px;color:#888;font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">${label}</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px">
             ${present.map(w => `<button type="button" id="qlw_${w.id}" onclick="toggleQlWorker('${w.id}')"
                 style="padding:5px 12px;border-radius:99px;border:1.5px solid #d1d5db;background:white;font-size:12px;font-weight:600;cursor:pointer;color:#374151;transition:all .15s">${w.name}</button>`).join('')}
