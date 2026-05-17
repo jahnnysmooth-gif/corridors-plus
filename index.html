@@ -1959,12 +1959,16 @@ function renderFloor(floor) {
             const h      = itemManHours(item);
             const s      = (item.hoursLog || []).length;
             const status = item.status || 'pending';
+            const prog   = (status === 'active' && item.progress != null) ? item.progress : null;
             const color  = TILE_COLORS[idx % TILE_COLORS.length];
-            html += `<div class="item-tile" style="background:${color.bg};color:${color.text};position:relative"
+            const progBar = prog != null ? `<div style="position:absolute;bottom:0;left:0;right:0;height:4px;background:rgba(0,0,0,.12);border-radius:0 0 12px 12px">
+                <div style="height:4px;width:${prog}%;background:rgba(0,0,0,.35);border-radius:0 0 0 12px;transition:width .3s"></div></div>` : '';
+            const progLabel = prog != null ? `<span style="font-size:10px;font-weight:700;opacity:.75;margin-left:4px">${prog}%</span>` : '';
+            html += `<div class="item-tile" style="background:${color.bg};color:${color.text};position:relative;overflow:hidden"
                 onclick="navigate('item','${floor.id}','${item.id}')"
                 oncontextmenu="quickStatusPicker(event,'${floor.id}','${item.id}');return false"
                 data-hold-floor="${floor.id}" data-hold-item="${item.id}">
-                <span class="tile-status-dot dot-${status}"></span>
+                <span class="tile-status-dot dot-${status}"></span>${progLabel}
                 <div class="item-tile-name">${item.name}</div>
                 <div class="item-tile-footer">
                     <div>
@@ -1973,6 +1977,7 @@ function renderFloor(floor) {
                     </div>
                     <div class="item-tile-sessions">${s} session${s !== 1 ? 's' : ''}</div>
                 </div>
+                ${progBar}
             </div>`;
         });
         html += `</div>`;
@@ -2316,35 +2321,93 @@ function quickStatusPicker(e, floorId, itemId) {
 
     const menu = document.createElement('div');
     menu.id = '_qsp';
-    menu.style.cssText = 'position:fixed;z-index:9999;background:white;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.22);padding:6px;min-width:170px;';
+    menu.style.cssText = 'position:fixed;z-index:9999;background:white;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.22);padding:6px;min-width:190px;';
 
     const title = document.createElement('div');
     title.style.cssText = 'font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.5px;padding:6px 10px 4px';
     title.textContent = item.name;
     menu.appendChild(title);
 
+    // Progress section — shown when status is/becomes 'active'
+    const progSection = document.createElement('div');
+    progSection.id = '_qsp_prog';
+
+    function renderProgSection(activeStatus) {
+        progSection.innerHTML = '';
+        if (activeStatus !== 'active') return;
+        const cur = item.progress != null ? item.progress : '';
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'padding:4px 10px 6px';
+        wrap.innerHTML = `<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">% Complete</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+                ${[25,50,75,90].map(p => `<button type="button" onclick="setItemProgress('${floorId}','${itemId}',${p})" style="flex:1;padding:6px 0;border-radius:8px;border:1.5px solid ${cur===p?'#1a3a5c':'#e0e0e0'};background:${cur===p?'#1a3a5c':'white'};color:${cur===p?'white':'#374151'};font-size:13px;font-weight:700;cursor:pointer">${p}%</button>`).join('')}
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+                <input type="number" id="_qsp_custom" min="1" max="99" placeholder="Custom %" value="${typeof cur==='number'?cur:''}"
+                    style="flex:1;padding:7px 10px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:13px;outline:none;-moz-appearance:textfield"
+                    oninput="setItemProgress('${floorId}','${itemId}',parseInt(this.value)||null,true)" />
+                <span style="font-size:12px;color:#888">%</span>
+            </div>`;
+        progSection.appendChild(wrap);
+    }
+
+    let activeStatus = current;
+    renderProgSection(activeStatus);
+
     options.forEach(opt => {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.style.cssText = `display:block;width:100%;text-align:left;padding:9px 14px;border:none;border-radius:8px;font-size:14px;font-weight:${opt.value === current ? '700' : '500'};background:${opt.value === current ? '#f0f4ff' : 'transparent'};cursor:pointer;color:#1a1a2e`;
         btn.textContent = opt.label;
-        btn.onclick = function() {
+        btn.onclick = function(ev) {
+            ev.stopPropagation();
+            // highlight selected
+            menu.querySelectorAll('button[data-sopt]').forEach(b => {
+                b.style.fontWeight = '500'; b.style.background = 'transparent';
+            });
+            btn.style.fontWeight = '700'; btn.style.background = '#f0f4ff';
+            activeStatus = opt.value;
+            renderProgSection(activeStatus);
+            // clear progress when not in-progress
+            if (opt.value !== 'active') { delete item.progress; }
             setStatus(floorId, itemId, opt.value);
-            menu.remove();
+            if (opt.value !== 'active') menu.remove();
         };
+        btn.dataset.sopt = opt.value;
         menu.appendChild(btn);
     });
+
+    menu.appendChild(progSection);
+    renderProgSection(current);
 
     // Position near tap/click
     const x = e.clientX || (e.touches && e.touches[0]?.clientX) || window.innerWidth / 2;
     const y = e.clientY || (e.touches && e.touches[0]?.clientY) || window.innerHeight / 2;
-    menu.style.left = Math.min(x, window.innerWidth  - 190) + 'px';
-    menu.style.top  = Math.min(y, window.innerHeight - 160) + 'px';
+    menu.style.left = Math.min(x, window.innerWidth  - 210) + 'px';
+    menu.style.top  = Math.min(y, window.innerHeight - 280) + 'px';
 
     document.body.appendChild(menu);
     setTimeout(() => document.addEventListener('click', function dismiss() {
         menu.remove(); document.removeEventListener('click', dismiss);
     }), 10);
+}
+
+function setItemProgress(floorId, itemId, val, noRender) {
+    const floor = state.floors.find(f => f.id === floorId);
+    const item  = floor?.items.find(i => i.id === itemId);
+    if (!item) return;
+    if (val == null || isNaN(val)) { delete item.progress; }
+    else { item.progress = Math.min(99, Math.max(1, val)); }
+    persist();
+    if (!noRender) { document.getElementById('_qsp')?.remove(); render(); }
+    else {
+        // just refresh the tile progress bar without closing the menu
+        const tiles = document.querySelectorAll('[data-hold-item="' + itemId + '"]');
+        tiles.forEach(tile => {
+            const bar = tile.querySelector('[data-prog-bar]');
+            if (bar) bar.style.width = (item.progress || 0) + '%';
+        });
+    }
 }
 
 // Long-press support for touch devices
