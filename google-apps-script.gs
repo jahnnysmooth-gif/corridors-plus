@@ -240,25 +240,26 @@ function logReceiptToSheet({ date, vendor, category, amount, url, items }) {
   const vendorKey  = vendor.trim().toLowerCase();
 
   // Find the correct chronological insertion point within this vendor's rows.
-  // We want to insert after the last vendor receipt row whose date <= new date,
-  // skipping TOTAL subtotal rows. If vendor not present yet, append.
+  const tz2 = Session.getScriptTimeZone();
+  const toDateStr = function(val) {
+    return val instanceof Date ? Utilities.formatDate(val, tz2, 'yyyy-MM-dd') : String(val || '');
+  };
   let insertAfter = -1;
   for (let i = 1; i < numRows; i++) {
     const rowVendor = String(data[i][vendorCol] || '').trim().toLowerCase();
-    const rowDate   = String(data[i][dateCol]   || '');
+    const rowDate   = toDateStr(data[i][dateCol]);
     const isTotal   = rowDate.startsWith('TOTAL:');
     if (rowVendor === vendorKey && !isTotal && rowDate <= date) {
-      insertAfter = i + 1; // 1-based sheet row after this data row
+      insertAfter = i + 1;
     }
   }
-  // If no earlier-or-equal date row found but vendor exists, insert before first vendor row
   if (insertAfter === -1) {
     for (let i = 1; i < numRows; i++) {
       const rowVendor = String(data[i][vendorCol] || '').trim().toLowerCase();
-      const rowDate   = String(data[i][dateCol]   || '');
+      const rowDate   = toDateStr(data[i][dateCol]);
       const isTotal   = rowDate.startsWith('TOTAL:');
       if (rowVendor === vendorKey && !isTotal) {
-        insertAfter = i; // insert BEFORE this row (sheet row i+1, so insertRowAfter(i) = before i+1)
+        insertAfter = i;
         break;
       }
     }
@@ -303,10 +304,12 @@ function rebuildVendorMonthlyTotals(sheet, vendor) {
   const amountCol = 3;
 
   // Collect all receipt rows for this vendor with their sheet row index
+  const tz = Session.getScriptTimeZone();
   const vendorRows = [];
   for (let i = 1; i < fresh.length; i++) {
-    const v = String(fresh[i][vendorCol] || '').trim().toLowerCase();
-    const d = String(fresh[i][dateCol]   || '');
+    const v      = String(fresh[i][vendorCol] || '').trim().toLowerCase();
+    const rawD   = fresh[i][dateCol];
+    const d      = rawD instanceof Date ? Utilities.formatDate(rawD, tz, 'yyyy-MM-dd') : String(rawD || '');
     if (v === vendorKey && !d.startsWith('TOTAL:')) {
       vendorRows.push({ sheetRow: i + 1, date: d, amount: parseFloat(fresh[i][amountCol]) || 0 });
     }
@@ -434,7 +437,11 @@ function refreshSummarySheet(ss) {
 
   const src  = ss.getSheetByName(RECEIPT_SHEET);
   if (!src) return;
-  const data = src.getDataRange().getValues().slice(1).filter(r => r[0]); // skip header + blanks
+  const tz3  = Session.getScriptTimeZone();
+  const data = src.getDataRange().getValues().slice(1).filter(r => {
+    const d = r[0] instanceof Date ? Utilities.formatDate(r[0], tz3, 'yyyy-MM-dd') : String(r[0] || '');
+    return d && !d.startsWith('TOTAL:'); // skip blanks and subtotal rows
+  });
 
   // Aggregate by vendor
   const byVendor = {};
