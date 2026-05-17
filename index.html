@@ -863,9 +863,16 @@ const DEFAULT_MATERIALS = [
 // Backfill trade onto existing materials that predate the trade field
 
 (function addMissingItems() {
-    const toAdd = ['Carpet', 'Apt Door Painting', 'Service Door Painting'];
+    const toAdd = ['Baseboard Installation', 'Misc. Labor'];
+    const targetFloors = new Set([
+        'Floor 6','Floor 7','Floor 8','Floor 9','Floor 10','Floor 11','Floor 12',
+        'Floor 13','Floor 14','Floor 15','Floor 16','Floor 17','Floor 18','Floor 19',
+        'Floor 20','Floor 21','Floor 22','Floor 23','Floor 24','Floor 25','Floor 26',
+        'Floor 27','Floor 28','Floor 29','Floor 30','Floor 31','Floor 32','Floor 33','Floor 34'
+    ]);
     let dirty = false;
     (state.floors || []).forEach(f => {
+        if (!targetFloors.has(f.name)) return;
         const existing = new Set((f.items || []).map(i => i.name.trim().toLowerCase()));
         toAdd.forEach(name => {
             if (!existing.has(name.toLowerCase())) {
