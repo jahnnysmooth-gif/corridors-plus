@@ -1008,18 +1008,18 @@ function handlePayroll(payload) {
 
     // Header
     const hdr = sheet.getRange(1, 1, 1, numCols);
-    hdr.setBackground('#1a3a5c').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
+    hdr.setBackground('#1a3a5c').setFontColor('#ffffff').setFontWeight('bold').setFontSize(13);
     sheet.setFrozenRows(1);
     sheet.setFrozenColumns(2);
 
     // Worker rows — alternate shading
     for (var i = 2; i <= numDataRows - 1; i++) {
-      sheet.getRange(i, 1, 1, numCols).setBackground(i % 2 === 0 ? '#f8fafc' : '#ffffff');
+      sheet.getRange(i, 1, 1, numCols).setBackground(i % 2 === 0 ? '#f8fafc' : '#ffffff').setFontSize(12);
     }
 
     // Totals row
     const tot = sheet.getRange(numDataRows, 1, 1, numCols);
-    tot.setBackground('#1a3a5c').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
+    tot.setBackground('#1a3a5c').setFontColor('#ffffff').setFontWeight('bold').setFontSize(13);
 
     // Center-align day columns and total column
     sheet.getRange(1, 3, numDataRows, numCols - 2).setHorizontalAlignment('center');
