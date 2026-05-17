@@ -3624,12 +3624,12 @@ function rcCardHtml(r) {
          data-vendor="${(r.vendor||'').toLowerCase()}" data-category="${(r.category||'').toLowerCase()}" data-date="${r.date||''}">
         <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
             ${thumbsHtml}
-            ${pages.length > 1 ? `<div style="font-size:10px;color:#aaa;text-align:center">${pages.length} pages</div>` : ''}
+            ${displayPages.length > 1 ? `<div style="font-size:10px;color:#aaa;text-align:center">${displayPages.length} pages</div>` : ''}
         </div>
         <div style="flex:1;min-width:0">
             <div style="display:flex;justify-content:space-between;align-items:flex-start">
                 <div style="font-weight:700;font-size:14px;color:#1a3a5c">${r.category}</div>
-                ${r.amount ? `<div style="font-weight:800;font-size:15px;color:#1a3a5c">$${r.amount.toFixed(2)}</div>` : ''}
+                ${r.amount ? `<div style="font-weight:800;font-size:15px;color:#1a3a5c">$${Number(r.amount).toFixed(2)}</div>` : ''}
             </div>
             ${r.vendor ? `<div style="font-size:13px;color:#555;margin-top:2px">${r.vendor}</div>` : ''}
             <div style="font-size:11px;color:#aaa;margin-top:4px">${displayDate(r.date)}</div>
