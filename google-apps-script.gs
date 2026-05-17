@@ -836,7 +836,32 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu("Corridor's Plus")
     .addItem('Export Monthly Receipts PDF', 'exportMonthlyPDF')
+    .addItem('Recalculate Receipt Totals', 'recalculateAllTotals')
     .addToUi();
+}
+
+// ── Rebuild TOTAL rows for every vendor (run after manual row edits/deletions) ─
+function recalculateAllTotals() {
+  const ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(RECEIPT_SHEET);
+  if (!sheet) { SpreadsheetApp.getUi().alert('No Receipts sheet found.'); return; }
+
+  const data = sheet.getDataRange().getValues();
+  const tz   = Session.getScriptTimeZone();
+
+  // Collect unique vendors from receipt rows (exclude TOTAL rows and header)
+  const vendors = new Set();
+  for (let i = 1; i < data.length; i++) {
+    const rawD = data[i][0];
+    const d    = rawD instanceof Date ? Utilities.formatDate(rawD, tz, 'yyyy-MM-dd') : String(rawD || '');
+    if (!d.startsWith('TOTAL:') && data[i][1]) {
+      vendors.add(String(data[i][1]).trim());
+    }
+  }
+
+  vendors.forEach(vendor => rebuildVendorMonthlyTotals(sheet, vendor));
+  refreshSummarySheet(ss);
+  SpreadsheetApp.getUi().alert('Totals recalculated for ' + vendors.size + ' vendor(s).');
 }
 
 // ── Export current month's receipts as a PDF saved to Drive ───────────────────
