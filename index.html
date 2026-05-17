@@ -1964,6 +1964,8 @@ function renderFloor(floor) {
                     <span class="tile-status-dot dot-${status}" style="flex-shrink:0;margin:0"></span>
                     <span style="flex:1;font-size:14px;font-weight:600;color:#1a1a2e">${item.name}</span>
                     <div style="display:flex;gap:4px">
+                        <button onclick="renameFloorItem('${floor.id}','${item.id}')"
+                            style="width:34px;height:34px;border-radius:8px;border:1.5px solid #e0e0e0;background:white;font-size:15px;cursor:pointer;color:#1a3a5c">✏️</button>
                         <button onclick="moveFloorItem('${floor.id}',${idx},-1)" ${idx === 0 ? 'disabled' : ''}
                             style="width:34px;height:34px;border-radius:8px;border:1.5px solid #e0e0e0;background:${idx===0?'#f5f5f5':'white'};font-size:16px;cursor:${idx===0?'default':'pointer'};color:${idx===0?'#ccc':'#1a3a5c'}">↑</button>
                         <button onclick="moveFloorItem('${floor.id}',${idx},1)" ${idx === floor.items.length-1 ? 'disabled' : ''}
@@ -2533,6 +2535,29 @@ function moveFloorItem(floorId, idx, dir) {
     [items[idx], items[newIdx]] = [items[newIdx], items[idx]];
     persist();
     document.getElementById('app').innerHTML = renderFloor(floor);
+}
+
+function renameFloorItem(floorId, itemId) {
+    const floor = state.floors.find(f => f.id === floorId);
+    const item  = floor?.items.find(i => i.id === itemId);
+    if (!item) return;
+    openModal('Rename Item', `
+        <div class="form-group">
+            <label>Item Name</label>
+            <input id="rename_input" type="text" value="${item.name.replace(/"/g,'&quot;')}" style="font-size:16px" />
+        </div>
+    `, () => {
+        const val = document.getElementById('rename_input').value.trim();
+        if (!val) return;
+        item.name = val;
+        persist();
+        closeModal();
+        document.getElementById('app').innerHTML = renderFloor(floor);
+    });
+    setTimeout(() => {
+        const inp = document.getElementById('rename_input');
+        if (inp) { inp.focus(); inp.select(); }
+    }, 150);
 }
 
 // ── Add item ──────────────────────────────────────────────────────────────────
