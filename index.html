@@ -2086,6 +2086,7 @@ function renderItem(floor, item) {
             </div>
             <button class="log-btn" onclick="quickLog('${floor.id}','${item.id}')">LOG</button>
         </div>
+        <div id="ql_worker_section">${_qlWorkerChipsHtml(t)}</div>
         <div style="margin-top:10px">
             <input type="text" id="ql_note" placeholder="Note (optional) — e.g. rain delay, short day" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px" maxlength="120" />
         </div>
@@ -2105,8 +2106,12 @@ function renderItem(floor, item) {
         item.hoursLog.forEach((entry, idx) => {
             const d  = entryDisplay(entry);
             const mh = entryManHours(entry);
+            const workerNames = (entry.workerIds || []).map(id => {
+                const w = (state.crew || []).find(c => c.id === id);
+                return w ? w.name.split(' ')[0] : null;
+            }).filter(Boolean);
             html += `<tr>
-                <td>${displayDate(entry.date)}</td>
+                <td>${displayDate(entry.date)}${workerNames.length > 0 ? `<div style="font-size:10px;color:#1a73e8;margin-top:2px">${workerNames.join(', ')}</div>` : ''}</td>
                 <td>${d.skilled}</td>
                 <td>${d.skilledHours}</td>
                 <td>${d.laborer}</td>
@@ -2185,6 +2190,8 @@ function quickLog(floorId, itemId) {
     const item  = floor.items.find(i => i.id === itemId);
     const entry = { date, skilled, skilledHours, laborer, laborerHours };
     if (note) entry.note = note;
+    if (_qlWorkerIds.size > 0) entry.workerIds = [..._qlWorkerIds];
+    _qlWorkerIds.clear();
     item.hoursLog.push(entry);
     if ((item.status || 'pending') === 'pending') item.status = 'active';
     persist();
@@ -2204,6 +2211,40 @@ function quickLog(floorId, itemId) {
     }, 50);
 }
 
+// ── Quick log worker chips ────────────────────────────────────────────────────
+let _qlWorkerIds = new Set();
+
+function _qlWorkerChipsHtml(date) {
+    const att     = (state.attendance || []).find(a => a.date === date);
+    const crew    = state.crew || [];
+    const present = att ? (att.workerIds || []).map(id => crew.find(c => c.id === id)).filter(Boolean) : [];
+    if (present.length === 0) return '';
+    return `<div style="margin-top:10px">
+        <div style="font-size:11px;color:#888;font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">Who worked this task?</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+            ${present.map(w => `<button type="button" id="qlw_${w.id}" onclick="toggleQlWorker('${w.id}')"
+                style="padding:5px 12px;border-radius:99px;border:1.5px solid #d1d5db;background:white;font-size:12px;font-weight:600;cursor:pointer;color:#374151;transition:all .15s">${w.name}</button>`).join('')}
+        </div>
+    </div>`;
+}
+
+function toggleQlWorker(id) {
+    if (_qlWorkerIds.has(id)) { _qlWorkerIds.delete(id); } else { _qlWorkerIds.add(id); }
+    const btn = document.getElementById('qlw_' + id);
+    if (btn) {
+        const sel = _qlWorkerIds.has(id);
+        btn.style.background   = sel ? '#1a3a5c' : 'white';
+        btn.style.color        = sel ? 'white'   : '#374151';
+        btn.style.borderColor  = sel ? '#1a3a5c' : '#d1d5db';
+    }
+}
+
+function _qlRefreshWorkerChips(date) {
+    const section = document.getElementById('ql_worker_section');
+    if (section) section.innerHTML = _qlWorkerChipsHtml(date);
+    _qlWorkerIds.clear();
+}
+
 // ── Date chips ────────────────────────────────────────────────────────────────
 function setQlDate(val) {
     const input = document.getElementById('ql_date');
@@ -2219,6 +2260,7 @@ function setQlDate(val) {
         other?.classList.remove('active');
         document.getElementById('date_picker_wrap')?.classList.remove('open');
     }
+    _qlRefreshWorkerChips(val);
 }
 
 function toggleDatePicker() {
