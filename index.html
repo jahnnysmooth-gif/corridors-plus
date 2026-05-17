@@ -2541,40 +2541,24 @@ function moveFloorItem(floorId, idx, dir) {
 function applyOrderToAllFloors(floorId) {
     const template = state.floors.find(f => f.id === floorId);
     if (!template) return;
-    const count = state.floors.filter(f => f.id !== floorId).length;
-    if (!confirm(`Apply this floor's item order and names to all ${count} other floors?\n\nItems with matching names will be renamed and reordered. Extra items on other floors will be moved to the end.`)) return;
+    const others = state.floors.filter(f => f.id !== floorId);
+    if (!confirm(`Apply this floor's item order and names to all ${others.length} other floors?\n\nItems will be matched by position and renamed to match. Extra items on other floors will be moved to the end.`)) return;
 
-    // Build ordered name list from template
-    const templateNames = template.items.map(i => i.name.trim().toLowerCase());
-
-    state.floors.forEach(f => {
-        if (f.id === floorId) return;
-
-        // Rename items that match by position or close name match
-        // Match by lowercase name, then apply template name (with correct casing)
-        const nameMap = {}; // lowercase → template display name
-        template.items.forEach(ti => { nameMap[ti.name.trim().toLowerCase()] = ti.name; });
-
-        f.items.forEach(item => {
-            const key = item.name.trim().toLowerCase();
-            if (nameMap[key]) item.name = nameMap[key];
+    others.forEach(f => {
+        // Match each template item by index position — rename in place
+        template.items.forEach((ti, idx) => {
+            if (f.items[idx]) f.items[idx].name = ti.name;
         });
 
-        // Reorder to match template order
-        const ordered = [];
-        templateNames.forEach(tname => {
-            const match = f.items.find(i => i.name.trim().toLowerCase() === tname);
-            if (match) ordered.push(match);
-        });
-        // Append any items not in the template
-        f.items.forEach(item => {
-            if (!templateNames.includes(item.name.trim().toLowerCase())) ordered.push(item);
-        });
-        f.items = ordered;
+        // Reorder: items already renamed by index, so just sort to match template order
+        // Items beyond the template length stay at the end
+        const reordered = template.items.map((_, idx) => f.items[idx]).filter(Boolean);
+        const extras    = f.items.slice(template.items.length);
+        f.items = [...reordered, ...extras];
     });
 
     persist();
-    alert(`Done! Order and names applied to ${count} floor${count !== 1 ? 's' : ''}.`);
+    alert(`Done! Order and names applied to ${others.length} floor${others.length !== 1 ? 's' : ''}.`);
     document.getElementById('app').innerHTML = renderFloor(template);
 }
 
