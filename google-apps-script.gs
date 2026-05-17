@@ -69,14 +69,15 @@ function uploadReceipt(payload) {
     const vendor   = analysis.vendor   || payload.vendor   || 'Unknown';
     const amount   = analysis.amount   || payload.amount   || null;
     const category = analysis.category || payload.category || 'Other';
-    const dateStr  = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    const todayStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    const dateStr  = analysis.date     || todayStr;
     const amtStr   = amount ? '_$' + Number(amount).toFixed(2) : '';
     const filename = `${category.replace(/\s+/g,'-')}_${dateStr}_${vendor.replace(/\s+/g,'-')}${amtStr}.jpg`;
 
-    // Save to the appropriate subfolder
+    // Save to the appropriate subfolder (use receipt date for correct month folder)
     const bytes  = Utilities.base64Decode(base64);
     const blob   = Utilities.newBlob(bytes, mimeType, filename);
-    const folder = getOrCreateSubfolder(category);
+    const folder = getOrCreateSubfolder(category, dateStr);
     const file   = folder.createFile(blob);
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
@@ -104,6 +105,7 @@ function uploadReceipt(payload) {
       vendor,
       amount,
       category,
+      date:     dateStr,
     });
   } catch (err) {
     return json({ error: err.toString() });
@@ -140,6 +142,7 @@ function analyzeReceiptWithClaude(base64, mimeType) {
 Return exactly this shape:
 {
   "vendor": "store or company name",
+  "date": "YYYY-MM-DD",
   "amount": 123.45,
   "category": "one of: Materials & Supplies | Tools & Equipment | Subcontractors | Food & Meals | Other",
   "items": ["qty x item name — $price", "qty x item name — $price"]
@@ -147,6 +150,7 @@ Return exactly this shape:
 
 Rules:
 - vendor: the business name on the receipt (e.g. "Home Depot", "Grainger")
+- date: the date printed on the receipt in YYYY-MM-DD format. null if not visible.
 - amount: the total amount paid as a number, no $ sign. null if not visible.
 - category: pick the best match from the five options above based on what was purchased.
 - items: list each line item as "qty x description — $price". Max 10 items. Empty array if not readable.`
@@ -169,9 +173,10 @@ Rules:
 }
 
 // ── Get or create category → month subfolder inside the receipts folder ───────
-function getOrCreateSubfolder(category) {
+function getOrCreateSubfolder(category, dateStr) {
   const root      = DriveApp.getFolderById(RECEIPTS_FOLDER_ID);
-  const monthName = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM MMMM');
+  const dateObj   = dateStr ? new Date(dateStr + 'T12:00:00') : new Date();
+  const monthName = Utilities.formatDate(dateObj, Session.getScriptTimeZone(), 'yyyy-MM MMMM');
 
   // category folder
   const catFolders = root.getFoldersByName(category);
@@ -227,17 +232,35 @@ function logReceiptToSheet({ date, vendor, category, amount, url, items }) {
     setupReceiptSheet(sheet);
   }
 
-  const data      = sheet.getDataRange().getValues();
-  const numRows   = data.length;
-  const vendorCol = 1;
-  const bgColor   = getVendorColor(vendor);
+  const data       = sheet.getDataRange().getValues();
+  const numRows    = data.length;
+  const vendorCol  = 1;
+  const dateCol    = 0;
+  const bgColor    = getVendorColor(vendor);
+  const vendorKey  = vendor.trim().toLowerCase();
 
-  // Find the last row belonging to this vendor
+  // Find the correct chronological insertion point within this vendor's rows.
+  // We want to insert after the last vendor receipt row whose date <= new date,
+  // skipping TOTAL subtotal rows. If vendor not present yet, append.
   let insertAfter = -1;
-  for (let i = numRows - 1; i >= 1; i--) {
-    if (String(data[i][vendorCol] || '').trim().toLowerCase() === vendor.trim().toLowerCase()) {
-      insertAfter = i + 1;
-      break;
+  for (let i = 1; i < numRows; i++) {
+    const rowVendor = String(data[i][vendorCol] || '').trim().toLowerCase();
+    const rowDate   = String(data[i][dateCol]   || '');
+    const isTotal   = rowDate.startsWith('TOTAL:');
+    if (rowVendor === vendorKey && !isTotal && rowDate <= date) {
+      insertAfter = i + 1; // 1-based sheet row after this data row
+    }
+  }
+  // If no earlier-or-equal date row found but vendor exists, insert before first vendor row
+  if (insertAfter === -1) {
+    for (let i = 1; i < numRows; i++) {
+      const rowVendor = String(data[i][vendorCol] || '').trim().toLowerCase();
+      const rowDate   = String(data[i][dateCol]   || '');
+      const isTotal   = rowDate.startsWith('TOTAL:');
+      if (rowVendor === vendorKey && !isTotal) {
+        insertAfter = i; // insert BEFORE this row (sheet row i+1, so insertRowAfter(i) = before i+1)
+        break;
+      }
     }
   }
 

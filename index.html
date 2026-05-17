@@ -3768,6 +3768,7 @@ function uploadReceiptToDrive(receiptId, pages, category, vendor, amount) {
             if (res.vendor   && !state.receipts[idx].vendor)   state.receipts[idx].vendor   = res.vendor;
             if (res.amount   && !state.receipts[idx].amount)   state.receipts[idx].amount   = res.amount;
             if (res.category && !state.receipts[idx].category) state.receipts[idx].category = res.category;
+            if (res.date)                                       state.receipts[idx].date     = res.date;
         } else {
             state.receipts[idx].driveErr = res.error || 'Upload failed';
         }
