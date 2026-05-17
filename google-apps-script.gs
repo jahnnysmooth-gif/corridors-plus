@@ -44,8 +44,7 @@ function doPost(e) {
   try {
     const payload = JSON.parse(e.postData.contents);
 
-    if (payload.type === 'receipt')       return uploadReceipt(payload);
-    if (payload.type === 'status_update') return updateReceiptStatus(payload);
+    if (payload.type === 'receipt') return uploadReceipt(payload);
     return syncMaterials(payload);
 
   } catch (err) {
@@ -67,7 +66,7 @@ function uploadReceipt(payload) {
     const analysis = analyzeReceiptWithClaude(base64, mimeType, extraPages);
 
     // Build filename from analysis
-    const vendor   = analysis.vendor   || payload.vendor   || 'Unknown';
+    const vendor   = normalizeVendor(analysis.vendor   || payload.vendor   || 'Unknown');
     const amount   = analysis.amount   || payload.amount   || null;
     const category = analysis.category || payload.category || 'Other';
     const todayStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
@@ -129,6 +128,16 @@ function uploadReceipt(payload) {
 }
 
 // ── Call Claude API to read all pages of the receipt ─────────────────────────
+function normalizeVendor(raw) {
+  if (!raw) return 'Unknown';
+  let v = raw.trim();
+  // Strip leading "The "
+  v = v.replace(/^The\s+/i, '');
+  // Strip trailing store/location numbers like "#1234" or "Store 1234"
+  v = v.replace(/\s+(?:Store\s*)?\#\d+$/i, '').trim();
+  return v;
+}
+
 function analyzeReceiptWithClaude(base64, mimeType, extraPages) {
   try {
     const apiKey = PropertiesService.getScriptProperties().getProperty('RECEIPT_API_KEY');
@@ -159,7 +168,7 @@ Return exactly this shape:
 }
 
 Rules:
-- vendor: the business name on the receipt (e.g. "Home Depot", "Grainger")
+- vendor: copy the exact business name from the top of the receipt (logo/header). Include the full name as printed, e.g. "M&D Shapiro True Value Hardware" not just "True Value Hardware". Strip leading "The " (so "The Home Depot" → "Home Depot"). Strip trailing store numbers or "#1234".
 - date: the date printed on the receipt in YYYY-MM-DD format. null if not visible.
 - amount: the grand total paid across all pages as a number, no $ sign. null if not visible.
 - category: pick the best match from the five options above based on what was purchased.
@@ -213,7 +222,7 @@ function getOrCreateSubfolder(category, dateStr) {
 
 // ── Log a receipt row to the Receipts sheet, grouped by vendor ────────────────
 const RECEIPT_SHEET   = 'Receipts';
-const RECEIPT_HEADERS = ['Date', 'Vendor', 'Category', 'Amount', 'Status', 'Drive Link'];
+const RECEIPT_HEADERS = ['Date', 'Vendor', 'Category', 'Amount', 'Drive Link'];
 
 // Vendor color palette — assigned dynamically as new vendors appear
 const VENDOR_PALETTE = [
@@ -252,7 +261,7 @@ function logReceiptToSheet({ date, vendor, category, amount, url, items }) {
     setupReceiptSheet(sheet);
   }
 
-  // Ensure the header row matches RECEIPT_HEADERS (repairs sheets created before Status column was added)
+  // Ensure the header row matches RECEIPT_HEADERS
   const currentHdr = sheet.getRange(1, 1, 1, RECEIPT_HEADERS.length).getValues()[0];
   const hdrMatch   = RECEIPT_HEADERS.every(function(h, i) { return String(currentHdr[i] || '').trim() === h; });
   if (!hdrMatch) {
@@ -264,8 +273,7 @@ function logReceiptToSheet({ date, vendor, category, amount, url, items }) {
     sheet.setColumnWidth(2, 160);
     sheet.setColumnWidth(3, 180);
     sheet.setColumnWidth(4, 100);
-    sheet.setColumnWidth(5, 100);
-    sheet.setColumnWidth(6, 130);
+    sheet.setColumnWidth(5, 130);
   }
 
   const data       = sheet.getDataRange().getValues();
@@ -301,7 +309,7 @@ function logReceiptToSheet({ date, vendor, category, amount, url, items }) {
     }
   }
 
-  const newRow = [date, vendor, category, amount ? Number(amount) : '', 'Pending', url];
+  const newRow = [date, vendor, category, amount ? Number(amount) : '', url];
   let   range;
 
   if (insertAfter > 0) {
@@ -369,7 +377,7 @@ function rebuildVendorMonthlyTotals(sheet, vendor) {
     const label     = Utilities.formatDate(new Date(month + '-15'), Session.getScriptTimeZone(), 'MMMM yyyy');
     sheet.insertRowAfter(lastRow);
     const range = sheet.getRange(lastRow + 1, 1, 1, RECEIPT_HEADERS.length);
-    range.setValues([[`TOTAL: ${label}`, vendor, '', total, '', '']]);
+    range.setValues([[`TOTAL: ${label}`, vendor, '', total, '']]);
     range.setBackground('#1a3a5c');
     range.setFontColor('#ffffff');
     range.setFontWeight('bold');
@@ -391,17 +399,8 @@ function styleReceiptRow(range, bgColor, items) {
     range.getCell(1, 4).setNote(note);
   }
 
-  // Style Status cell
-  const statusCell = range.getCell(1, 5);
-  const status     = statusCell.getValue() || 'Pending';
-  statusCell.setValue(status);
-  statusCell.setFontWeight('bold');
-  statusCell.setHorizontalAlignment('center');
-  statusCell.setBackground(status === 'Paid' ? '#dcfce7' : '#fef3c7');
-  statusCell.setFontColor(status === 'Paid' ? '#16a34a' : '#d97706');
-
-  // Make Drive Link clickable (now column 6)
-  const linkCell = range.getCell(1, 6);
+  // Make Drive Link clickable (column 5)
+  const linkCell = range.getCell(1, 5);
   const url      = linkCell.getValue();
   if (url) {
     linkCell.setFormula(`=HYPERLINK("${url}","View Receipt")`);
@@ -409,47 +408,6 @@ function styleReceiptRow(range, bgColor, items) {
   }
 }
 
-// ── Update receipt status in the sheet when toggled in the app ────────────────
-function updateReceiptStatus(payload) {
-  try {
-    const ss      = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheet   = ss.getSheetByName(RECEIPT_SHEET);
-    if (!sheet) return json({ error: 'Receipts sheet not found' });
-
-    const data      = sheet.getDataRange().getValues();
-    const hdr       = data[0].map(h => String(h).trim());
-    const linkCol   = hdr.indexOf('Drive Link');
-    const statusCol = hdr.indexOf('Status');
-    if (linkCol < 0 || statusCol < 0) return json({ error: 'Column not found' });
-
-    const newStatus  = payload.status === 'paid' ? 'Paid' : 'Pending';
-    const driveUrl   = payload.driveUrl || '';
-
-    // getValues() returns display text for HYPERLINK formulas — use getFormulas() to get the actual URL
-    const lastRow    = sheet.getLastRow();
-    const formulas   = lastRow > 1
-      ? sheet.getRange(2, linkCol + 1, lastRow - 1, 1).getFormulas()
-      : [];
-
-    for (let i = 1; i < data.length; i++) {
-      const formula    = (formulas[i - 1] && formulas[i - 1][0]) || '';
-      const urlMatch   = formula.match(/HYPERLINK\("([^"]+)"/i);
-      const cellUrl    = urlMatch ? urlMatch[1] : String(data[i][linkCol] || '');
-      if (cellUrl && (cellUrl === driveUrl || cellUrl.includes(driveUrl) || driveUrl.includes(cellUrl))) {
-        const statusCell = sheet.getRange(i + 1, statusCol + 1);
-        statusCell.setValue(newStatus);
-        statusCell.setFontWeight('bold');
-        statusCell.setHorizontalAlignment('center');
-        statusCell.setBackground(newStatus === 'Paid' ? '#dcfce7' : '#fef3c7');
-        statusCell.setFontColor(newStatus === 'Paid' ? '#16a34a' : '#d97706');
-        return json({ success: true });
-      }
-    }
-    return json({ error: 'Receipt row not found' });
-  } catch (err) {
-    return json({ error: err.toString() });
-  }
-}
 
 function setupReceiptSheet(sheet) {
   // Header row
@@ -464,8 +422,7 @@ function setupReceiptSheet(sheet) {
   sheet.setColumnWidth(2, 160); // Vendor
   sheet.setColumnWidth(3, 180); // Category
   sheet.setColumnWidth(4, 100); // Amount
-  sheet.setColumnWidth(5, 100); // Status
-  sheet.setColumnWidth(6, 130); // Drive Link
+  sheet.setColumnWidth(5, 130); // Drive Link
 }
 
 // ── Summary tab — totals by vendor and by category ───────────────────────────
@@ -506,7 +463,7 @@ function refreshSummarySheet(ss) {
 
   // Title
   sheet.getRange(row, 1, 1, 3).merge().setValue('Receipt Summary').setFontWeight('bold').setFontSize(14).setBackground('#1a3a5c').setFontColor('#ffffff');
-  sheet.getRange(row, 4).setValue(new Date()).setNumberFormat('mmm d, yyyy').setFontColor('#888888');
+  // no timestamp — removed
   row += 2;
 
   // By Category

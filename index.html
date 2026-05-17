@@ -3597,7 +3597,7 @@ function renderReceipts() {
     </div>
     ${receipts.length === 0 ? `<div style="text-align:center;color:#aaa;padding:32px;font-size:14px">No receipts saved yet.</div>` : `
     <div class="card" style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
-        <div style="font-size:13px;color:#888">${receipts.length} receipt${receipts.length !== 1 ? 's' : ''} · <span style="color:#16a34a">${receipts.filter(r=>r.status==='paid').length} paid</span> · <span style="color:#d97706">${receipts.filter(r=>r.status!=='paid').length} pending</span></div>
+        <div style="font-size:13px;color:#888">${receipts.length} receipt${receipts.length !== 1 ? 's' : ''}</div>
         ${receipts.some(r => r.amount) ? `<div style="font-size:16px;font-weight:800;color:#1a3a5c">$${receipts.filter(r=>r.amount).reduce((s,r)=>s+r.amount,0).toFixed(2)} total</div>` : ''}
     </div>
     <div style="margin-bottom:12px;position:relative">
@@ -3620,7 +3620,7 @@ function rcCardHtml(r) {
             ? `<a href="${r.driveUrl}" target="_blank" style="display:flex;align-items:center;justify-content:center;width:64px;height:64px;background:#f0f4ff;border-radius:6px;font-size:22px;text-decoration:none">🖼</a>`
             : `<div style="width:64px;height:64px;background:#f3f4f6;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:22px">📄</div>`;
     return `
-    <div class="rc-card card" style="margin-bottom:10px;display:flex;gap:12px;align-items:flex-start;border-left:4px solid ${r.status==='paid' ? '#16a34a' : '#d97706'}"
+    <div class="rc-card card" style="margin-bottom:10px;display:flex;gap:12px;align-items:flex-start;border-left:4px solid #1a3a5c"
          data-vendor="${(r.vendor||'').toLowerCase()}" data-category="${(r.category||'').toLowerCase()}" data-date="${r.date||''}">
         <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
             ${thumbsHtml}
@@ -3639,9 +3639,6 @@ function rcCardHtml(r) {
                     ? `<span style="font-size:11px;color:#dc2626;margin-top:4px;display:block">⚠ ${r.driveErr} — <span style="cursor:pointer;text-decoration:underline" onclick="retryReceiptUpload('${r.id}')">Retry</span></span>`
                     : `<span style="font-size:11px;color:#aaa;margin-top:4px;display:block">⏳ Uploading…</span>`
             }
-            <button onclick="toggleReceiptStatus('${r.id}')" style="margin-top:8px;padding:4px 12px;border-radius:99px;border:none;font-size:11px;font-weight:700;cursor:pointer;background:${r.status==='paid' ? '#dcfce7' : '#fef3c7'};color:${r.status==='paid' ? '#16a34a' : '#d97706'}">
-                ${r.status === 'paid' ? '✓ Paid' : '⏳ Pending'}
-            </button>
         </div>
         <button onclick="deleteReceipt('${r.id}')" style="background:none;border:none;color:#dc2626;font-size:18px;cursor:pointer;padding:4px">🗑</button>
     </div>`;
@@ -3751,7 +3748,6 @@ function saveReceipt() {
         category,
         vendor:   vendor || null,
         amount,
-        status:   'pending',
         thumbs:   [..._rcThumbs], // tiny ~3-5KB each — safe for localStorage
         driveUrl: null,
     };
@@ -3815,23 +3811,6 @@ function uploadReceiptToDrive(receiptId, pages, category, vendor, amount) {
     });
 }
 
-function toggleReceiptStatus(id) {
-    const idx = (state.receipts||[]).findIndex(r => r.id === id);
-    if (idx < 0) return;
-    const newStatus = state.receipts[idx].status === 'paid' ? 'pending' : 'paid';
-    state.receipts[idx].status = newStatus;
-    persist();
-    // Update the sheet in the background
-    const gasUrl = localStorage.getItem('hallway_sheets_url');
-    const driveUrl = state.receipts[idx].driveUrl;
-    if (gasUrl && driveUrl) {
-        fetch(gasUrl, {
-            method: 'POST',
-            body: JSON.stringify({ type: 'status_update', driveUrl, status: newStatus }),
-        }).catch(() => {});
-    }
-    _rcRenderCards();
-}
 
 function retryReceiptUpload(id) {
     const r = (state.receipts||[]).find(r => r.id === id);
