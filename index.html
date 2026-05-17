@@ -861,6 +861,37 @@ const DEFAULT_MATERIALS = [
 ];
 
 // Backfill trade onto existing materials that predate the trade field
+// One-time fix: reverse the index-based apply that scrambled Floor 5's item names.
+// Maps the wrong names back to the correct ones based on what was at each position.
+(function fixFloor5ItemNames() {
+    const oldNames = [
+        'Demo','Ceiling Skim Coat','Wall Skim Coat','Wall Prime','Ceiling Prime',
+        'Ceiling Paint','Crown/Raceway','Wallcovering','Baseboard Installation',
+        'Door Painting','Electrical','Misc. Laborer','Door ID/Viewer'
+    ];
+    // After the bad index-apply, items 7-12 of Floor 5 got renamed to template names at those positions.
+    // We restore by matching items that currently have a template name but whose data belongs to the old name.
+    const wrongToRight = {
+        'apt door painting':     'Wallcovering',
+        'service door painting': 'Baseboard Installation',
+        'door ids':              'Door Painting',
+        'wallcovering':          'Misc. Laborer',
+        'carpet':                'Door ID/Viewer',
+    };
+    let dirty = false;
+    (state.floors || []).forEach(f => {
+        if (f.name !== 'Floor 5') return;
+        f.items.forEach(item => {
+            const key = item.name.trim().toLowerCase();
+            if (wrongToRight[key] && (item.hoursLog || []).length > 0) {
+                item.name = wrongToRight[key];
+                dirty = true;
+            }
+        });
+    });
+    if (dirty) persist();
+})();
+
 (function migrateTrades() {
     const lookup = {};
     DEFAULT_MATERIALS.forEach(d => { lookup[d.name.toLowerCase()] = d.trade; });
@@ -2542,23 +2573,43 @@ function applyOrderToAllFloors(floorId) {
     const template = state.floors.find(f => f.id === floorId);
     if (!template) return;
     const others = state.floors.filter(f => f.id !== floorId);
-    if (!confirm(`Apply this floor's item order and names to all ${others.length} other floors?\n\nItems will be matched by position and renamed to match. Extra items on other floors will be moved to the end.`)) return;
+    if (!confirm(`Apply this floor's item order to all ${others.length} other floors?\n\nItems are matched by name. Items with no match in the template are moved to the end. No data will be changed.`)) return;
+
+    // Build a lowercase name → display name map from template
+    const templateOrder = template.items.map(i => i.name.trim().toLowerCase());
 
     others.forEach(f => {
-        // Match each template item by index position — rename in place
-        template.items.forEach((ti, idx) => {
-            if (f.items[idx]) f.items[idx].name = ti.name;
+        // Match each floor item to a template item by name
+        const matched   = [];
+        const unmatched = [];
+        f.items.forEach(item => {
+            const key = item.name.trim().toLowerCase();
+            const pos = templateOrder.indexOf(key);
+            if (pos !== -1) matched.push({ pos, item });
+            else unmatched.push(item);
         });
 
-        // Reorder: items already renamed by index, so just sort to match template order
-        // Items beyond the template length stay at the end
-        const reordered = template.items.map((_, idx) => f.items[idx]).filter(Boolean);
-        const extras    = f.items.slice(template.items.length);
-        f.items = [...reordered, ...extras];
+        // Sort matched items by their template position
+        matched.sort((a, b) => a.pos - b.pos);
+
+        // Add any template items that don't exist on this floor yet
+        const existingKeys = new Set(f.items.map(i => i.name.trim().toLowerCase()));
+        const missing = template.items
+            .filter(ti => !existingKeys.has(ti.name.trim().toLowerCase()))
+            .map(ti => ({ id: uid(), name: ti.name, hoursLog: [], status: 'pending' }));
+
+        // Insert missing items at their correct template positions
+        const allItems = [...matched.map(m => m.item), ...unmatched];
+        missing.forEach(newItem => {
+            const pos = templateOrder.indexOf(newItem.name.trim().toLowerCase());
+            allItems.splice(pos, 0, newItem);
+        });
+
+        f.items = allItems;
     });
 
     persist();
-    alert(`Done! Order and names applied to ${others.length} floor${others.length !== 1 ? 's' : ''}.`);
+    alert(`Done! Order applied to ${others.length} floor${others.length !== 1 ? 's' : ''}. No existing data was changed.`);
     document.getElementById('app').innerHTML = renderFloor(template);
 }
 
