@@ -1034,10 +1034,10 @@ function handlePayroll(payload) {
     }
 
     // Column widths
-    sheet.setColumnWidth(1, 165);
-    sheet.setColumnWidth(2, 110);
-    for (var ci = 3; ci <= numCols - 1; ci++) sheet.setColumnWidth(ci, 78);
-    sheet.setColumnWidth(numCols, 95);
+    sheet.setColumnWidth(1, 190);
+    sheet.setColumnWidth(2, 127);
+    for (var ci = 3; ci <= numCols - 1; ci++) sheet.setColumnWidth(ci, 90);
+    sheet.setColumnWidth(numCols, 109);
 
     // Remove unused rows and columns so the sheet is clean
     const maxRows = sheet.getMaxRows();
