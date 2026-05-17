@@ -46,6 +46,7 @@ function doPost(e) {
 
     if (payload.type === 'receipt')      return uploadReceipt(payload);
     if (payload.type === 'daily_report') return generateDailyReport(payload);
+    if (payload.type === 'payroll')      return handlePayroll(payload);
     return syncMaterials(payload);
 
   } catch (err) {
@@ -934,6 +935,122 @@ function columnLetter(col) {
     col = Math.floor((col - 1) / 26);
   }
   return letter;
+}
+
+// ── Payroll export — push a pay period to the payroll spreadsheet ─────────────
+const PAYROLL_SHEET_PROP = 'PAYROLL_SHEET_ID';
+
+function handlePayroll(payload) {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    let   sheetId = props.getProperty(PAYROLL_SHEET_PROP);
+    let   ss;
+
+    if (sheetId) {
+      try { ss = SpreadsheetApp.openById(sheetId); } catch(e) { sheetId = null; }
+    }
+
+    if (!sheetId) {
+      // First run: create the payroll spreadsheet
+      ss = SpreadsheetApp.create("Corridor's Plus — Payroll");
+      ss.setSpreadsheetTimeZone(Session.getScriptTimeZone());
+      DriveApp.getFileById(ss.getId()).setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      sheetId = ss.getId();
+      props.setProperty(PAYROLL_SHEET_PROP, sheetId);
+      // Remove the default blank sheet
+      const blank = ss.getSheetByName('Sheet1');
+      if (blank && ss.getSheets().length > 1) ss.deleteSheet(blank);
+    }
+
+    const { start, end, dates, workers } = payload;
+
+    // Tab name: e.g. "05/13–05/19"
+    const tabName = shortDateGs(start) + '–' + shortDateGs(end);
+
+    // Overwrite if tab already exists (re-push)
+    const existing = ss.getSheetByName(tabName);
+    if (existing) ss.deleteSheet(existing);
+
+    // Insert at front so most recent period is the first tab
+    const sheet = ss.insertSheet(tabName, 0);
+
+    // Column headers: Worker | Trade | Wed 5/13 | Thu 5/14 | … | Tue 5/19 | Total Hours
+    const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const dayLabels = dates.map(function(d) {
+      const parts = d.split('-').map(Number);
+      const dow   = DOW[new Date(parts[0], parts[1] - 1, parts[2]).getDay()];
+      const mm    = parts[1] < 10 ? '0' + parts[1] : String(parts[1]);
+      const dd    = parts[2] < 10 ? '0' + parts[2] : String(parts[2]);
+      return dow + ' ' + mm + '/' + dd;
+    });
+
+    const headers = ['Worker', 'Trade'].concat(dayLabels).concat(['Total Hours']);
+    const numCols = headers.length;
+
+    // Data rows
+    const rows = [headers];
+    workers.forEach(function(w) {
+      rows.push([w.name, w.trade].concat(w.dayHours).concat([w.total]));
+    });
+
+    // Totals row
+    const totalsRow = ['TOTAL', ''];
+    dates.forEach(function(_, i) {
+      totalsRow.push(workers.reduce(function(s, w) { return s + (w.dayHours[i] || 0); }, 0));
+    });
+    totalsRow.push(workers.reduce(function(s, w) { return s + w.total; }, 0));
+    rows.push(totalsRow);
+
+    sheet.getRange(1, 1, rows.length, numCols).setValues(rows);
+
+    // ── Styling ───────────────────────────────────────────────────────────────
+    const numDataRows = rows.length; // includes header + workers + totals
+
+    // Header
+    const hdr = sheet.getRange(1, 1, 1, numCols);
+    hdr.setBackground('#1a3a5c').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
+    sheet.setFrozenRows(1);
+    sheet.setFrozenColumns(2);
+
+    // Worker rows — alternate shading
+    for (var i = 2; i <= numDataRows - 1; i++) {
+      sheet.getRange(i, 1, 1, numCols).setBackground(i % 2 === 0 ? '#f8fafc' : '#ffffff');
+    }
+
+    // Totals row
+    const tot = sheet.getRange(numDataRows, 1, 1, numCols);
+    tot.setBackground('#1a3a5c').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
+
+    // Center-align day columns and total column
+    sheet.getRange(1, 3, numDataRows, numCols - 2).setHorizontalAlignment('center');
+
+    // Highlight zero-hour cells in day columns (red tint) for at-a-glance gaps
+    for (var r = 2; r <= numDataRows - 1; r++) {
+      for (var c = 3; c <= numCols - 1; c++) {
+        if (sheet.getRange(r, c).getValue() === 0) {
+          sheet.getRange(r, c).setBackground('#fee2e2').setFontColor('#dc2626');
+        }
+      }
+    }
+
+    // Column widths
+    sheet.setColumnWidth(1, 165);
+    sheet.setColumnWidth(2, 110);
+    for (var ci = 3; ci <= numCols - 1; ci++) sheet.setColumnWidth(ci, 78);
+    sheet.setColumnWidth(numCols, 95);
+
+    SpreadsheetApp.flush();
+
+    const spreadsheetUrl = ss.getUrl();
+    return json({ success: true, tabName: tabName, spreadsheetUrl: spreadsheetUrl });
+  } catch(err) {
+    return json({ error: err.toString() });
+  }
+}
+
+function shortDateGs(iso) {
+  var parts = iso.split('-');
+  return parts[1] + '/' + parts[2];
 }
 
 // ── Helper: return JSON response ──────────────────────────────────────────────

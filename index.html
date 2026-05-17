@@ -1329,6 +1329,11 @@ function renderHome() {
                 <div class="home-tile-label">Receipts</div>
                 <div class="home-tile-sub">${(state.receipts||[]).length} receipt${(state.receipts||[]).length !== 1 ? 's' : ''} saved</div>
             </button>
+            <button class="home-tile" style="border-top:4px solid #059669" onclick="openPayrollExport()">
+                <span class="home-tile-icon">💰</span>
+                <div class="home-tile-label">Payroll</div>
+                <div class="home-tile-sub">${(()=>{ const {start,end}=getPayPeriod(0); return shortDate(start)+' – '+shortDate(end); })()}</div>
+            </button>
         </div>
         <div class="home-subtitle">Georgetown Plaza · Corridor Renovation</div>
         <button class="btn btn-secondary" style="width:100%;margin-top:20px" onclick="exportWeeklySummary()">&#128196; Weekly Summary</button>
@@ -5521,6 +5526,88 @@ function parseSheetDate(str) {
         if (!isNaN(m) && !isNaN(d) && !isNaN(y)) return `${y}-${m}-${d}`;
     }
     return null;
+}
+
+// ── Payroll export ────────────────────────────────────────────────────────────
+function getPayPeriod(offsetWeeks) {
+    const d = new Date();
+    if (offsetWeeks) d.setDate(d.getDate() + offsetWeeks * 7);
+    const daysSinceWed = (d.getDay() + 4) % 7;
+    const wed = new Date(d); wed.setDate(d.getDate() - daysSinceWed);
+    const tue = new Date(wed); tue.setDate(wed.getDate() + 6);
+    return { start: wed.toISOString().slice(0, 10), end: tue.toISOString().slice(0, 10) };
+}
+
+function openPayrollExport() {
+    const gasUrl = localStorage.getItem('hallway_sheets_url');
+    if (!gasUrl) { alert('Connect to Google Sheets first (tap ↺ Sync on the home screen).'); return; }
+
+    const periods = [];
+    const seen = new Set();
+    for (let i = 0; i >= -7; i--) {
+        const { start, end } = getPayPeriod(i);
+        if (seen.has(start)) continue;
+        seen.add(start);
+        const label = i === 0 ? `Current  (${shortDate(start)} – ${shortDate(end)})` : `${shortDate(start)} – ${shortDate(end)}`;
+        periods.push({ start, end, label });
+    }
+
+    const storedUrl = localStorage.getItem('hallway_payroll_url');
+    const linkHtml  = storedUrl
+        ? `<div style="margin-top:10px;font-size:13px;color:#1a73e8"><a href="${storedUrl}" target="_blank" style="color:#1a73e8">📊 Open Payroll Spreadsheet</a></div>`
+        : '';
+
+    openModal('Export Payroll', `
+        <div class="form-group">
+            <label>Pay Period (Wed – Tue)</label>
+            <select id="pr_period" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px">
+                ${periods.map((p, i) => `<option value="${i}">${p.label}</option>`).join('')}
+            </select>
+        </div>
+        <p style="font-size:13px;color:#999;margin-top:8px">Pushes to the Payroll Google Sheet as a new tab. Re-pushing the same period overwrites it.</p>
+        ${linkHtml}
+    `, () => {
+        const idx = parseInt(document.getElementById('pr_period').value);
+        sendPayrollToSheets(periods[idx].start, periods[idx].end);
+    });
+}
+
+async function sendPayrollToSheets(start, end) {
+    const gasUrl = localStorage.getItem('hallway_sheets_url');
+    if (!gasUrl) return;
+
+    const crew       = state.crew || [];
+    const attendance = state.attendance || [];
+
+    // Build ordered date array for the period (Wed → Tue)
+    const dates = [];
+    const cur   = new Date(start + 'T00:00:00');
+    const endD  = new Date(end   + 'T00:00:00');
+    while (cur <= endD) { dates.push(cur.toISOString().slice(0, 10)); cur.setDate(cur.getDate() + 1); }
+
+    // Build per-worker data
+    const workers = crew.map(w => {
+        const dayHours = dates.map(date => {
+            const att = attendance.find(a => a.date === date);
+            if (!att || !(att.workerIds || []).includes(w.id)) return 0;
+            return (att.details?.[w.id]?.hours) || 0;
+        });
+        return { name: w.name, trade: w.trade || '', dayHours, total: dayHours.reduce((s, h) => s + h, 0) };
+    });
+
+    openModal('Sending…', `<p style="text-align:center;padding:24px 0;color:#888;font-size:14px">Pushing to Google Sheets…</p>`, null, true);
+
+    try {
+        const resp   = await fetch(gasUrl, { method: 'POST', body: JSON.stringify({ type: 'payroll', start, end, dates, workers }) });
+        const result = await resp.json();
+        closeModal();
+        if (result.error) throw new Error(result.error);
+        if (result.spreadsheetUrl) localStorage.setItem('hallway_payroll_url', result.spreadsheetUrl);
+        alert(`✓ Payroll sheet updated!\n\nTab: ${result.tabName}\n\nOpen the spreadsheet to share it with payroll.`);
+    } catch(err) {
+        closeModal();
+        alert('Failed to send payroll: ' + err.message);
+    }
 }
 
 function openSheetsSync() {
