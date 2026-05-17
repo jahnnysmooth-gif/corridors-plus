@@ -861,36 +861,6 @@ const DEFAULT_MATERIALS = [
 ];
 
 // Backfill trade onto existing materials that predate the trade field
-// One-time fix: reverse the index-based apply that scrambled Floor 5's item names.
-// Maps the wrong names back to the correct ones based on what was at each position.
-(function fixFloor5ItemNames() {
-    const oldNames = [
-        'Demo','Ceiling Skim Coat','Wall Skim Coat','Wall Prime','Ceiling Prime',
-        'Ceiling Paint','Crown/Raceway','Wallcovering','Baseboard Installation',
-        'Door Painting','Electrical','Misc. Laborer','Door ID/Viewer'
-    ];
-    // After the bad index-apply, items 7-12 of Floor 5 got renamed to template names at those positions.
-    // We restore by matching items that currently have a template name but whose data belongs to the old name.
-    const wrongToRight = {
-        'apt door painting':     'Wallcovering',
-        'service door painting': 'Baseboard Installation',
-        'door ids':              'Door Painting',
-        'wallcovering':          'Misc. Laborer',
-        'carpet':                'Door ID/Viewer',
-    };
-    let dirty = false;
-    (state.floors || []).forEach(f => {
-        if (f.name !== 'Floor 5') return;
-        f.items.forEach(item => {
-            const key = item.name.trim().toLowerCase();
-            if (wrongToRight[key] && (item.hoursLog || []).length > 0) {
-                item.name = wrongToRight[key];
-                dirty = true;
-            }
-        });
-    });
-    if (dirty) persist();
-})();
 
 (function migrateTrades() {
     const lookup = {};
