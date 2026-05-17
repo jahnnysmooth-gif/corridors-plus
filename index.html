@@ -1950,33 +1950,57 @@ function renderFloor(floor) {
     if (floor.items.length === 0) {
         html += `<div class="card"><div class="empty-state">No work items yet.</div></div>`;
     } else {
-        html += `<div class="tile-grid">`;
-        floor.items.forEach((item, idx) => {
-            const h      = itemManHours(item);
-            const s      = (item.hoursLog || []).length;
-            const status = item.status || 'pending';
-            const prog   = (status === 'active' && item.progress != null) ? item.progress : null;
-            const color  = TILE_COLORS[idx % TILE_COLORS.length];
-            const progBar = prog != null ? `<div style="position:absolute;bottom:0;left:0;right:0;height:4px;background:rgba(0,0,0,.12);border-radius:0 0 12px 12px">
-                <div style="height:4px;width:${prog}%;background:rgba(0,0,0,.35);border-radius:0 0 0 12px;transition:width .3s"></div></div>` : '';
-            const progLabel = prog != null ? `<span style="font-size:10px;font-weight:700;opacity:.75;margin-left:4px">${prog}%</span>` : '';
-            html += `<div class="item-tile" style="background:${color.bg};color:${color.text};position:relative;overflow:hidden"
-                onclick="navigate('item','${floor.id}','${item.id}')"
-                oncontextmenu="quickStatusPicker(event,'${floor.id}','${item.id}');return false"
-                data-hold-floor="${floor.id}" data-hold-item="${item.id}">
-                <span class="tile-status-dot dot-${status}"></span>${progLabel}
-                <div class="item-tile-name">${item.name}</div>
-                <div class="item-tile-footer">
-                    <div>
-                        <div class="item-tile-hrs">${h}</div>
-                        <div class="item-tile-unit">man-hrs</div>
+        const reordering = _reorderFloorId === floor.id;
+        html += `<div style="display:flex;justify-content:flex-end;margin-bottom:6px">
+            <button class="notes-edit-btn" onclick="toggleReorderMode('${floor.id}')">${reordering ? 'Done' : '⇅ Reorder'}</button>
+        </div>`;
+
+        if (reordering) {
+            // Reorder list view
+            html += `<div class="card" style="padding:8px">`;
+            floor.items.forEach((item, idx) => {
+                const status = item.status || 'pending';
+                html += `<div style="display:flex;align-items:center;gap:10px;padding:10px 6px;border-bottom:1px solid #f0f0f0">
+                    <span class="tile-status-dot dot-${status}" style="flex-shrink:0;margin:0"></span>
+                    <span style="flex:1;font-size:14px;font-weight:600;color:#1a1a2e">${item.name}</span>
+                    <div style="display:flex;gap:4px">
+                        <button onclick="moveFloorItem('${floor.id}',${idx},-1)" ${idx === 0 ? 'disabled' : ''}
+                            style="width:34px;height:34px;border-radius:8px;border:1.5px solid #e0e0e0;background:${idx===0?'#f5f5f5':'white'};font-size:16px;cursor:${idx===0?'default':'pointer'};color:${idx===0?'#ccc':'#1a3a5c'}">↑</button>
+                        <button onclick="moveFloorItem('${floor.id}',${idx},1)" ${idx === floor.items.length-1 ? 'disabled' : ''}
+                            style="width:34px;height:34px;border-radius:8px;border:1.5px solid #e0e0e0;background:${idx===floor.items.length-1?'#f5f5f5':'white'};font-size:16px;cursor:${idx===floor.items.length-1?'default':'pointer'};color:${idx===floor.items.length-1?'#ccc':'#1a3a5c'}">↓</button>
                     </div>
-                    <div class="item-tile-sessions">${s} session${s !== 1 ? 's' : ''}</div>
-                </div>
-                ${progBar}
-            </div>`;
-        });
-        html += `</div>`;
+                </div>`;
+            });
+            html += `</div>`;
+        } else {
+            html += `<div class="tile-grid">`;
+            floor.items.forEach((item, idx) => {
+                const h      = itemManHours(item);
+                const s      = (item.hoursLog || []).length;
+                const status = item.status || 'pending';
+                const prog   = (status === 'active' && item.progress != null) ? item.progress : null;
+                const color  = TILE_COLORS[idx % TILE_COLORS.length];
+                const progBar = prog != null ? `<div style="position:absolute;bottom:0;left:0;right:0;height:4px;background:rgba(0,0,0,.12);border-radius:0 0 12px 12px">
+                    <div style="height:4px;width:${prog}%;background:rgba(0,0,0,.35);border-radius:0 0 0 12px;transition:width .3s"></div></div>` : '';
+                const progLabel = prog != null ? `<span style="font-size:10px;font-weight:700;opacity:.75;margin-left:4px">${prog}%</span>` : '';
+                html += `<div class="item-tile" style="background:${color.bg};color:${color.text};position:relative;overflow:hidden"
+                    onclick="navigate('item','${floor.id}','${item.id}')"
+                    oncontextmenu="quickStatusPicker(event,'${floor.id}','${item.id}');return false"
+                    data-hold-floor="${floor.id}" data-hold-item="${item.id}">
+                    <span class="tile-status-dot dot-${status}"></span>${progLabel}
+                    <div class="item-tile-name">${item.name}</div>
+                    <div class="item-tile-footer">
+                        <div>
+                            <div class="item-tile-hrs">${h}</div>
+                            <div class="item-tile-unit">man-hrs</div>
+                        </div>
+                        <div class="item-tile-sessions">${s} session${s !== 1 ? 's' : ''}</div>
+                    </div>
+                    ${progBar}
+                </div>`;
+            });
+            html += `</div>`;
+        }
     }
 
     html += `<button class="add-btn" onclick="openAddItem('${floor.id}')">+ Add Work Item</button>`;
@@ -2490,6 +2514,25 @@ function openAddFloor() {
         });
         persist(); closeModal(); render();
     });
+}
+
+// ── Reorder items ─────────────────────────────────────────────────────────────
+let _reorderFloorId = null;
+
+function toggleReorderMode(floorId) {
+    _reorderFloorId = _reorderFloorId === floorId ? null : floorId;
+    const floor = state.floors.find(f => f.id === floorId);
+    document.getElementById('app').innerHTML = renderFloor(floor);
+}
+
+function moveFloorItem(floorId, idx, dir) {
+    const floor = state.floors.find(f => f.id === floorId);
+    const items = floor.items;
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= items.length) return;
+    [items[idx], items[newIdx]] = [items[newIdx], items[idx]];
+    persist();
+    document.getElementById('app').innerHTML = renderFloor(floor);
 }
 
 // ── Add item ──────────────────────────────────────────────────────────────────
