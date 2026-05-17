@@ -3075,6 +3075,27 @@ function editHoursEntry(floorId, itemId, idx) {
     const item  = floor.items.find(i => i.id === itemId);
     const entry = item.hoursLog[idx];
     const d     = entryDisplay(entry);
+    const crew  = state.crew || [];
+
+    // Pre-select workers already on this entry
+    let eeWorkerIds = new Set(entry.workerIds || []);
+
+    // Build attendance-aware crew list for the entry's date
+    const att     = (state.attendance || []).find(a => a.date === entry.date);
+    const present = att ? (att.workerIds || []).map(id => crew.find(c => c.id === id)).filter(Boolean) : crew;
+
+    const workerChipsHtml = present.length === 0 ? '' : `
+        <div class="form-group" style="margin-top:4px">
+            <label>Who worked this task?</label>
+            <div id="ee_worker_chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
+                ${present.map(w => {
+                    const sel = eeWorkerIds.has(w.id);
+                    return `<button type="button" id="eew_${w.id}" onclick="toggleEeWorker('${w.id}')"
+                        style="padding:5px 12px;border-radius:99px;border:1.5px solid ${sel ? '#1a3a5c' : '#d1d5db'};background:${sel ? '#1a3a5c' : 'white'};font-size:12px;font-weight:600;cursor:pointer;color:${sel ? 'white' : '#374151'};transition:all .15s">${w.name}</button>`;
+                }).join('')}
+            </div>
+        </div>`;
+
     openModal('Edit Log Entry', `
         <div class="form-group"><label>Date</label><input type="date" id="ee_date" value="${entry.date}" /></div>
         <div class="form-row">
@@ -3085,6 +3106,7 @@ function editHoursEntry(floorId, itemId, idx) {
             <div class="form-group"><label>Laborer</label><input type="number" id="ee_l" min="0" value="${d.laborer}" /></div>
             <div class="form-group"><label>Laborer Hrs</label><input type="number" id="ee_lh" min="0" step="0.5" value="${d.laborerHours || 0}" /></div>
         </div>
+        ${workerChipsHtml}
     `, () => {
         const skilled      = parseFloat(document.getElementById('ee_s').value)  || 0;
         const skilledHours = parseFloat(document.getElementById('ee_sh').value) || 0;
@@ -3094,9 +3116,24 @@ function editHoursEntry(floorId, itemId, idx) {
         if (skilled + laborer < 1) { alert('Enter at least one worker.'); return; }
         if (skilled > 0 && skilledHours <= 0) { alert('Enter hours for Skilled workers.'); return; }
         if (laborer > 0 && laborerHours <= 0) { alert('Enter hours for Laborer workers.'); return; }
-        item.hoursLog[idx] = { date, skilled, skilledHours, laborer, laborerHours };
+        const updated = { date, skilled, skilledHours, laborer, laborerHours };
+        if (eeWorkerIds.size > 0) updated.workerIds = [...eeWorkerIds];
+        if (entry.note) updated.note = entry.note;
+        item.hoursLog[idx] = updated;
         persist(); closeModal(); render();
     });
+
+    // Expose toggle fn into global scope for the modal buttons
+    window.toggleEeWorker = function(id) {
+        if (eeWorkerIds.has(id)) { eeWorkerIds.delete(id); } else { eeWorkerIds.add(id); }
+        const btn = document.getElementById('eew_' + id);
+        if (btn) {
+            const sel = eeWorkerIds.has(id);
+            btn.style.background  = sel ? '#1a3a5c' : 'white';
+            btn.style.color       = sel ? 'white'   : '#374151';
+            btn.style.borderColor = sel ? '#1a3a5c' : '#d1d5db';
+        }
+    };
 }
 
 
