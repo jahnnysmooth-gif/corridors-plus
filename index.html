@@ -3682,7 +3682,7 @@ function uploadReceiptToDrive(receiptId, dataUrl, category, vendor, amount) {
     fetch(gasUrl, {
         method:  'POST',
         signal:  ctrl.signal,
-        body:    JSON.stringify({ type: 'receipt', data: dataUrl, filename }),
+        body:    JSON.stringify({ type: 'receipt', data: dataUrl, filename, category, vendor, amount }),
     })
     .then(r => r.json())
     .then(res => {
