@@ -5246,8 +5246,8 @@ function renderReport(date) {
     const totalWorkers = att ? (att.workerIds || []).length : 0;
     let skilledMH = 0, laborerMH = 0;
     floors.forEach(f => (f.items||[]).forEach(i => (i.hoursLog||[]).filter(e=>e.date===date).forEach(e => {
-        skilledMH  += (e.skilled  || 0) * (e.skilledHours  || 0);
-        laborerMH  += (e.laborer  || 0) * (e.laborerHours  || 0);
+        skilledMH += entrySkilledMH(e);
+        laborerMH += entryLaborerMH(e);
     })));
     const totalMH = skilledMH + laborerMH;
 
@@ -5415,7 +5415,7 @@ async function generateDailyReport(date) {
         const resp = await fetch(gasUrl, {
             method: 'POST',
             body: JSON.stringify({ type: 'daily_report', date, projectName: 'Georgetown Plaza', crew, floors, notes,
-                defaultItemOrder: ['Demo','Ceiling Skim Coat','Wall Skim Coat','Wall Prime','Ceiling Prime','Ceiling Paint','Crown/Raceway','Wallpaper','Baseboard Installation'] })
+                defaultItemOrder: DEFAULT_ITEMS })
         });
         const result = await resp.json();
         if (result.error) throw new Error(result.error);
