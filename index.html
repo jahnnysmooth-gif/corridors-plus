@@ -862,22 +862,6 @@ const DEFAULT_MATERIALS = [
 
 // Backfill trade onto existing materials that predate the trade field
 
-(function addMissingItems() {
-    const toAdd = ['Baseboard Installation', 'Misc. Labor'];
-    const skip  = new Set(['Floor 4', 'Floor 5']);
-    let dirty = false;
-    (state.floors || []).forEach(f => {
-        if (skip.has(f.name)) return;
-        const existing = new Set((f.items || []).map(i => i.name.trim().toLowerCase()));
-        toAdd.forEach(name => {
-            if (!existing.has(name.toLowerCase())) {
-                f.items.push({ id: uid(), name, hoursLog: [], status: 'pending' });
-                dirty = true;
-            }
-        });
-    });
-    if (dirty) persist();
-})();
 
 (function migrateTrades() {
     const lookup = {};
@@ -992,6 +976,23 @@ function persist() {
 function uid() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
+
+(function addMissingItems() {
+    const toAdd = ['Baseboard Installation', 'Misc. Labor'];
+    const skip  = new Set(['Floor 4', 'Floor 5']);
+    let dirty = false;
+    (state.floors || []).forEach(f => {
+        if (skip.has(f.name)) return;
+        const existing = new Set((f.items || []).map(i => i.name.trim().toLowerCase()));
+        toAdd.forEach(name => {
+            if (!existing.has(name.toLowerCase())) {
+                f.items.push({ id: uid(), name, hoursLog: [], status: 'pending' });
+                dirty = true;
+            }
+        });
+    });
+    if (dirty) persist();
+})();
 
 function today() {
     return new Date().toISOString().slice(0, 10);
