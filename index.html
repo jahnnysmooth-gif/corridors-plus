@@ -1951,7 +1951,8 @@ function renderFloor(floor) {
         html += `<div class="card"><div class="empty-state">No work items yet.</div></div>`;
     } else {
         const reordering = _reorderFloorId === floor.id;
-        html += `<div style="display:flex;justify-content:flex-end;margin-bottom:6px">
+        html += `<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:6px">
+            ${reordering ? `<button class="notes-edit-btn" style="background:#1a3a5c;color:white;border-color:#1a3a5c" onclick="applyOrderToAllFloors('${floor.id}')">Apply to All Floors</button>` : ''}
             <button class="notes-edit-btn" onclick="toggleReorderMode('${floor.id}')">${reordering ? 'Done' : '⇅ Reorder'}</button>
         </div>`;
 
@@ -2437,8 +2438,8 @@ document.getElementById('modalOverlay').addEventListener('click', function(e) {
 // ── Default items ─────────────────────────────────────────────────────────────
 const DEFAULT_ITEMS = [
     'Demo','Ceiling Skim Coat','Wall Skim Coat','Wall Prime','Ceiling Prime',
-    'Ceiling Paint','Crown/Raceway','Wallcovering','Baseboard Installation',
-    'Door Painting','Electrical','Misc. Laborer','Door ID/Viewer'
+    'Ceiling Paint','Crown/Raceway','Apt Door Painting','Service Door Painting',
+    'Door IDs','Electrical','Wallcovering','Carpet','Baseboard Installation','Misc. Labor'
 ];
 
 // ── Georgetown Plaza schedule ──────────────────────────────────────────────────
@@ -2535,6 +2536,46 @@ function moveFloorItem(floorId, idx, dir) {
     [items[idx], items[newIdx]] = [items[newIdx], items[idx]];
     persist();
     document.getElementById('app').innerHTML = renderFloor(floor);
+}
+
+function applyOrderToAllFloors(floorId) {
+    const template = state.floors.find(f => f.id === floorId);
+    if (!template) return;
+    const count = state.floors.filter(f => f.id !== floorId).length;
+    if (!confirm(`Apply this floor's item order and names to all ${count} other floors?\n\nItems with matching names will be renamed and reordered. Extra items on other floors will be moved to the end.`)) return;
+
+    // Build ordered name list from template
+    const templateNames = template.items.map(i => i.name.trim().toLowerCase());
+
+    state.floors.forEach(f => {
+        if (f.id === floorId) return;
+
+        // Rename items that match by position or close name match
+        // Match by lowercase name, then apply template name (with correct casing)
+        const nameMap = {}; // lowercase → template display name
+        template.items.forEach(ti => { nameMap[ti.name.trim().toLowerCase()] = ti.name; });
+
+        f.items.forEach(item => {
+            const key = item.name.trim().toLowerCase();
+            if (nameMap[key]) item.name = nameMap[key];
+        });
+
+        // Reorder to match template order
+        const ordered = [];
+        templateNames.forEach(tname => {
+            const match = f.items.find(i => i.name.trim().toLowerCase() === tname);
+            if (match) ordered.push(match);
+        });
+        // Append any items not in the template
+        f.items.forEach(item => {
+            if (!templateNames.includes(item.name.trim().toLowerCase())) ordered.push(item);
+        });
+        f.items = ordered;
+    });
+
+    persist();
+    alert(`Done! Order and names applied to ${count} floor${count !== 1 ? 's' : ''}.`);
+    document.getElementById('app').innerHTML = renderFloor(template);
 }
 
 function renameFloorItem(floorId, itemId) {
