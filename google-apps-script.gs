@@ -44,12 +44,8 @@ function doPost(e) {
   try {
     const payload = JSON.parse(e.postData.contents);
 
-    // Receipt upload request — handle separately (no sheet lock needed)
-    if (payload.type === 'receipt') {
-      return uploadReceipt(payload);
-    }
-
-    // Materials sync request
+    if (payload.type === 'receipt')       return uploadReceipt(payload);
+    if (payload.type === 'status_update') return updateReceiptStatus(payload);
     return syncMaterials(payload);
 
   } catch (err) {
@@ -170,8 +166,8 @@ function getOrCreateSubfolder(category) {
 }
 
 // ── Log a receipt row to the Receipts sheet, grouped by vendor ────────────────
-const RECEIPT_SHEET  = 'Receipts';
-const RECEIPT_HEADERS = ['Date', 'Vendor', 'Category', 'Amount', 'Drive Link'];
+const RECEIPT_SHEET   = 'Receipts';
+const RECEIPT_HEADERS = ['Date', 'Vendor', 'Category', 'Amount', 'Status', 'Drive Link'];
 
 // Vendor color palette — assigned dynamically as new vendors appear
 const VENDOR_PALETTE = [
@@ -224,7 +220,7 @@ function logReceiptToSheet({ date, vendor, category, amount, url, items }) {
     }
   }
 
-  const newRow = [date, vendor, category, amount ? Number(amount) : '', url];
+  const newRow = [date, vendor, category, amount ? Number(amount) : '', 'Pending', url];
   let   range;
 
   if (insertAfter > 0) {
@@ -253,12 +249,55 @@ function styleReceiptRow(range, bgColor, items) {
     range.getCell(1, 4).setNote(note);
   }
 
-  // Make Drive Link clickable
-  const linkCell = range.getCell(1, 5);
+  // Style Status cell
+  const statusCell = range.getCell(1, 5);
+  const status     = statusCell.getValue() || 'Pending';
+  statusCell.setValue(status);
+  statusCell.setFontWeight('bold');
+  statusCell.setHorizontalAlignment('center');
+  statusCell.setBackground(status === 'Paid' ? '#dcfce7' : '#fef3c7');
+  statusCell.setFontColor(status === 'Paid' ? '#16a34a' : '#d97706');
+
+  // Make Drive Link clickable (now column 6)
+  const linkCell = range.getCell(1, 6);
   const url      = linkCell.getValue();
   if (url) {
     linkCell.setFormula(`=HYPERLINK("${url}","View Receipt")`);
     linkCell.setFontColor('#1a73e8');
+  }
+}
+
+// ── Update receipt status in the sheet when toggled in the app ────────────────
+function updateReceiptStatus(payload) {
+  try {
+    const ss      = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet   = ss.getSheetByName(RECEIPT_SHEET);
+    if (!sheet) return json({ error: 'Receipts sheet not found' });
+
+    const data      = sheet.getDataRange().getValues();
+    const hdr       = data[0].map(h => String(h).trim());
+    const linkCol   = hdr.indexOf('Drive Link');
+    const statusCol = hdr.indexOf('Status');
+    if (linkCol < 0 || statusCol < 0) return json({ error: 'Column not found' });
+
+    const newStatus  = payload.status === 'paid' ? 'Paid' : 'Pending';
+    const driveUrl   = payload.driveUrl || '';
+
+    for (let i = 1; i < data.length; i++) {
+      const cellVal = String(data[i][linkCol] || '');
+      if (cellVal.includes(driveUrl) || driveUrl.includes(cellVal.replace(/.*"(https[^"]+)".*/, '$1'))) {
+        const statusCell = sheet.getRange(i + 1, statusCol + 1);
+        statusCell.setValue(newStatus);
+        statusCell.setFontWeight('bold');
+        statusCell.setHorizontalAlignment('center');
+        statusCell.setBackground(newStatus === 'Paid' ? '#dcfce7' : '#fef3c7');
+        statusCell.setFontColor(newStatus === 'Paid' ? '#16a34a' : '#d97706');
+        return json({ success: true });
+      }
+    }
+    return json({ error: 'Receipt row not found' });
+  } catch (err) {
+    return json({ error: err.toString() });
   }
 }
 
@@ -275,7 +314,8 @@ function setupReceiptSheet(sheet) {
   sheet.setColumnWidth(2, 160); // Vendor
   sheet.setColumnWidth(3, 180); // Category
   sheet.setColumnWidth(4, 100); // Amount
-  sheet.setColumnWidth(5, 130); // Drive Link
+  sheet.setColumnWidth(5, 100); // Status
+  sheet.setColumnWidth(6, 130); // Drive Link
 }
 
 // ── Summary tab — totals by vendor and by category ───────────────────────────
