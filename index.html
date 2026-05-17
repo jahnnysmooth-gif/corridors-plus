@@ -2015,6 +2015,8 @@ function renderFloor(floor) {
                             style="width:34px;height:34px;border-radius:8px;border:1.5px solid #e0e0e0;background:${idx===0?'#f5f5f5':'white'};font-size:16px;cursor:${idx===0?'default':'pointer'};color:${idx===0?'#ccc':'#1a3a5c'}">↑</button>
                         <button onclick="moveFloorItem('${floor.id}',${idx},1)" ${idx === floor.items.length-1 ? 'disabled' : ''}
                             style="width:34px;height:34px;border-radius:8px;border:1.5px solid #e0e0e0;background:${idx===floor.items.length-1?'#f5f5f5':'white'};font-size:16px;cursor:${idx===floor.items.length-1?'default':'pointer'};color:${idx===floor.items.length-1?'#ccc':'#1a3a5c'}">↓</button>
+                        <button onclick="deleteFloorItemInEdit('${floor.id}','${item.id}')"
+                            style="width:34px;height:34px;border-radius:8px;border:1.5px solid #fee2e2;background:#fff5f5;font-size:15px;cursor:pointer;color:#dc2626">🗑️</button>
                     </div>
                 </div>`;
             });
@@ -2597,13 +2599,11 @@ function applyOrderToAllFloors(floorId) {
     const template = state.floors.find(f => f.id === floorId);
     if (!template) return;
     const others = state.floors.filter(f => f.id !== floorId);
-    if (!confirm(`Apply this floor's item order to all ${others.length} other floors?\n\nItems are matched by name. Items with no match in the template are moved to the end. No data will be changed.`)) return;
+    if (!confirm(`Sync all ${others.length} other floors to match this floor's item list and order?\n\n• Missing items will be added\n• Items not in this template (with no logged hours) will be removed\n• Items with logged hours are never deleted`)) return;
 
-    // Build a lowercase name → display name map from template
     const templateOrder = template.items.map(i => i.name.trim().toLowerCase());
 
     others.forEach(f => {
-        // Match each floor item to a template item by name
         const matched   = [];
         const unmatched = [];
         f.items.forEach(item => {
@@ -2613,8 +2613,10 @@ function applyOrderToAllFloors(floorId) {
             else unmatched.push(item);
         });
 
-        // Sort matched items by their template position
         matched.sort((a, b) => a.pos - b.pos);
+
+        // Keep unmatched items only if they have logged hours (protect data)
+        const keepUnmatched = unmatched.filter(item => (item.hoursLog || []).length > 0);
 
         // Add any template items that don't exist on this floor yet
         const existingKeys = new Set(f.items.map(i => i.name.trim().toLowerCase()));
@@ -2622,8 +2624,8 @@ function applyOrderToAllFloors(floorId) {
             .filter(ti => !existingKeys.has(ti.name.trim().toLowerCase()))
             .map(ti => ({ id: uid(), name: ti.name, hoursLog: [], status: 'pending' }));
 
-        // Insert missing items at their correct template positions
-        const allItems = [...matched.map(m => m.item), ...unmatched];
+        // Build ordered list: matched in template order, kept unmatched at end
+        const allItems = [...matched.map(m => m.item), ...keepUnmatched];
         missing.forEach(newItem => {
             const pos = templateOrder.indexOf(newItem.name.trim().toLowerCase());
             allItems.splice(pos, 0, newItem);
@@ -2633,7 +2635,7 @@ function applyOrderToAllFloors(floorId) {
     });
 
     persist();
-    alert(`Done! Order applied to ${others.length} floor${others.length !== 1 ? 's' : ''}. No existing data was changed.`);
+    alert(`Done! All ${others.length} floor${others.length !== 1 ? 's' : ''} synced to this template.`);
     document.getElementById('app').innerHTML = renderFloor(template);
 }
 
@@ -2658,6 +2660,20 @@ function renameFloorItem(floorId, itemId) {
         const inp = document.getElementById('rename_input');
         if (inp) { inp.focus(); inp.select(); }
     }, 150);
+}
+
+function deleteFloorItemInEdit(floorId, itemId) {
+    const floor = state.floors.find(f => f.id === floorId);
+    const item  = floor?.items.find(i => i.id === itemId);
+    if (!item) return;
+    const hasData = (item.hoursLog || []).length > 0;
+    const msg = hasData
+        ? `Delete "${item.name}"?\n\nThis item has logged hours — all data will be permanently lost.`
+        : `Delete "${item.name}" from this floor?`;
+    if (!confirm(msg)) return;
+    floor.items = floor.items.filter(i => i.id !== itemId);
+    persist();
+    document.getElementById('app').innerHTML = renderFloor(floor);
 }
 
 // ── Add item ──────────────────────────────────────────────────────────────────
