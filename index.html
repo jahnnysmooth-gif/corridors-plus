@@ -5351,26 +5351,6 @@ function renderReport(date) {
         <button class="btn btn-secondary" style="flex:1" onclick="printDailyNotes('${date}')">&#8681; Print</button>
     </div>`;
 
-    // ── Claude Daily Report
-    const cr = report.claudeReport || null;
-    html += `<div class="section-header" style="margin-top:8px">
-        <span class="section-title">Daily Report</span>
-        ${cr ? `<button class="notes-edit-btn" onclick="generateDailyReport('${date}')">Regenerate</button>` : ''}
-    </div>`;
-    if (cr) {
-        html += `<div class="notes-card">
-            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#1a3a5c;margin-bottom:8px">Summary</div>
-            <div class="notes-card-text">${(cr.summary||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>')}</div>
-            ${cr.nextDayPlan ? `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#1a3a5c;margin:14px 0 8px">Next Day Plan</div>
-            <div class="notes-card-text">${cr.nextDayPlan.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>')}</div>` : ''}
-        </div>`;
-    } else {
-        html += `<div class="report-section" style="text-align:center;padding:16px 0">
-            <button class="btn btn-primary" style="width:100%" id="gen_report_btn" onclick="generateDailyReport('${date}')">&#10024; Generate Daily Report</button>
-            <div style="font-size:12px;color:#aaa;margin-top:8px">Claude will write a summary and next-day plan</div>
-        </div>`;
-    }
-
     return html;
 }
 
@@ -5381,59 +5361,6 @@ function saveReportNotes(date, notes) {
     persist();
 }
 
-async function generateDailyReport(date) {
-    const gasUrl = localStorage.getItem('hallway_sheets_url');
-    if (!gasUrl) { alert('Connect to Google Sheets first.'); return; }
-
-    const btn = document.getElementById('gen_report_btn') || [...document.querySelectorAll('.notes-edit-btn')].find(b => b.textContent === 'Regenerate');
-    if (btn) { btn.disabled = true; btn.textContent = '⏳ Generating…'; }
-
-    // Collect crew on site for this date
-    const att  = (state.attendance||[]).find(a => a.date === date);
-    const crew = (att?.workerIds||[]).map(id => {
-        const w = (state.crew||[]).find(c => c.id === id);
-        return w ? { name: w.name, trade: w.trade||'' } : null;
-    }).filter(Boolean);
-
-    // Collect work logged per floor
-    const floors = (state.floors||[]).map(f => {
-        const entries = (f.items||[]).flatMap(i =>
-            (i.hoursLog||[]).filter(e => e.date === date).map(e => ({
-                itemName:     i.name,
-                status:       i.status || 'pending',
-                skilled:      e.skilled||0,
-                skilledHours: e.skilledHours||0,
-                laborer:      e.laborer||0,
-                laborerHours: e.laborerHours||0,
-                manHours:     entryManHours(e),
-                note:         e.note||'',
-                workerNames:  (e.workerIds||[]).map(id => (state.crew||[]).find(c=>c.id===id)?.name).filter(Boolean)
-            }))
-        );
-        const allItems = (f.items||[]).map(i => ({ name: i.name, status: i.status||'pending' }));
-        return { name: f.name, entries, allItems };
-    }).filter(f => f.entries.length > 0 || f.allItems.some(i => i.status === 'active'));
-
-    const notes = (state.reports||{})[date]?.notes || '';
-
-    try {
-        const resp = await fetch(gasUrl, {
-            method: 'POST',
-            body: JSON.stringify({ type: 'daily_report', date, projectName: 'Georgetown Plaza', crew, floors, notes,
-                defaultItemOrder: DEFAULT_ITEMS })
-        });
-        const result = await resp.json();
-        if (result.error) throw new Error(result.error);
-        if (!state.reports) state.reports = {};
-        if (!state.reports[date]) state.reports[date] = {};
-        state.reports[date].claudeReport = result.report;
-        persist();
-        document.getElementById('app').innerHTML = renderReport(date);
-    } catch(err) {
-        alert('Failed to generate report: ' + err.message);
-        if (btn) { btn.disabled = false; btn.textContent = btn.id === 'gen_report_btn' ? '✨ Generate Daily Report' : 'Regenerate'; }
-    }
-}
 
 function exportDailyReportPDF(date) {
     const att = (state.attendance||[]).find(a=>a.date===date);
@@ -5502,9 +5429,6 @@ function exportDailyReportPDF(date) {
     ${matRows ? `<h2>Materials Used</h2><table><thead><tr><th>Material</th><th>Quantity</th></tr></thead><tbody>${matRows}</tbody></table>` : ''}
 
     ${report.notes ? `<h2>Notes</h2><div class="notes">${report.notes}</div>` : ''}
-
-    ${report.claudeReport?.summary ? `<h2>Summary</h2><div class="notes">${report.claudeReport.summary}</div>` : ''}
-    ${report.claudeReport?.nextDayPlan ? `<h2>Next Day Plan</h2><div class="notes">${report.claudeReport.nextDayPlan}</div>` : ''}
 
     <div class="footer">Generated by Corridor's Plus &nbsp;·&nbsp; ${new Date().toLocaleString()}</div>
     <script>window.onload=()=>window.print();<\/script>
