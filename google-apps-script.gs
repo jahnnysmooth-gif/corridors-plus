@@ -1039,6 +1039,12 @@ function handlePayroll(payload) {
     for (var ci = 3; ci <= numCols - 1; ci++) sheet.setColumnWidth(ci, 78);
     sheet.setColumnWidth(numCols, 95);
 
+    // Remove unused rows and columns so the sheet is clean
+    const maxRows = sheet.getMaxRows();
+    if (maxRows > numDataRows) sheet.deleteRows(numDataRows + 1, maxRows - numDataRows);
+    const maxCols = sheet.getMaxColumns();
+    if (maxCols > numCols) sheet.deleteColumns(numCols + 1, maxCols - numCols);
+
     SpreadsheetApp.flush();
 
     const spreadsheetUrl = ss.getUrl();
