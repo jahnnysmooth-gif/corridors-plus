@@ -3677,7 +3677,7 @@ function uploadReceiptToDrive(receiptId, dataUrl, category, vendor, amount) {
     if (!gasUrl) return;
     const filename = `${(category||'Receipt').replace(/\s+/g,'-')}_${today()}${vendor ? '_' + vendor.replace(/\s+/g,'-') : ''}${amount ? '_$'+Number(amount).toFixed(2) : ''}.jpg`;
     const ctrl     = new AbortController();
-    const timer    = setTimeout(() => ctrl.abort(), 30000); // 30s timeout
+    const timer    = setTimeout(() => ctrl.abort(), 60000); // 60s timeout (Claude analysis adds time)
 
     fetch(gasUrl, {
         method:  'POST',
@@ -3692,6 +3692,10 @@ function uploadReceiptToDrive(receiptId, dataUrl, category, vendor, amount) {
         if (res.url) {
             state.receipts[idx].driveUrl  = res.url;
             state.receipts[idx].driveErr  = null;
+            // Auto-fill fields Claude extracted from the image
+            if (res.vendor   && !state.receipts[idx].vendor)   state.receipts[idx].vendor   = res.vendor;
+            if (res.amount   && !state.receipts[idx].amount)   state.receipts[idx].amount   = res.amount;
+            if (res.category && !state.receipts[idx].category) state.receipts[idx].category = res.category;
         } else {
             state.receipts[idx].driveErr = res.error || 'Upload failed';
         }

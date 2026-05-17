@@ -57,7 +57,7 @@ function doPost(e) {
   }
 }
 
-// ── Receipt upload — save image to Drive folder ───────────────────────────────
+// ── Receipt upload — analyze with Claude then save to subfolder ───────────────
 function uploadReceipt(payload) {
   try {
     if (!payload.data) return json({ error: 'No image data received.' });
@@ -65,17 +65,102 @@ function uploadReceipt(payload) {
     const parts    = payload.data.split(',');
     const mimeType = parts[0].split(';')[0].split(':')[1] || 'image/jpeg';
     const base64   = parts[1];
-    const bytes    = Utilities.base64Decode(base64);
-    const blob     = Utilities.newBlob(bytes, mimeType, payload.filename || 'receipt.jpg');
 
-    const folder = DriveApp.getFolderById(RECEIPTS_FOLDER_ID);
+    // Ask Claude to analyze the receipt
+    const analysis = analyzeReceiptWithClaude(base64, mimeType);
+
+    // Build filename from analysis
+    const vendor   = analysis.vendor   || payload.vendor   || 'Unknown';
+    const amount   = analysis.amount   || payload.amount   || null;
+    const category = analysis.category || payload.category || 'Other';
+    const dateStr  = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    const amtStr   = amount ? '_$' + Number(amount).toFixed(2) : '';
+    const filename = `${category.replace(/\s+/g,'-')}_${dateStr}_${vendor.replace(/\s+/g,'-')}${amtStr}.jpg`;
+
+    // Save to the appropriate subfolder
+    const bytes  = Utilities.base64Decode(base64);
+    const blob   = Utilities.newBlob(bytes, mimeType, filename);
+    const folder = getOrCreateSubfolder(category);
     const file   = folder.createFile(blob);
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
-    return json({ success: true, url: file.getUrl(), fileId: file.getId() });
+    return json({
+      success:  true,
+      url:      file.getUrl(),
+      fileId:   file.getId(),
+      vendor,
+      amount,
+      category,
+    });
   } catch (err) {
     return json({ error: err.toString() });
   }
+}
+
+// ── Call Claude API to read the receipt image ─────────────────────────────────
+function analyzeReceiptWithClaude(base64, mimeType) {
+  try {
+    const apiKey = PropertiesService.getScriptProperties().getProperty('RECEIPT_API_KEY');
+    if (!apiKey) return {};
+
+    const response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+      method:  'post',
+      headers: {
+        'x-api-key':         apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type':      'application/json',
+      },
+      payload: JSON.stringify({
+        model:      'claude-haiku-4-5-20251001',
+        max_tokens: 256,
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type:   'image',
+              source: { type: 'base64', media_type: mimeType, data: base64 },
+            },
+            {
+              type: 'text',
+              text: `You are reading a contractor's receipt or invoice. Extract the key details and respond ONLY with a JSON object — no explanation, no markdown.
+
+Return exactly this shape:
+{
+  "vendor": "store or company name",
+  "amount": 123.45,
+  "category": "one of: Materials & Supplies | Tools & Equipment | Subcontractors | Food & Meals | Other"
+}
+
+Rules:
+- vendor: the business name on the receipt (e.g. "Home Depot", "Grainger")
+- amount: the total amount paid as a number, no $ sign. null if not visible.
+- category: pick the best match from the five options above based on what was purchased.`
+            }
+          ]
+        }]
+      }),
+      muteHttpExceptions: true,
+    });
+
+    const result = JSON.parse(response.getContentText());
+    const text   = result?.content?.[0]?.text || '{}';
+    // Strip any accidental markdown fences
+    const clean  = text.replace(/```json|```/g, '').trim();
+    return JSON.parse(clean);
+  } catch (err) {
+    Logger.log('Claude analysis failed: ' + err.toString());
+    return {};
+  }
+}
+
+// ── Get or create a subfolder inside the receipts folder ─────────────────────
+function getOrCreateSubfolder(category) {
+  const parent    = DriveApp.getFolderById(RECEIPTS_FOLDER_ID);
+  const existing  = parent.getFoldersByName(category);
+  if (existing.hasNext()) return existing.next();
+  const subfolder = parent.createFolder(category);
+  subfolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return subfolder;
 }
 
 // ── Materials sync — update/add/delete/archive rows in Master sheet ───────────
