@@ -756,6 +756,100 @@ function setRowColors() {
   Logger.log('Row colors applied! Low stock = red, Ordered = green, trade groups color-coded.');
 }
 
+// ── Custom menu ───────────────────────────────────────────────────────────────
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu("Corridor's Plus")
+    .addItem('Export Monthly Receipts PDF', 'exportMonthlyPDF')
+    .addToUi();
+}
+
+// ── Export current month's receipts as a PDF saved to Drive ───────────────────
+function exportMonthlyPDF() {
+  const ui       = SpreadsheetApp.getUi();
+  const tz       = Session.getScriptTimeZone();
+  const now      = new Date();
+  const monthKey = Utilities.formatDate(now, tz, 'yyyy-MM');       // "2026-05"
+  const label    = Utilities.formatDate(now, tz, 'MMMM yyyy');     // "May 2026"
+
+  const ss      = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const srcSheet = ss.getSheetByName(RECEIPT_SHEET);
+  if (!srcSheet) { ui.alert('No Receipts sheet found.'); return; }
+
+  const allData = srcSheet.getDataRange().getValues();
+  const headers = allData[0];
+
+  // Filter rows that belong to this month (Date column starts with yyyy-MM)
+  const monthRows = allData.slice(1).filter(r => String(r[0]).startsWith(monthKey));
+  if (monthRows.length === 0) {
+    ui.alert('No receipts found for ' + label + '.');
+    return;
+  }
+
+  // Create a temporary sheet for the export
+  const tmpName  = '_PDF_Export_Tmp';
+  let   tmpSheet = ss.getSheetByName(tmpName);
+  if (tmpSheet) ss.deleteSheet(tmpSheet);
+  tmpSheet = ss.insertSheet(tmpName);
+
+  // Write title, headers, and data rows
+  tmpSheet.appendRow(['Corridor\'s Plus — Receipts: ' + label]);
+  tmpSheet.appendRow([]);
+  tmpSheet.appendRow(headers);
+  monthRows.forEach(r => tmpSheet.appendRow(r));
+
+  // Style title
+  const titleRange = tmpSheet.getRange(1, 1, 1, headers.length);
+  titleRange.merge();
+  titleRange.setValue('Corridor\'s Plus — Receipts: ' + label);
+  titleRange.setFontSize(14).setFontWeight('bold').setBackground('#1a3a5c').setFontColor('#ffffff');
+
+  // Style header row
+  const hdrRange = tmpSheet.getRange(3, 1, 1, headers.length);
+  hdrRange.setFontWeight('bold').setBackground('#334155').setFontColor('#ffffff').setFontSize(11);
+
+  // Format amount column
+  const amtCol = headers.indexOf('Amount') + 1;
+  if (amtCol > 0 && monthRows.length > 0) {
+    tmpSheet.getRange(4, amtCol, monthRows.length, 1).setNumberFormat('$#,##0.00');
+  }
+
+  // Total row
+  let totalAmt = 0;
+  monthRows.forEach(r => { totalAmt += parseFloat(r[headers.indexOf('Amount')]) || 0; });
+  const totalRow = new Array(headers.length).fill('');
+  totalRow[0] = 'TOTAL';
+  if (amtCol > 0) totalRow[amtCol - 1] = totalAmt;
+  tmpSheet.appendRow(totalRow);
+  const totRange = tmpSheet.getRange(4 + monthRows.length, 1, 1, headers.length);
+  totRange.setFontWeight('bold').setBackground('#1a3a5c').setFontColor('#ffffff');
+  if (amtCol > 0) totRange.getCell(1, amtCol).setNumberFormat('$#,##0.00');
+
+  tmpSheet.autoResizeColumns(1, headers.length);
+  SpreadsheetApp.flush();
+
+  // Export the temp sheet as PDF via the Sheets export URL
+  const sheetId = tmpSheet.getSheetId();
+  const pdfUrl  = 'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID +
+    '/export?format=pdf&gid=' + sheetId +
+    '&size=letter&portrait=true&fitw=true' +
+    '&sheetnames=false&printtitle=false&pagenumbers=false&gridlines=false&fzr=false';
+
+  const token    = ScriptApp.getOAuthToken();
+  const response = UrlFetchApp.fetch(pdfUrl, { headers: { Authorization: 'Bearer ' + token } });
+  const pdfBlob  = response.getBlob().setName('Receipts_' + monthKey + '.pdf');
+
+  // Save to Drive receipts folder
+  const folder = DriveApp.getFolderById(RECEIPTS_FOLDER_ID);
+  const file   = folder.createFile(pdfBlob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+  // Clean up temp sheet
+  ss.deleteSheet(tmpSheet);
+
+  ui.alert('PDF exported!\n\nFile: Receipts_' + monthKey + '.pdf\n\nOpen it here:\n' + file.getUrl());
+}
+
 // ── Helper: convert column number to letter (e.g. 1 → A, 27 → AA) ─────────────
 function columnLetter(col) {
   let letter = '';
