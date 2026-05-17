@@ -2058,7 +2058,15 @@ function renderItem(floor, item) {
         <button class="status-btn ${status==='pending'?'active-pending':''}" onclick="setStatus('${floor.id}','${item.id}','pending')">Not Started</button>
         <button class="status-btn ${status==='active'?'active-active':''}"  onclick="setStatus('${floor.id}','${item.id}','active')">In Progress</button>
         <button class="status-btn ${status==='done'?'active-done':''}"    onclick="setStatus('${floor.id}','${item.id}','done')">Done</button>
-    </div>`;
+    </div>
+    ${status === 'active' ? `<div style="display:flex;align-items:center;gap:10px;margin:8px 0 4px;padding:0 2px">
+        <span style="font-size:13px;color:#666;font-weight:600;white-space:nowrap">% Complete</span>
+        <input type="range" min="1" max="99" value="${item.progress || 50}"
+            style="flex:1;accent-color:#1a3a5c"
+            oninput="document.getElementById('prog_val_${item.id}').textContent=this.value+'%'"
+            onchange="saveItemProgress('${floor.id}','${item.id}',this.value)" />
+        <span id="prog_val_${item.id}" style="font-size:14px;font-weight:700;color:#1a3a5c;min-width:38px;text-align:right">${item.progress || 50}%</span>
+    </div>` : ''}`;
 
     // Quick log
     html += `<div class="quick-log-card">
@@ -2289,7 +2297,15 @@ function setQlDateFromPicker(val) {
     document.getElementById('date_picker_wrap')?.classList.remove('open');
 }
 
-// ── Status ────────────────────────────────────────────────────────────────────
+// ── Status & progress ─────────────────────────────────────────────────────────
+function saveItemProgress(floorId, itemId, val) {
+    const floor = state.floors.find(f => f.id === floorId);
+    const item  = floor?.items.find(i => i.id === itemId);
+    if (!item) return;
+    item.progress = Math.min(99, Math.max(1, parseInt(val) || 50));
+    persist();
+}
+
 function setStatus(floorId, itemId, status) {
     const floor = state.floors.find(f => f.id === floorId);
     const item  = floor.items.find(i => i.id === itemId);
@@ -2328,32 +2344,6 @@ function quickStatusPicker(e, floorId, itemId) {
     title.textContent = item.name;
     menu.appendChild(title);
 
-    // Progress section — shown when status is/becomes 'active'
-    const progSection = document.createElement('div');
-    progSection.id = '_qsp_prog';
-
-    function renderProgSection(activeStatus) {
-        progSection.innerHTML = '';
-        if (activeStatus !== 'active') return;
-        const cur = item.progress != null ? item.progress : '';
-        const wrap = document.createElement('div');
-        wrap.style.cssText = 'padding:4px 10px 6px';
-        wrap.innerHTML = `<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">% Complete</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
-                ${[25,50,75,90].map(p => `<button type="button" onclick="setItemProgress('${floorId}','${itemId}',${p})" style="flex:1;padding:6px 0;border-radius:8px;border:1.5px solid ${cur===p?'#1a3a5c':'#e0e0e0'};background:${cur===p?'#1a3a5c':'white'};color:${cur===p?'white':'#374151'};font-size:13px;font-weight:700;cursor:pointer">${p}%</button>`).join('')}
-            </div>
-            <div style="display:flex;align-items:center;gap:8px">
-                <input type="number" id="_qsp_custom" min="1" max="99" placeholder="Custom %" value="${typeof cur==='number'?cur:''}"
-                    style="flex:1;padding:7px 10px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:13px;outline:none;-moz-appearance:textfield"
-                    oninput="setItemProgress('${floorId}','${itemId}',parseInt(this.value)||null,true)" />
-                <span style="font-size:12px;color:#888">%</span>
-            </div>`;
-        progSection.appendChild(wrap);
-    }
-
-    let activeStatus = current;
-    renderProgSection(activeStatus);
-
     options.forEach(opt => {
         const btn = document.createElement('button');
         btn.type = 'button';
@@ -2361,30 +2351,18 @@ function quickStatusPicker(e, floorId, itemId) {
         btn.textContent = opt.label;
         btn.onclick = function(ev) {
             ev.stopPropagation();
-            // highlight selected
-            menu.querySelectorAll('button[data-sopt]').forEach(b => {
-                b.style.fontWeight = '500'; b.style.background = 'transparent';
-            });
-            btn.style.fontWeight = '700'; btn.style.background = '#f0f4ff';
-            activeStatus = opt.value;
-            renderProgSection(activeStatus);
-            // clear progress when not in-progress
-            if (opt.value !== 'active') { delete item.progress; }
+            if (opt.value !== 'active') delete item.progress;
             setStatus(floorId, itemId, opt.value);
-            if (opt.value !== 'active') menu.remove();
+            menu.remove();
         };
-        btn.dataset.sopt = opt.value;
         menu.appendChild(btn);
     });
-
-    menu.appendChild(progSection);
-    renderProgSection(current);
 
     // Position near tap/click
     const x = e.clientX || (e.touches && e.touches[0]?.clientX) || window.innerWidth / 2;
     const y = e.clientY || (e.touches && e.touches[0]?.clientY) || window.innerHeight / 2;
-    menu.style.left = Math.min(x, window.innerWidth  - 210) + 'px';
-    menu.style.top  = Math.min(y, window.innerHeight - 280) + 'px';
+    menu.style.left = Math.min(x, window.innerWidth  - 190) + 'px';
+    menu.style.top  = Math.min(y, window.innerHeight - 160) + 'px';
 
     document.body.appendChild(menu);
     setTimeout(() => document.addEventListener('click', function dismiss() {
@@ -2392,23 +2370,6 @@ function quickStatusPicker(e, floorId, itemId) {
     }), 10);
 }
 
-function setItemProgress(floorId, itemId, val, noRender) {
-    const floor = state.floors.find(f => f.id === floorId);
-    const item  = floor?.items.find(i => i.id === itemId);
-    if (!item) return;
-    if (val == null || isNaN(val)) { delete item.progress; }
-    else { item.progress = Math.min(99, Math.max(1, val)); }
-    persist();
-    if (!noRender) { document.getElementById('_qsp')?.remove(); render(); }
-    else {
-        // just refresh the tile progress bar without closing the menu
-        const tiles = document.querySelectorAll('[data-hold-item="' + itemId + '"]');
-        tiles.forEach(tile => {
-            const bar = tile.querySelector('[data-prog-bar]');
-            if (bar) bar.style.width = (item.progress || 0) + '%';
-        });
-    }
-}
 
 // Long-press support for touch devices
 (function() {
