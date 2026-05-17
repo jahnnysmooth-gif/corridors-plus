@@ -75,33 +75,49 @@ function uploadReceipt(payload) {
     const amtStr   = amount ? '_$' + Number(amount).toFixed(2) : '';
     const filename = `${category.replace(/\s+/g,'-')}_${dateStr}_${vendor.replace(/\s+/g,'-')}${amtStr}.jpg`;
 
-    // Save to the appropriate subfolder (use receipt date for correct month folder)
-    const bytes  = Utilities.base64Decode(base64);
-    const blob   = Utilities.newBlob(bytes, mimeType, filename);
-    const folder = getOrCreateSubfolder(category, dateStr);
-    const file   = folder.createFile(blob);
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    // Save files to Drive
+    const bytes      = Utilities.base64Decode(base64);
+    const blob       = Utilities.newBlob(bytes, mimeType, filename);
+    const monthFolder = getOrCreateSubfolder(category, dateStr);
+    let   driveUrl;
 
-    // Upload any extra pages to the same folder
-    extraPages.forEach(function(page) {
-      try {
-        const ep     = page.data.split(',');
-        const epMime = ep[0].split(';')[0].split(':')[1] || 'image/jpeg';
-        const epB64  = ep[1];
-        const epBlob = Utilities.newBlob(Utilities.base64Decode(epB64), epMime, page.filename || 'page.jpg');
-        const epFile = folder.createFile(epBlob);
-        epFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-      } catch(e) { /* skip failed extra page */ }
-    });
+    if (extraPages.length > 0) {
+      // Multi-page receipt: create a per-receipt subfolder so all pages are together
+      const safeVendor    = vendor.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '-').substring(0, 30);
+      const rcFolderName  = `${safeVendor}_${dateStr}`;
+      const existingRcFolders = monthFolder.getFoldersByName(rcFolderName);
+      const rcFolder      = existingRcFolders.hasNext() ? existingRcFolders.next() : monthFolder.createFolder(rcFolderName);
+      rcFolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+      const mainFile = rcFolder.createFile(blob);
+      mainFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+      extraPages.forEach(function(page) {
+        try {
+          const ep     = page.data.split(',');
+          const epMime = ep[0].split(';')[0].split(':')[1] || 'image/jpeg';
+          const epB64  = ep[1];
+          const epBlob = Utilities.newBlob(Utilities.base64Decode(epB64), epMime, page.filename || 'page.jpg');
+          const epFile = rcFolder.createFile(epBlob);
+          epFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+        } catch(e) {}
+      });
+
+      driveUrl = rcFolder.getUrl(); // link to folder so all pages are visible
+    } else {
+      // Single-page: upload directly to month folder
+      const file = monthFolder.createFile(blob);
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      driveUrl = file.getUrl();
+    }
 
     // Log to the Receipts sheet
     const items = Array.isArray(analysis.items) ? analysis.items : [];
-    logReceiptToSheet({ date: dateStr, vendor, category, amount, url: file.getUrl(), items });
+    logReceiptToSheet({ date: dateStr, vendor, category, amount, url: driveUrl, items });
 
     return json({
       success:  true,
-      url:      file.getUrl(),
-      fileId:   file.getId(),
+      url:      driveUrl,
       vendor,
       amount,
       category,
@@ -408,9 +424,17 @@ function updateReceiptStatus(payload) {
     const newStatus  = payload.status === 'paid' ? 'Paid' : 'Pending';
     const driveUrl   = payload.driveUrl || '';
 
+    // getValues() returns display text for HYPERLINK formulas — use getFormulas() to get the actual URL
+    const lastRow    = sheet.getLastRow();
+    const formulas   = lastRow > 1
+      ? sheet.getRange(2, linkCol + 1, lastRow - 1, 1).getFormulas()
+      : [];
+
     for (let i = 1; i < data.length; i++) {
-      const cellVal = String(data[i][linkCol] || '');
-      if (cellVal.includes(driveUrl) || driveUrl.includes(cellVal.replace(/.*"(https[^"]+)".*/, '$1'))) {
+      const formula    = (formulas[i - 1] && formulas[i - 1][0]) || '';
+      const urlMatch   = formula.match(/HYPERLINK\("([^"]+)"/i);
+      const cellUrl    = urlMatch ? urlMatch[1] : String(data[i][linkCol] || '');
+      if (cellUrl && (cellUrl === driveUrl || cellUrl.includes(driveUrl) || driveUrl.includes(cellUrl))) {
         const statusCell = sheet.getRange(i + 1, statusCol + 1);
         statusCell.setValue(newStatus);
         statusCell.setFontWeight('bold');
