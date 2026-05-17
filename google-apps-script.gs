@@ -85,7 +85,8 @@ function uploadReceipt(payload) {
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
     // Log to the Receipts sheet
-    logReceiptToSheet({ date: dateStr, vendor, category, amount, url: file.getUrl() });
+    const items = Array.isArray(analysis.items) ? analysis.items : [];
+    logReceiptToSheet({ date: dateStr, vendor, category, amount, url: file.getUrl(), items });
 
     return json({
       success:  true,
@@ -115,7 +116,7 @@ function analyzeReceiptWithClaude(base64, mimeType) {
       },
       payload: JSON.stringify({
         model:      'claude-haiku-4-5-20251001',
-        max_tokens: 256,
+        max_tokens: 512,
         messages: [{
           role: 'user',
           content: [
@@ -131,13 +132,15 @@ Return exactly this shape:
 {
   "vendor": "store or company name",
   "amount": 123.45,
-  "category": "one of: Materials & Supplies | Tools & Equipment | Subcontractors | Food & Meals | Other"
+  "category": "one of: Materials & Supplies | Tools & Equipment | Subcontractors | Food & Meals | Other",
+  "items": ["qty x item name — $price", "qty x item name — $price"]
 }
 
 Rules:
 - vendor: the business name on the receipt (e.g. "Home Depot", "Grainger")
 - amount: the total amount paid as a number, no $ sign. null if not visible.
-- category: pick the best match from the five options above based on what was purchased.`
+- category: pick the best match from the five options above based on what was purchased.
+- items: list each line item as "qty x description — $price". Max 10 items. Empty array if not readable.`
             }
           ]
         }]
@@ -170,7 +173,13 @@ function getOrCreateSubfolder(category) {
 const RECEIPT_SHEET  = 'Receipts';
 const RECEIPT_HEADERS = ['Date', 'Vendor', 'Category', 'Amount', 'Drive Link'];
 
-// Category color map
+// Vendor color palette — assigned dynamically as new vendors appear
+const VENDOR_PALETTE = [
+  '#dbeafe', '#fce7f3', '#fef3c7', '#ccfbf1', '#ede9fe',
+  '#ffedd5', '#dcfce7', '#fef2f2', '#e0f2fe', '#fdf4ff',
+];
+
+// Category colors used in Summary tab only
 const CATEGORY_COLORS = {
   'Materials & Supplies': '#dbeafe',
   'Tools & Equipment':    '#ccfbf1',
@@ -179,56 +188,71 @@ const CATEGORY_COLORS = {
   'Other':                '#f3f4f6',
 };
 
-function logReceiptToSheet({ date, vendor, category, amount, url }) {
+function getVendorColor(vendor) {
+  const props     = PropertiesService.getScriptProperties();
+  const mapJson   = props.getProperty('VENDOR_COLOR_MAP') || '{}';
+  const map       = JSON.parse(mapJson);
+  const key       = vendor.trim().toLowerCase();
+  if (!map[key]) {
+    const usedCount = Object.keys(map).length;
+    map[key] = VENDOR_PALETTE[usedCount % VENDOR_PALETTE.length];
+    props.setProperty('VENDOR_COLOR_MAP', JSON.stringify(map));
+  }
+  return map[key];
+}
+
+function logReceiptToSheet({ date, vendor, category, amount, url, items }) {
   const ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
   let   sheet = ss.getSheetByName(RECEIPT_SHEET);
 
-  // Create the sheet if it doesn't exist
   if (!sheet) {
     sheet = ss.insertSheet(RECEIPT_SHEET);
     setupReceiptSheet(sheet);
   }
 
-  const data       = sheet.getDataRange().getValues();
-  const numRows    = data.length;
-  const vendorCol  = 1; // column B (0-indexed)
-  const bgColor    = CATEGORY_COLORS[category] || '#f9fafb';
+  const data      = sheet.getDataRange().getValues();
+  const numRows   = data.length;
+  const vendorCol = 1;
+  const bgColor   = getVendorColor(vendor);
 
-  // Find the last row belonging to this vendor (case-insensitive)
+  // Find the last row belonging to this vendor
   let insertAfter = -1;
   for (let i = numRows - 1; i >= 1; i--) {
     if (String(data[i][vendorCol] || '').trim().toLowerCase() === vendor.trim().toLowerCase()) {
-      insertAfter = i + 1; // 1-based sheet row
+      insertAfter = i + 1;
       break;
     }
   }
 
   const newRow = [date, vendor, category, amount ? Number(amount) : '', url];
+  let   range;
 
   if (insertAfter > 0) {
-    // Insert directly after the last matching vendor row
     sheet.insertRowAfter(insertAfter);
-    const range = sheet.getRange(insertAfter + 1, 1, 1, RECEIPT_HEADERS.length);
+    range = sheet.getRange(insertAfter + 1, 1, 1, RECEIPT_HEADERS.length);
     range.setValues([newRow]);
-    styleReceiptRow(range, bgColor, amount);
   } else {
-    // Vendor not seen before — append at the bottom
     sheet.appendRow(newRow);
     const lastRow = sheet.getLastRow();
-    const range   = sheet.getRange(lastRow, 1, 1, RECEIPT_HEADERS.length);
-    styleReceiptRow(range, bgColor, amount);
+    range = sheet.getRange(lastRow, 1, 1, RECEIPT_HEADERS.length);
   }
 
-  // Refresh the Summary tab
+  styleReceiptRow(range, bgColor, items);
   refreshSummarySheet(ss);
 }
 
-function styleReceiptRow(range, bgColor, amount) {
+function styleReceiptRow(range, bgColor, items) {
   range.setBackground(bgColor);
   range.setFontSize(11);
   range.setVerticalAlignment('middle');
-  // Format amount column as currency
   range.getCell(1, 4).setNumberFormat('$#,##0.00');
+
+  // Add line items as a hover note on the Amount cell
+  if (items && items.length > 0) {
+    const note = 'Items purchased:\n' + items.map(i => '• ' + i).join('\n');
+    range.getCell(1, 4).setNote(note);
+  }
+
   // Make Drive Link clickable
   const linkCell = range.getCell(1, 5);
   const url      = linkCell.getValue();
