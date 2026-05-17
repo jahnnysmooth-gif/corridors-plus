@@ -1062,8 +1062,13 @@ function floorManHours(floor) {
 
 function floorProgress(floor) {
     if (!(floor.items || []).length) return 0;
-    const done = floor.items.filter(i => (i.status || 'pending') === 'done').length;
-    return Math.round((done / floor.items.length) * 100);
+    const total = floor.items.reduce((s, i) => {
+        const st = i.status || 'pending';
+        if (st === 'done')    return s + 100;
+        if (st === 'active')  return s + (i.progress || 0);
+        return s;
+    }, 0);
+    return Math.round(total / floor.items.length);
 }
 
 function getWeekRange(offsetWeeks) {
@@ -1923,12 +1928,13 @@ function renderFloor(floor) {
     const skilledMH = floorSkilledMH(floor);
     const laborerMH = floorLaborerMH(floor);
     const sessions  = (floor.items || []).reduce((s, i) => s + (i.hoursLog || []).length, 0);
-    const done      = floor.items.filter(i => (i.status || 'pending') === 'done').length;
+    const done    = floor.items.filter(i => (i.status || 'pending') === 'done').length;
+    const pct     = floorProgress(floor);
 
     let html = `<div class="stats-row">
         <div class="stat-card"><div class="stat-value">${hrs}</div><div class="stat-label">Man-Hours</div></div>
         <div class="stat-card"><div class="stat-value">${sessions}</div><div class="stat-label">Sessions</div></div>
-        <div class="stat-card"><div class="stat-value">${done}/${floor.items.length}</div><div class="stat-label">Done</div></div>
+        <div class="stat-card"><div class="stat-value">${pct}%</div><div class="stat-label">Complete (${done}/${floor.items.length} done)</div></div>
     </div>
     <div class="stats-row" style="grid-template-columns:1fr 1fr;margin-bottom:8px">
         <div class="stat-card"><div class="stat-value">${skilledMH}</div><div class="stat-label">Skilled MH</div></div>
