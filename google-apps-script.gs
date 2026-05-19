@@ -760,10 +760,10 @@ function setRowColors() {
 
   const rules = [];
 
-  // Priority 1: Low stock — red
+  // Priority 1: Ordered — green (highest priority, overrides low stock)
   rules.push(SpreadsheetApp.newConditionalFormatRule()
-    .whenFormulaSatisfied(`=AND($${onHandLetter}2<>"",$${minStockLetter}2<>"",$${minStockLetter}2>0,VALUE($${onHandLetter}2)<VALUE($${minStockLetter}2))`)
-    .setBackground('#FF0000')
+    .whenFormulaSatisfied(`=ISNUMBER(SEARCH("ordered",$${statusLetter}2))`)
+    .setBackground('#008000')
     .setFontColor('#FFFFFF')
     .setRanges([range])
     .build());
@@ -776,10 +776,10 @@ function setRowColors() {
     .setRanges([range])
     .build());
 
-  // Priority 3: Ordered — green
+  // Priority 3: Low stock — red
   rules.push(SpreadsheetApp.newConditionalFormatRule()
-    .whenFormulaSatisfied(`=ISNUMBER(SEARCH("ordered",$${statusLetter}2))`)
-    .setBackground('#008000')
+    .whenFormulaSatisfied(`=AND($${onHandLetter}2<>"",$${minStockLetter}2<>"",$${minStockLetter}2>0,VALUE($${onHandLetter}2)<VALUE($${minStockLetter}2))`)
+    .setBackground('#FF0000')
     .setFontColor('#FFFFFF')
     .setRanges([range])
     .build());
@@ -792,7 +792,7 @@ function setRowColors() {
     ['Carpentry',    '#fef3c7'],
     ['Electrical',   '#cffafe'],
     ['Misc.',        '#f3f4f6'],
-    ['Tools',        '#ccfbf1'],
+    ['Tools',        '#fed7aa'],
   ];
 
   tradeColors.forEach(([trade, color]) => {
