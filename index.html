@@ -4621,10 +4621,13 @@ function initFirebase() {
             localStorage.setItem('hallway_tracker_v2', JSON.stringify(state));
             if (_tradeDirty) persist();
             render();
-        } else {
-            // Remote is empty or missing — push local data up and render
+        } else if (!snap.exists()) {
+            // Remote path truly doesn't exist — push local data up
             render();
             db.ref('projects/' + syncCode + '/state').set(state);
+        } else {
+            // Remote exists but returned null (likely a permissions/rules error) — keep local state
+            render();
         }
     });
 }
