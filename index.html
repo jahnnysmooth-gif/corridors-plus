@@ -964,6 +964,7 @@ function matDaysRemaining(mat) {
 }
 
 function persist() {
+    state.savedAt = Date.now();
     localStorage.setItem('hallway_tracker_v2', JSON.stringify(state));
     if (db && syncCode) {
         _localWrite = true;
@@ -4553,6 +4554,8 @@ function initFirebase() {
     db.ref('projects/' + syncCode + '/state').on('value', snap => {
         if (_localWrite) return;
         const remote = snap.val();
+        // Reject remote state that is older than what we already have locally
+        if (remote && remote.savedAt && state.savedAt && remote.savedAt < state.savedAt) return;
         if (remote && remote.floors && remote.floors.length > 0) {
             // Preserve local deletions that may not have reached Firebase yet
             const _localDeleted = [...(state.deletedMaterials || [])];
