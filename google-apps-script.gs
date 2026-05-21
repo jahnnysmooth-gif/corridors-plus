@@ -130,6 +130,12 @@ function uploadReceipt(payload) {
 }
 
 // ── Call Claude API to read all pages of the receipt ─────────────────────────
+// Maps known name variants to a single canonical vendor name
+const VENDOR_ALIASES = {
+  'janovic paint & decorating center': 'Janovic Paint & Decorating',
+  'janovic':                           'Janovic Paint & Decorating',
+};
+
 function normalizeVendor(raw) {
   if (!raw) return 'Unknown';
   let v = raw.trim();
@@ -137,6 +143,9 @@ function normalizeVendor(raw) {
   v = v.replace(/^The\s+/i, '');
   // Strip trailing store/location numbers like "#1234" or "Store 1234"
   v = v.replace(/\s+(?:Store\s*)?\#\d+$/i, '').trim();
+  // Apply alias map
+  const alias = VENDOR_ALIASES[v.toLowerCase()];
+  if (alias) v = alias;
   return v;
 }
 
