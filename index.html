@@ -2316,7 +2316,7 @@ function _qlWorkerChipsHtml(date) {
     const att     = (state.attendance || []).find(a => a.date === date);
     const crew    = state.crew || [];
     const present = att
-        ? (att.workerIds || []).map(id => crew.find(c => c.id === id)).filter(Boolean)
+        ? (att.workerIds || []).map(id => findWorker(id)).filter(Boolean)
         : crew;
     if (present.length === 0) return '';
     const label = att ? 'Who worked this task?' : 'Who worked this task? (all crew)';
@@ -3377,7 +3377,7 @@ function editHoursEntry(floorId, itemId, idx) {
 
     // Build attendance-aware crew list for the entry's date
     const att     = (state.attendance || []).find(a => a.date === entry.date);
-    const present = att ? (att.workerIds || []).map(id => crew.find(c => c.id === id)).filter(Boolean) : crew;
+    const present = att ? (att.workerIds || []).map(id => findWorker(id)).filter(Boolean) : crew;
 
     const workerChipsHtml = present.length === 0 ? '' : `
         <div class="form-group" style="margin-top:4px">
@@ -4920,14 +4920,20 @@ function editCrewMember(id) {
     }, 50);
 }
 
+function findWorker(id) {
+    return (state.crew || []).find(c => c.id === id) || (state.formerCrew || []).find(c => c.id === id) || null;
+}
+
 function removeCrewMember(id) {
     if (!confirm('Remove this person from the crew roster?')) return;
+    const worker = (state.crew || []).find(c => c.id === id);
     state.crew = (state.crew || []).filter(c => c.id !== id);
-    // also purge from all attendance days
-    (state.attendance || []).forEach(a => {
-        a.workerIds = a.workerIds.filter(wid => wid !== id);
-    });
-    state.attendance = state.attendance.filter(a => a.workerIds.length > 0);
+    // Move to formerCrew so historical attendance and reports still resolve their name
+    if (worker) {
+        if (!state.formerCrew) state.formerCrew = [];
+        if (!state.formerCrew.find(c => c.id === id)) state.formerCrew.push(worker);
+    }
+    // Attendance records are kept intact — do not purge historical data
     persist();
     document.getElementById('app').innerHTML = renderAttendance();
 }
@@ -4940,8 +4946,8 @@ function crewSortOrder(trade) {
 
 function sortedWorkerIds(workerIds, crew) {
     return [...workerIds].sort((a, b) => {
-        const ma = crew.find(c => c.id === a);
-        const mb = crew.find(c => c.id === b);
+        const ma = findWorker(a);
+        const mb = findWorker(b);
         return crewSortOrder(ma?.trade) - crewSortOrder(mb?.trade);
     });
 }
@@ -5177,7 +5183,7 @@ function renderAttendance() {
             if (allPastDays.length > 0) {
                 html += `<div class="card">`;
                 pastDays.forEach(a => {
-                    const names = (a.workerIds || []).map(id => { const m = crew.find(c => c.id === id); return m ? m.name.split(' ')[0] : null; }).filter(Boolean);
+                    const names = (a.workerIds || []).map(id => { const m = findWorker(id); return m ? m.name.split(' ')[0] : null; }).filter(Boolean);
                     html += `<div class="worker-row" style="cursor:pointer" onclick="setAttendanceDate('${a.date}')">
                         <div>
                             <div class="worker-name">${displayDate(a.date)}</div>
@@ -5282,7 +5288,7 @@ function renderReport(date) {
     } else {
         html += `<div class="report-section">`;
         sortedWorkerIds(att.workerIds, crew).forEach(wid => {
-            const member = crew.find(c => c.id === wid);
+            const member = findWorker(wid);
             if (!member) return;
             const detail = (att.details || {})[wid] || {};
             html += `<div class="report-worker-row" style="display:flex;justify-content:space-between;align-items:center">
@@ -5305,7 +5311,7 @@ function renderReport(date) {
         const entries = (f.items||[]).flatMap(i => (i.hoursLog||[]).filter(e=>e.date===date).map(e=>({
             item:    i.name,
             mh:      entryManHours(e),
-            workers: (e.workerIds||[]).map(id => (crew.find(c=>c.id===id)?.name||'').split(' ')[0]).filter(Boolean)
+            workers: (e.workerIds||[]).map(id => (findWorker(id)?.name||'').split(' ')[0]).filter(Boolean)
         })));
         if (entries.length > 0) {
             const total = entries.reduce((s,e)=>s+e.mh, 0);
@@ -5384,7 +5390,7 @@ function exportDailyReportPDF(date) {
 
     const workerRows = att && att.workerIds.length > 0
         ? sortedWorkerIds(att.workerIds, crew).map(wid => {
-            const m = crew.find(c=>c.id===wid);
+            const m = findWorker(wid);
             if (!m) return '';
             const detail = (att.details||{})[wid]||{};
             return `<tr><td>${m.name}</td><td>${m.trade||'—'}</td><td>${detail.hours ? detail.hours + ' hrs' : '—'}</td></tr>`;
