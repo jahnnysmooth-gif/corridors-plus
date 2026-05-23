@@ -3732,9 +3732,8 @@ function exportPDF(floors, inRange, label, start, end, period) {
         if (!tableRows) return;
         overallTotal += floorTotal; overallSk += floorSk; overallLb += floorLb;
 
-        const pageBreak = (isMulti && fi > 0) ? 'page-break-before:always;padding-top:24px;' : '';
         bodyHtml += `
-        <div style="${pageBreak}">
+        <div class="floor-section" style="${fi > 0 ? 'margin-top:28px;' : ''}">
             ${isMulti ? `<div class="floor-heading">${floor.name}</div>` : ''}
             <table>
                 <thead><tr>
@@ -3776,6 +3775,10 @@ function exportPDF(floors, inRange, label, start, end, period) {
         @media print {
             body { padding: 16px; }
             button { display: none; }
+            .floor-section { page-break-inside: avoid; }
+            .floor-heading { page-break-after: avoid; }
+            tr { page-break-inside: avoid; }
+            thead { display: table-header-group; }
         }
     </style>
     </head><body>
