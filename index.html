@@ -4322,6 +4322,7 @@ function exportWeeklySummary(offsetWeeks) {
     });
     if (!laborHtml) laborHtml = `<tr><td colspan="4" style="padding:12px 10px;color:#aaa;font-style:italic">No hours logged this week.</td></tr>`;
     const laborSection = `
+        <div style="page-break-inside:avoid">
         <h2 style="font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#1a3a5c;margin:24px 0 10px;border-top:2px solid #1a3a5c;padding-top:10px">Labor — Man-Hours by Floor</h2>
         <table style="width:100%;border-collapse:collapse;font-size:13px">
             <thead><tr style="background:#1a3a5c;color:white">
@@ -4338,7 +4339,7 @@ function exportWeeklySummary(offsetWeeks) {
                     <td style="padding:8px 10px;text-align:right;font-weight:800;color:#1a3a5c">${grandSkilled + grandLaborer}</td>
                 </tr>
             </tbody>
-        </table>`;
+        </table></div>`;
 
     // ── Worker hours this week ───────────────────────────────────────────────
     const crew = state.crew || [];
@@ -4368,6 +4369,7 @@ function exportWeeklySummary(offsetWeeks) {
     }
     if (!workerHtml) workerHtml = `<tr><td colspan="3" style="padding:12px 10px;color:#aaa;font-style:italic">No worker hours logged this week.</td></tr>`;
     const workerSection = `
+        <div style="page-break-inside:avoid">
         <h2 style="font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#1a3a5c;margin:24px 0 10px;border-top:2px solid #1a3a5c;padding-top:10px">Worker Hours</h2>
         <table style="width:100%;border-collapse:collapse;font-size:13px">
             <thead><tr style="background:#1a3a5c;color:white">
@@ -4376,7 +4378,7 @@ function exportWeeklySummary(offsetWeeks) {
                 <th style="padding:8px 10px;text-align:right">Hours</th>
             </tr></thead>
             <tbody>${workerHtml}</tbody>
-        </table>`;
+        </table></div>`;
 
     // ── Compile week data for Claude recap ───────────────────────────────────
     const laborLines = [];

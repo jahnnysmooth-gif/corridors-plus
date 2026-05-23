@@ -243,15 +243,14 @@ ${d.notes || 'None'}
 FLOOR & ITEM STATUS:
 ${d.floorStatus || 'None'}
 
-Write 3 to 5 sentences of plain prose summarizing the week. Describe what was accomplished on each floor, how the crew performed, and any notable issues or setbacks from the notes. End with one forward-looking sentence about what needs to happen next week.
+Write 3 to 5 sentences summarizing the week like a straight-talking job site supervisor giving a quick verbal update to the owner — clear, direct, and human. Mention what got done on each floor, how the crew handled things, and flag any issues or setbacks from the notes. End with a short sentence on what needs to happen next week.
 
-STRICT RULES — failure to follow any of these will make the output unusable:
-- Output plain sentences only. Nothing else.
-- No markdown of any kind. No pound signs, no asterisks, no underscores, no backticks.
-- No headers, no titles, no bold, no bullet points, no numbered lists.
-- Do not start with the company name or week date — jump straight into the recap.
-- Do not repeat raw numbers from the tables. Focus on the story of the week.
-- Write in past tense.`;
+STRICT RULES:
+- Plain sentences only. No markdown. No pound signs, asterisks, underscores, or backticks.
+- No headers, titles, bullet points, or numbered lists.
+- Do not open with the company name, project name, or the week date.
+- Do not repeat raw numbers already in the tables.
+- Past tense throughout.`;
 
     const response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
       method: 'post',
