@@ -2862,12 +2862,12 @@ function _openLogTodayModal(floors) {
                 </div>
             </div>`).join('');
         return `
-            <div style="border:1.5px solid #e0e0e0;border-radius:10px;margin-bottom:8px;overflow:hidden">
-                <div class="daily-floor-header" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;margin:0;border-radius:0" onclick="toggleLtFloor(${fi})">
+            <div style="border:1.5px solid #dde3ed;border-radius:12px;margin-bottom:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.05)">
+                <div class="daily-floor-header" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;margin:0;border-radius:0;padding:13px 16px;background:#f0f4fa;border-bottom:1.5px solid #dde3ed" onclick="toggleLtFloor(${fi})">
                     <span>${floor.name}</span>
-                    <span id="lt_floor_arrow_${fi}" style="font-size:18px;color:#aaa">▸</span>
+                    <span id="lt_floor_arrow_${fi}" style="font-size:18px;color:#1a3a5c">▸</span>
                 </div>
-                <div id="lt_floor_body_${fi}" style="display:none;padding:12px 14px">
+                <div id="lt_floor_body_${fi}" style="display:none;padding:14px 16px;background:white">
                     ${itemRows}
                 </div>
             </div>`;
