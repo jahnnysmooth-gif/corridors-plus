@@ -1385,8 +1385,6 @@ function renderHome() {
             </button>
         </div>
         <div class="home-subtitle">Georgetown Plaza · Corridor Renovation</div>
-        ${totalFloors > 0 ? `<button class="log-today-btn" style="margin-top:16px" onclick="openGlobalLogToday()">+ Log Today's Hours</button>` : ''}
-        <button class="btn btn-secondary" style="width:100%;margin-top:10px" onclick="exportWeeklySummary()">&#128196; Weekly Summary</button>
         <div class="backup-row" style="margin-top:12px">
             <button class="btn btn-secondary" onclick="backupData()">&#8681; Backup</button>
             <button class="btn btn-secondary" onclick="document.getElementById('restoreInput').click()">&#8679; Restore</button>
@@ -3593,6 +3591,7 @@ function openExportModal() {
                 <option value="pdf">PDF (Print / Save)</option>
                 <option value="csv">CSV (Spreadsheet)</option>
                 <option value="summary">Cross-Floor Summary (PDF)</option>
+                <option value="weekly_summary">Weekly Summary (PDF)</option>
             </select>
         </div>
         <div class="form-group">
@@ -3635,7 +3634,11 @@ function openExportModal() {
                                              : state.floors.filter(f => f.id === floorSel);
         const inRange  = d => d >= start && d <= end;
 
-        if (format === 'summary') {
+        if (format === 'weekly_summary') {
+            closeModal();
+            exportWeeklySummary();
+            return;
+        } else if (format === 'summary') {
             let periodLabel;
             if (period === 'weekly') periodLabel = `Week of ${shortDate(start)} - ${shortDate(end)}`;
             else if (period === 'monthly') { const [y,m]=start.split('-'); const mo=['January','February','March','April','May','June','July','August','September','October','November','December']; periodLabel=`${mo[parseInt(m)-1]} ${y}`; }
