@@ -1626,7 +1626,7 @@ function renderMaterials() {
         </button>`;
     });
     html += `</div>`;
-    const upcomingCount = (state.materials||[]).filter(m => m.deliveryEta).length;
+    const upcomingCount = (state.materials||[]).filter(m => !m.archived && m.procStatus && m.procStatus.toLowerCase().includes('ordered')).length;
     html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px;margin-top:20px${upcomingCount > 0 ? ';background:#1a3a5c;color:white;border-color:#1a3a5c' : ''}" onclick="navigate('deliveries')">&#128666; Upcoming Deliveries${upcomingCount > 0 ? ` <span style="background:white;color:#1a3a5c;font-size:11px;font-weight:800;padding:2px 7px;border-radius:99px;margin-left:4px">${upcomingCount}</span>` : ''}</button>`;
     html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px;background:${lowCount > 0 ? '#7c3aed' : ''};color:${lowCount > 0 ? 'white' : ''};border-color:${lowCount > 0 ? '#7c3aed' : ''}" onclick="navigate('reorder')">&#128203; Reorder List${lowCount > 0 ? ` <span style="background:white;color:#7c3aed;font-size:11px;font-weight:800;padding:2px 7px;border-radius:99px;margin-left:4px">${lowCount}</span>` : ''}</button>`;
     html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px" onclick="navigate('orderhistory')">&#128220; Order History</button>`;
@@ -1844,23 +1844,25 @@ function renderOrderHistory() {
 
 // ── Reorder List screen ───────────────────────────────────────────────────────
 function renderUpcomingDeliveries() {
-    const mats = (state.materials || []).filter(m => m.deliveryEta && !m.archived);
+    const mats = (state.materials || []).filter(m => !m.archived && m.procStatus && m.procStatus.toLowerCase().includes('ordered'));
     if (mats.length === 0) {
         return `<div style="text-align:center;padding:60px 20px">
             <div style="font-size:48px;margin-bottom:16px">📭</div>
             <div style="font-size:18px;font-weight:700;color:#1a1a2e;margin-bottom:8px">No upcoming deliveries</div>
-            <div style="font-size:14px;color:#999">When the office sets a Delivery ETA in the sheet, it will appear here.</div>
+            <div style="font-size:14px;color:#999">Materials marked as ordered will appear here.</div>
         </div>`;
     }
     const todayStr = today();
-    const sorted = [...mats].sort((a, b) => a.deliveryEta.localeCompare(b.deliveryEta));
-    const overdue  = sorted.filter(m => m.deliveryEta < todayStr);
-    const todayDel = sorted.filter(m => m.deliveryEta === todayStr);
-    const upcoming = sorted.filter(m => m.deliveryEta > todayStr);
-    let html = `<div class="stats-row" style="grid-template-columns:1fr 1fr 1fr">
+    const withEta    = [...mats].filter(m => m.deliveryEta).sort((a, b) => a.deliveryEta.localeCompare(b.deliveryEta));
+    const noEta      = mats.filter(m => !m.deliveryEta);
+    const overdue    = withEta.filter(m => m.deliveryEta < todayStr);
+    const todayDel   = withEta.filter(m => m.deliveryEta === todayStr);
+    const upcoming   = withEta.filter(m => m.deliveryEta > todayStr);
+    let html = `<div class="stats-row" style="grid-template-columns:1fr 1fr 1fr 1fr">
         <div class="stat-card"><div class="stat-value" style="color:${overdue.length > 0 ? '#dc2626' : 'inherit'}">${overdue.length}</div><div class="stat-label">Overdue</div></div>
         <div class="stat-card"><div class="stat-value" style="color:${todayDel.length > 0 ? '#16a34a' : 'inherit'}">${todayDel.length}</div><div class="stat-label">Today</div></div>
         <div class="stat-card"><div class="stat-value">${upcoming.length}</div><div class="stat-label">Upcoming</div></div>
+        <div class="stat-card"><div class="stat-value">${noEta.length}</div><div class="stat-label">No ETA</div></div>
     </div>`;
     function deliveryCard(mat, accent) {
         const stock = matCurrentStock(mat);
@@ -1874,11 +1876,11 @@ function renderUpcomingDeliveries() {
                     ${mat.procStatus ? `<div style="font-size:12px;color:#888;margin-top:2px">Status: ${mat.procStatus}</div>` : ''}
                 </div>
                 <div style="text-align:right;margin-left:12px">
-                    <div style="font-size:18px;font-weight:800;color:${accent}">${etaDate(mat.deliveryEta)}</div>
+                    <div style="font-size:18px;font-weight:800;color:${accent}">${mat.deliveryEta ? etaDate(mat.deliveryEta) : 'No ETA'}</div>
                     <div style="font-size:11px;color:#aaa;margin-top:2px">${stock !== null ? `${stock} ${mat.unit || ''} on hand` : 'no count'}</div>
                 </div>
             </div>
-            ${mat.procStatus && mat.procStatus.toLowerCase().includes('ordered') ? `<button onclick="event.stopPropagation();confirmDelivery('${mat.id}')" style="margin-top:10px;width:100%;padding:9px;background:#16a34a;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">✓ Confirm Delivery</button>` : ''}
+            <button onclick="event.stopPropagation();confirmDelivery('${mat.id}')" style="margin-top:10px;width:100%;padding:9px;background:#16a34a;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">✓ Confirm Delivery</button>
         </div>`;
     }
     if (overdue.length > 0) {
@@ -1892,6 +1894,10 @@ function renderUpcomingDeliveries() {
     if (upcoming.length > 0) {
         html += `<div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.6px;color:#1a3a5c;margin:16px 0 8px">Upcoming</div>`;
         upcoming.forEach(m => { html += deliveryCard(m, '#1a3a5c'); });
+    }
+    if (noEta.length > 0) {
+        html += `<div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.6px;color:#9ca3af;margin:16px 0 8px">No ETA Set</div>`;
+        noEta.forEach(m => { html += deliveryCard(m, '#9ca3af'); });
     }
     return html;
 }
