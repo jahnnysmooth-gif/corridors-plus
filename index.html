@@ -286,7 +286,12 @@
             cursor: pointer;
             font-size: 18px;
             line-height: 1;
-            padding: 0 2px;
+            min-width: 44px;
+            min-height: 44px;
+            padding: 0 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
         .delete-row:hover { color: #ef4444; }
 
@@ -545,7 +550,7 @@
         .floor-card.completed { opacity: 0.6; }
 
         /* ── Edit / icon row buttons ── */
-        .edit-row { color: #bbb; background: none; border: none; cursor: pointer; font-size: 15px; line-height: 1; padding: 0 2px; }
+        .edit-row { color: #bbb; background: none; border: none; cursor: pointer; font-size: 18px; line-height: 1; min-width: 44px; min-height: 44px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; }
         .edit-row:hover { color: #1a3a5c; }
         .icon-btn { background: none; border: none; cursor: pointer; font-size: 13px; color: #999; padding: 3px 8px; border-radius: 6px; font-weight: 600; }
         .icon-btn:hover { background: #f0f3f8; color: #1a3a5c; }
