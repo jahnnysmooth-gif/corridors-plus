@@ -6028,8 +6028,15 @@ async function syncPull() {
             const name = String(row['Material'] || '').trim();
             if (!name) return;
             // If a previously-deleted item reappears in the sheet, the user re-added it intentionally — remove from deletion list
-            const dKey = (String(row['Trade']||'') + '||' + name).toLowerCase();
-            state.deletedMaterials = (state.deletedMaterials || []).filter(d => (String(d.trade||'')+'||'+String(d.name||'')).toLowerCase() !== dKey);
+            const dKey   = (String(row['Trade']||'') + '||' + name).toLowerCase();
+            const rowAppId = String(row['App ID'] || '').trim();
+            const delEntry = (state.deletedMaterials || []).find(d => (String(d.trade||'')+'||'+String(d.name||'')).toLowerCase() === dKey);
+            if (delEntry) {
+                // Row has an App ID matching a deleted item — it's a stale sheet row, let syncPush clean it up
+                if (rowAppId && delEntry.id && rowAppId === delEntry.id) return;
+                // Row has no App ID — user intentionally re-added it to the sheet, restore it
+                state.deletedMaterials = (state.deletedMaterials || []).filter(d => (String(d.trade||'')+'||'+String(d.name||'')).toLowerCase() !== dKey);
+            }
             let mat = state.materials.find(m => m.name.toLowerCase() === name.toLowerCase());
             if (mat && mat.archived) return;
             const isNewMat = !mat;
