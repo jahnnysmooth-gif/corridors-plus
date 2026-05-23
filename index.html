@@ -1673,7 +1673,7 @@ function renderMaterialDetail(mat) {
         </div>`;
     }
     const stock    = matCurrentStock(mat);
-    const totalDel = (mat.log||[]).filter(e => e.type==='delivery').reduce((s,e) => s+e.qty, 0);
+    const totalDel = (mat.startQty || 0) + (mat.log||[]).filter(e => e.type==='delivery').reduce((s,e) => s+e.qty, 0);
     const low      = stock !== null && mat.parQty > 0 && stock < mat.parQty;
     const ordered  = mat.procStatus && mat.procStatus.toLowerCase().includes('ordered');
 
@@ -6102,7 +6102,7 @@ async function syncPush() {
     const materials = (state.materials || []).filter(m => !m.archived).map(mat => {
         const lastDel  = (mat.log || []).filter(e => e.type === 'delivery').sort((a,b) => b.date.localeCompare(a.date))[0];
         const stock    = matCurrentStock(mat);
-        const allDeliv = (mat.log || []).filter(e => e.type === 'delivery').reduce((s,e) => s + e.qty, 0);
+        const allDeliv = (mat.startQty || 0) + (mat.log || []).filter(e => e.type === 'delivery').reduce((s,e) => s + e.qty, 0);
         const allUsed  = (allDeliv > 0 && stock !== null) ? Math.max(0, allDeliv - stock) : '';
         return {
             'Trade':                mat.trade || 'Misc.',
