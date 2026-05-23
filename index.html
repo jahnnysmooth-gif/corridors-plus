@@ -2358,6 +2358,7 @@ function quickLog(floorId, itemId) {
 let _qlWorkerIds = new Set();
 let _qlGroups = 1;
 let _ltGroups = {};
+let _ltWorkerIds = {};
 
 function qlGroupHtml(i) {
     const lastSkld = localStorage.getItem('hallway_last_skld_hrs') || '8';
@@ -2423,6 +2424,50 @@ function _qlRefreshWorkerChips(date) {
     const section = document.getElementById('ql_worker_section');
     if (section) section.innerHTML = _qlWorkerChipsHtml(date);
     _qlWorkerIds.clear();
+}
+
+function _ltPresentWorkers(date) {
+    const att  = (state.attendance || []).find(a => a.date === date);
+    const crew = (state.crew || []).filter(c => c.active !== false);
+    return att ? (att.workerIds || []).map(id => findWorker(id)).filter(Boolean) : crew;
+}
+
+function _ltWorkerChipsHtml(fi, idx, date) {
+    const present = _ltPresentWorkers(date);
+    if (present.length === 0) return '';
+    const key = `${fi}_${idx}`;
+    if (!_ltWorkerIds[key]) _ltWorkerIds[key] = new Set();
+    const sel = _ltWorkerIds[key];
+    return `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px">
+        ${present.map(w => {
+            const active = sel.has(w.id);
+            return `<button type="button" id="ltw_${fi}_${idx}_${w.id}" onclick="toggleLtWorker(${fi},${idx},'${w.id}')"
+                style="padding:4px 10px;border-radius:99px;border:1.5px solid ${active ? '#1a3a5c' : '#d1d5db'};background:${active ? '#1a3a5c' : 'white'};font-size:11px;font-weight:600;cursor:pointer;color:${active ? 'white' : '#374151'}">${w.name}</button>`;
+        }).join('')}
+    </div>`;
+}
+
+function toggleLtWorker(fi, idx, id) {
+    const key = `${fi}_${idx}`;
+    if (!_ltWorkerIds[key]) _ltWorkerIds[key] = new Set();
+    const s = _ltWorkerIds[key];
+    if (s.has(id)) s.delete(id); else s.add(id);
+    const btn = document.getElementById(`ltw_${fi}_${idx}_${id}`);
+    if (btn) {
+        const active = s.has(id);
+        btn.style.background  = active ? '#1a3a5c' : 'white';
+        btn.style.color       = active ? 'white'   : '#374151';
+        btn.style.borderColor = active ? '#1a3a5c' : '#d1d5db';
+    }
+}
+
+function _ltRefreshAllWorkerChips(date) {
+    _ltWorkerIds = {};
+    document.querySelectorAll('[id^="lt_worker_chips_"]').forEach(el => {
+        const parts = el.id.replace('lt_worker_chips_', '').split('_');
+        const fi = parseInt(parts[0]), idx = parseInt(parts[1]);
+        el.innerHTML = _ltWorkerChipsHtml(fi, idx, date);
+    });
 }
 
 // ── Date chips ────────────────────────────────────────────────────────────────
@@ -2837,6 +2882,7 @@ function toggleLtFloor(fi) {
 
 function _openLogTodayModal(floors) {
     _ltGroups = {};
+    _ltWorkerIds = {};
     const t   = today();
     const yes = yesterday();
 
@@ -2860,6 +2906,7 @@ function _openLogTodayModal(floors) {
                 <div id="lt_groups_${fi}_${idx}">
                     ${_ltGroupRow(fi, idx, 0)}
                 </div>
+                <div id="lt_worker_chips_${fi}_${idx}">${_ltWorkerChipsHtml(fi, idx, t)}</div>
             </div>`).join('');
         return `
             <div style="border:1.5px solid #dde3ed;border-radius:12px;margin-bottom:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.05)">
@@ -2904,7 +2951,10 @@ function _openLogTodayModal(floors) {
                     if (skilled > 0 && skilledHours <= 0) { alert(`${item.name}: enter hours for Skilled workers.`); return; }
                     if (laborer > 0 && laborerHours <= 0) { alert(`${item.name}: enter hours for Laborer workers.`); return; }
                     if (mh > 0) {
-                        item.hoursLog.push({ date, skilled, skilledHours, laborer, laborerHours });
+                        const entry = { date, skilled, skilledHours, laborer, laborerHours };
+                        const wids = _ltWorkerIds[`${fi}_${idx}`];
+                        if (wids && wids.size > 0) entry.workerIds = [...wids];
+                        item.hoursLog.push(entry);
                         if ((item.status || 'pending') === 'pending') item.status = 'active';
                         saved++;
                     }
@@ -2930,6 +2980,7 @@ function setLtDate(val) {
         other?.classList.remove('active');
         document.getElementById('lt_picker_wrap')?.classList.remove('open');
     }
+    _ltRefreshAllWorkerChips(val);
 }
 
 function toggleLtPicker() {
