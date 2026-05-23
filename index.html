@@ -5337,7 +5337,7 @@ function renderReports() {
     }
 
     let html = `<div style="margin-bottom:12px"><input type="date" style="width:100%;padding:10px 12px;border:1.5px solid #e0e0e0;border-radius:10px;font-size:14px;color:#1a1a2e" onchange="if(this.value)navigate('report',null,null,null,null,this.value)" placeholder="Pick any date…" /></div>`;
-    sorted.forEach(date => {
+    sorted.slice(0, 5).forEach(date => {
         const att = (state.attendance||[]).find(a => a.date === date);
         const workerCount = att ? att.workerIds.length : 0;
         const dayMH = (state.floors||[]).reduce((s,f) => s + (f.items||[]).reduce((ss,i) => ss + (i.hoursLog||[]).filter(e=>e.date===date).reduce((sss,e)=>sss+entryManHours(e),0), 0), 0);
