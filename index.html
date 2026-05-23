@@ -4411,6 +4411,40 @@ function exportWeeklySummary(offsetWeeks) {
         if (itemSummary) floorStatusLines.push(`${floor.name}: ${itemSummary}`);
     });
 
+    // ── Floor status snapshot ────────────────────────────────────────────────
+    let floorStatusHtml = '';
+    (state.floors || []).forEach(floor => {
+        const items = floor.items || [];
+        const done    = items.filter(i => i.status === 'done').length;
+        const active  = items.filter(i => i.status === 'active').length;
+        const pending = items.filter(i => i.status === 'pending').length;
+        const total   = items.length;
+        const pct     = total ? Math.round((done / total) * 100) : 0;
+        const activeItems  = items.filter(i => i.status === 'active').map(i => i.name).join(', ');
+        floorStatusHtml += `<tr>
+            <td style="padding:8px 10px;border-bottom:1px solid #eee;font-weight:600">${floor.name}</td>
+            <td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:center;color:#16a34a;font-weight:700">${done}</td>
+            <td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:center;color:#d97706;font-weight:700">${active}</td>
+            <td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:center;color:#9ca3af">${pending}</td>
+            <td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:center;font-weight:700;color:#1a3a5c">${pct}%</td>
+            <td style="padding:8px 10px;border-bottom:1px solid #eee;font-size:11px;color:#555">${activeItems || '—'}</td>
+        </tr>`;
+    });
+    const floorStatusSection = floorStatusHtml ? `
+        <div style="page-break-inside:avoid">
+        <h2 style="font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#1a3a5c;margin:24px 0 10px;border-top:2px solid #1a3a5c;padding-top:10px">Floor Status</h2>
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead><tr style="background:#1a3a5c;color:white">
+                <th style="padding:8px 10px;text-align:left">Floor</th>
+                <th style="padding:8px 10px;text-align:center">Done</th>
+                <th style="padding:8px 10px;text-align:center">Active</th>
+                <th style="padding:8px 10px;text-align:center">Pending</th>
+                <th style="padding:8px 10px;text-align:center">% Complete</th>
+                <th style="padding:8px 10px;text-align:left">In Progress</th>
+            </tr></thead>
+            <tbody>${floorStatusHtml}</tbody>
+        </table></div>` : '';
+
     // ── Low stock ────────────────────────────────────────────────────────────
     const isLow = m => { const s = matCurrentStock(m); return s !== null && m.parQty > 0 && s < m.parQty; };
     const lowMats = (state.materials || []).filter(isLow);
@@ -4440,7 +4474,7 @@ function exportWeeklySummary(offsetWeeks) {
         <h1>Corridor's Plus — Weekly Summary</h1>
         <div class="meta">Week of ${label}</div>
         <div class="meta">Generated: ${displayDate(today())}</div>
-        ${recapSection}${workerSection}${laborSection}
+        ${recapSection}${floorStatusSection}${workerSection}${laborSection}
         <script>window.onload = () => window.print();<\/script></body></html>`;
     };
 
