@@ -4377,36 +4377,36 @@ function exportWeeklySummary(offsetWeeks) {
             <tbody>${workerHtml}</tbody>
         </table>`;
 
-    // ── Materials: usage by trade this week ──────────────────────────────────
-    const byTrade = {};
-    (state.materials || []).forEach(mat => {
-        const weekUsage = (mat.log || []).filter(e => e.type === 'usage' && inRange(e.date));
-        if (weekUsage.length === 0) return;
-        const total = weekUsage.reduce((s, e) => s + e.qty, 0);
-        const trade = mat.trade || 'Other';
-        if (!byTrade[trade]) byTrade[trade] = [];
-        byTrade[trade].push({ name: mat.name, unit: mat.unit, total });
-    });
-    const tradeKeys = TRADE_ORDER.filter(t => byTrade[t]);
-    Object.keys(byTrade).forEach(t => { if (!TRADE_ORDER.includes(t)) tradeKeys.push(t); });
-    let matHtml = '';
-    tradeKeys.forEach(trade => {
-        matHtml += `<tr style="background:#f5f5f5"><td colspan="3" style="padding:6px 10px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.6px;color:#555">${trade}</td></tr>`;
-        byTrade[trade].forEach(m => {
-            matHtml += `<tr><td style="padding:7px 10px 7px 18px;border-bottom:1px solid #eee">${m.name}</td><td style="padding:7px 10px;border-bottom:1px solid #eee;text-align:right;font-weight:700;color:#1a3a5c">${m.total}</td><td style="padding:7px 10px;border-bottom:1px solid #eee;color:#999">${m.unit}</td></tr>`;
+    // ── Compile week data for Claude recap ───────────────────────────────────
+    const laborLines = [];
+    (state.floors || []).forEach(floor => {
+        (floor.items || []).forEach(item => {
+            const entries = (item.hoursLog || []).filter(e => inRange(e.date));
+            if (!entries.length) return;
+            entries.forEach(e => {
+                const d = entryDisplay(e);
+                laborLines.push(`${floor.name} — ${item.name}: ${d.skilled} skilled × ${d.skilledHours}h + ${d.laborer} laborer × ${d.laborerHours || 0}h on ${displayDate(e.date)}`);
+            });
         });
     });
-    if (!matHtml) matHtml = `<tr><td colspan="3" style="padding:12px 10px;color:#aaa;font-style:italic">No material usage logged this week.</td></tr>`;
-    const matSection = `
-        <h2 style="font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#1a3a5c;margin:24px 0 10px;border-top:2px solid #1a3a5c;padding-top:10px">Materials Used This Week</h2>
-        <table style="width:100%;border-collapse:collapse;font-size:13px">
-            <thead><tr style="background:#1a3a5c;color:white">
-                <th style="padding:8px 10px;text-align:left">Material</th>
-                <th style="padding:8px 10px;text-align:right">Used</th>
-                <th style="padding:8px 10px;text-align:left">Unit</th>
-            </tr></thead>
-            <tbody>${matHtml}</tbody>
-        </table>`;
+
+    const attLines = [];
+    (state.attendance || []).filter(a => inRange(a.date)).sort((a,b) => a.date.localeCompare(b.date)).forEach(a => {
+        const names = (a.workerIds || []).map(id => { const w = findWorker(id); return w ? w.name : null; }).filter(Boolean);
+        attLines.push(`${displayDate(a.date)}: ${names.join(', ')} (${names.length} on site)`);
+    });
+
+    const notesLines = [];
+    (state.attendance || []).filter(a => inRange(a.date)).sort((a,b) => a.date.localeCompare(b.date)).forEach(a => {
+        const nr = (state.reports || {})[a.date];
+        if (nr?.notes) notesLines.push(`${displayDate(a.date)}: "${nr.notes}"`);
+    });
+
+    const floorStatusLines = [];
+    (state.floors || []).forEach(floor => {
+        const itemSummary = (floor.items || []).map(i => `${i.name} (${i.status})`).join(', ');
+        if (itemSummary) floorStatusLines.push(`${floor.name}: ${itemSummary}`);
+    });
 
     // ── Low stock ────────────────────────────────────────────────────────────
     const isLow = m => { const s = matCurrentStock(m); return s !== null && m.parQty > 0 && s < m.parQty; };
@@ -4424,19 +4424,48 @@ function exportWeeklySummary(offsetWeeks) {
         <h2 style="font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#dc2626;margin:24px 0 10px;border-top:2px solid #dc2626;padding-top:10px">⚠ Low Stock</h2>
         ${lowHtml}`;
 
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Weekly Summary</title>
-    <style>* { box-sizing:border-box; margin:0; padding:0; } body { font-family:Arial,sans-serif; font-size:13px; color:#111; padding:28px; max-width:700px; margin:0 auto; }
-    h1 { font-size:20px; font-weight:800; text-transform:uppercase; letter-spacing:1px; color:#1a3a5c; margin-bottom:4px; }
-    .meta { font-size:12px; color:#666; margin-bottom:8px; }
-    tbody tr:nth-child(even) td { background:#f9fbff; }
-    @media print { body { padding:16px; } }</style></head><body>
-    <h1>Corridor's Plus — Weekly Summary</h1>
-    <div class="meta">Week of ${label}</div>
-    <div class="meta">Generated: ${displayDate(today())}</div>
-    ${workerSection}${laborSection}${matSection}${lowSection}
-    <script>window.onload = () => window.print();<\/script></body></html>`;
+    const buildAndOpenPDF = (recapText) => {
+        const recapSection = `
+            <h2 style="font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#1a3a5c;margin:24px 0 10px;border-top:2px solid #1a3a5c;padding-top:10px">Weekly Recap</h2>
+            <p style="font-size:13px;line-height:1.7;color:#333">${recapText || 'No recap available.'}</p>`;
 
-    window.open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank');
+        const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Weekly Summary</title>
+        <style>* { box-sizing:border-box; margin:0; padding:0; } body { font-family:Arial,sans-serif; font-size:13px; color:#111; padding:28px; max-width:700px; margin:0 auto; }
+        h1 { font-size:20px; font-weight:800; text-transform:uppercase; letter-spacing:1px; color:#1a3a5c; margin-bottom:4px; }
+        .meta { font-size:12px; color:#666; margin-bottom:8px; }
+        tbody tr:nth-child(even) td { background:#f9fbff; }
+        @media print { body { padding:16px; } }</style></head><body>
+        <h1>Corridor's Plus — Weekly Summary</h1>
+        <div class="meta">Week of ${label}</div>
+        <div class="meta">Generated: ${displayDate(today())}</div>
+        ${recapSection}${workerSection}${laborSection}${lowSection}
+        <script>window.onload = () => window.print();<\/script></body></html>`;
+
+        window.open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank');
+    };
+
+    const gasUrl = localStorage.getItem('hallway_sheets_url');
+    if (gasUrl && (laborLines.length > 0 || attLines.length > 0)) {
+        const toast = showToast('✦ Claude is writing your recap…');
+        fetch(gasUrl, {
+            method: 'POST',
+            body: JSON.stringify({
+                type: 'weekly_recap',
+                weekData: {
+                    label,
+                    labor:       laborLines.join('\n') || 'None',
+                    attendance:  attLines.join('\n')   || 'None',
+                    notes:       notesLines.join('\n') || 'None',
+                    floorStatus: floorStatusLines.join('\n') || 'None',
+                }
+            })
+        })
+        .then(r => r.json())
+        .then(res => { toast.style.opacity = '0'; buildAndOpenPDF(res.recap || ''); })
+        .catch(() => { toast.style.opacity = '0'; buildAndOpenPDF(''); });
+    } else {
+        buildAndOpenPDF('');
+    }
 }
 
 // ── Materials export ──────────────────────────────────────────────────────────

@@ -44,9 +44,10 @@ function doPost(e) {
   try {
     const payload = JSON.parse(e.postData.contents);
 
-    if (payload.type === 'receipt')      return uploadReceipt(payload);
-    if (payload.type === 'daily_report') return generateDailyReport(payload);
-    if (payload.type === 'payroll')      return handlePayroll(payload);
+    if (payload.type === 'receipt')       return uploadReceipt(payload);
+    if (payload.type === 'daily_report')  return generateDailyReport(payload);
+    if (payload.type === 'payroll')       return handlePayroll(payload);
+    if (payload.type === 'weekly_recap')  return generateWeeklyRecap(payload);
     return syncMaterials(payload);
 
   } catch (err) {
@@ -213,6 +214,51 @@ Rules:
     const clean   = text.replace(/```json|```/g, '').trim();
     const report  = JSON.parse(clean);
     return json({ success: true, report });
+  } catch(err) {
+    return json({ error: err.toString() });
+  }
+}
+
+// ── Weekly recap — summarize the week with Claude ────────────────────────────
+function generateWeeklyRecap(payload) {
+  try {
+    const apiKey = PropertiesService.getScriptProperties().getProperty('RECEIPT_API_KEY');
+    if (!apiKey) return json({ error: 'API key not configured.' });
+
+    const d = payload.weekData || {};
+
+    const prompt = `You are summarizing a week of work for a NYC hallway renovation contractor (Corridor's Plus) at Georgetown Plaza.
+
+WEEK: ${d.label || ''}
+
+LABOR LOGGED:
+${d.labor || 'None'}
+
+ATTENDANCE:
+${d.attendance || 'None'}
+
+DAILY NOTES:
+${d.notes || 'None'}
+
+FLOOR & ITEM STATUS:
+${d.floorStatus || 'None'}
+
+Write a professional weekly recap of 3–5 sentences in plain paragraph prose. Cover: what was accomplished, how the crew performed, any notable progress or setbacks mentioned in the notes, and a brief forward-looking sentence on what needs to happen next week. Use past tense. Do not use bullet points or headers. Do not repeat raw numbers already shown in the report tables — focus on the narrative story of the week.`;
+
+    const response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+      method: 'post',
+      headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      payload: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 400,
+        messages: [{ role: 'user', content: prompt }]
+      }),
+      muteHttpExceptions: true,
+    });
+
+    const result = JSON.parse(response.getContentText());
+    const recap  = result?.content?.[0]?.text || '';
+    return json({ recap });
   } catch(err) {
     return json({ error: err.toString() });
   }
