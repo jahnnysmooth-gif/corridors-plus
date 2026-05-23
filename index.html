@@ -4418,9 +4418,10 @@ function exportWeeklySummary(offsetWeeks) {
         const done    = items.filter(i => i.status === 'done').length;
         const active  = items.filter(i => i.status === 'active').length;
         const pending = items.filter(i => i.status === 'pending').length;
+        if (done === 0 && active === 0) return; // floor not started yet
         const total   = items.length;
         const pct     = total ? Math.round((done / total) * 100) : 0;
-        const activeItems  = items.filter(i => i.status === 'active').map(i => i.name).join(', ');
+        const activeItems = items.filter(i => i.status === 'active').map(i => i.name).join(', ');
         floorStatusHtml += `<tr>
             <td style="padding:8px 10px;border-bottom:1px solid #eee;font-weight:600">${floor.name}</td>
             <td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:center;color:#16a34a;font-weight:700">${done}</td>
@@ -4436,11 +4437,11 @@ function exportWeeklySummary(offsetWeeks) {
         <table style="width:100%;border-collapse:collapse;font-size:13px">
             <thead><tr style="background:#1a3a5c;color:white">
                 <th style="padding:8px 10px;text-align:left">Floor</th>
-                <th style="padding:8px 10px;text-align:center">Done</th>
-                <th style="padding:8px 10px;text-align:center">Active</th>
-                <th style="padding:8px 10px;text-align:center">Pending</th>
+                <th style="padding:8px 10px;text-align:center">Items Done</th>
+                <th style="padding:8px 10px;text-align:center">Items Active</th>
+                <th style="padding:8px 10px;text-align:center">Items Pending</th>
                 <th style="padding:8px 10px;text-align:center">% Complete</th>
-                <th style="padding:8px 10px;text-align:left">In Progress</th>
+                <th style="padding:8px 10px;text-align:left">Items In Progress</th>
             </tr></thead>
             <tbody>${floorStatusHtml}</tbody>
         </table></div>` : '';
