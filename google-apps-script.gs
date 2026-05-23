@@ -595,7 +595,7 @@ function syncMaterials(payload) {
     });
 
     // Fields the app is allowed to overwrite — Notes is sheet-managed
-    const APP_FIELDS = HEADERS.filter(h => h !== 'Notes');
+    const APP_FIELDS = HEADERS.filter(h => h !== 'Notes' && h !== 'Delivery ETA');
 
     const updates = payload.materials || [];
     const newRows = [];
