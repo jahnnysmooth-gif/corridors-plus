@@ -4903,6 +4903,7 @@ function disconnectSync() {
 let _attendanceDate = today();
 let _attView = 'signin'; // 'signin' | 'roster'
 let _attShowAll = false;
+let _attShowOlder = false;
 
 function getAttendanceDay(date) {
     return (state.attendance || []).find(a => a.date === date) || null;
@@ -5356,30 +5357,41 @@ function renderAttendance() {
         html += `<button class="btn btn-danger" style="width:100%;margin-top:6px" onclick="deleteAttendanceDay('${_attendanceDate}')">Delete This Day</button>`;
     }
 
-    // Recent Days — shown when viewing today, includes today if attendance taken
+    // Recent Days — last 7 days + collapsible Older Records
     if (isToday) {
-        const todayDay = (state.attendance || []).find(a => a.date === t);
-        const allDays  = (state.attendance || []).slice().sort((a,b) => b.date.localeCompare(a.date));
-        const showDays = _attShowAll ? allDays : allDays.slice(0, 10);
+        const cutoff    = addWeeks(t, -1);
+        const allDays   = (state.attendance || []).slice().sort((a,b) => b.date.localeCompare(a.date));
+        const recentDays = allDays.filter(a => a.date >= cutoff);
+        const olderDays  = allDays.filter(a => a.date < cutoff);
 
-        if (allDays.length > 0) {
+        const dayRow = (a) => {
+            const isCurrentDay = a.date === t;
+            const names = (a.workerIds || []).map(id => { const m = findWorker(id); return m ? m.name.split(' ')[0] : null; }).filter(Boolean);
+            return `<div class="worker-row" style="cursor:pointer${isCurrentDay?';background:#f0f9ff':''}" onclick="setAttendanceDate('${a.date}')">
+                <div>
+                    <div class="worker-name">${isCurrentDay ? 'Today ✓' : displayDate(a.date)}</div>
+                    <div class="worker-trade">${(a.workerIds||[]).length} on site · ${names.join(', ')}</div>
+                </div>
+                <span style="color:#ccc;font-size:20px">›</span>
+            </div>`;
+        };
+
+        if (recentDays.length > 0) {
             html += `<div class="section-header" style="margin-top:20px"><span class="section-title">Recent Days</span></div>`;
-            html += `<div class="card">`;
-            showDays.forEach(a => {
-                const isCurrentDay = a.date === t;
-                const names = (a.workerIds || []).map(id => { const m = findWorker(id); return m ? m.name.split(' ')[0] : null; }).filter(Boolean);
-                html += `<div class="worker-row" style="cursor:pointer${isCurrentDay?';background:#f0f9ff':''}" onclick="setAttendanceDate('${a.date}')">
+            html += `<div class="card">` + recentDays.map(dayRow).join('') + `</div>`;
+        }
+
+        if (olderDays.length > 0) {
+            html += `<div class="card" style="margin-top:10px">
+                <div class="worker-row" style="cursor:pointer" onclick="_attShowOlder=!_attShowOlder;document.getElementById('app').innerHTML=renderAttendance()">
                     <div>
-                        <div class="worker-name">${isCurrentDay ? 'Today ✓' : displayDate(a.date)}</div>
-                        <div class="worker-trade">${(a.workerIds||[]).length} on site · ${names.join(', ')}</div>
+                        <div class="worker-name">Older Records</div>
+                        <div class="worker-trade">${olderDays.length} day${olderDays.length===1?'':'s'}</div>
                     </div>
-                    <span style="color:#ccc;font-size:20px">›</span>
-                </div>`;
-            });
-            html += `</div>`;
-            if (allDays.length > 10) {
-                html += `<button class="btn btn-secondary" style="width:100%;margin-top:8px" onclick="_attShowAll=!_attShowAll;document.getElementById('app').innerHTML=renderAttendance()">${_attShowAll ? 'Show Less' : 'Show All ' + allDays.length + ' Days'}</button>`;
-            }
+                    <span style="color:#ccc;font-size:20px">${_attShowOlder ? '▾' : '▸'}</span>
+                </div>
+                ${_attShowOlder ? olderDays.map(dayRow).join('') : ''}
+            </div>`;
         }
     }
 
