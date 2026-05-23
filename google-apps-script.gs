@@ -870,6 +870,30 @@ function setRowColors() {
   Logger.log('Row colors applied! Low stock = red, Ordered = green, trade groups color-coded.');
 }
 
+// ── Add missing columns to Master sheet without touching existing data ────────
+function addMissingColumns() {
+  const ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(MASTER_SHEET);
+  if (!sheet) { Logger.log('Master sheet not found.'); return; }
+
+  const hdrRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const existing = hdrRow.map(h => String(h).trim());
+
+  let added = 0;
+  HEADERS.forEach(h => {
+    if (!existing.includes(h)) {
+      const newCol = sheet.getLastColumn() + 1;
+      sheet.getRange(1, newCol).setValue(h);
+      sheet.getRange(1, newCol).setFontWeight('bold').setBackground('#1a3a5c').setFontColor('#ffffff');
+      existing.push(h);
+      added++;
+      Logger.log('Added column: ' + h);
+    }
+  });
+
+  Logger.log(added > 0 ? added + ' column(s) added.' : 'No missing columns — sheet is up to date.');
+}
+
 // ── Custom menu ───────────────────────────────────────────────────────────────
 function onOpen() {
   SpreadsheetApp.getUi()
