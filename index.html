@@ -2836,13 +2836,31 @@ function addLtGroup(fi, idx) {
     container.insertAdjacentHTML('beforeend', _ltGroupRow(fi, idx, g));
 }
 
+function toggleLtFloor(fi) {
+    const body = document.getElementById(`lt_floor_body_${fi}`);
+    const arrow = document.getElementById(`lt_floor_arrow_${fi}`);
+    if (!body) return;
+    const open = body.style.display !== 'none';
+    body.style.display = open ? 'none' : 'block';
+    if (arrow) arrow.textContent = open ? '▸' : '▾';
+}
+
 function _openLogTodayModal(floors) {
     _ltGroups = {};
     const t   = today();
     const yes = yesterday();
 
+    // Only show active floors (at least one item active or done, not completed)
+    const activeFloors = floors.filter(f => !f.completed && (f.items || []).some(i => i.status === 'active' || i.status === 'done'));
+
     const calIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
-    let rows = floors.map((floor, fi) => {
+
+    if (activeFloors.length === 0) {
+        openModal("Log Today's Hours", `<div class="empty-state">No active floors yet.<br>Start work on a floor first.</div>`, null);
+        return;
+    }
+
+    let rows = activeFloors.map((floor, fi) => {
         const itemRows = floor.items.map((item, idx) => `
             <div class="daily-row">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
@@ -2853,7 +2871,16 @@ function _openLogTodayModal(floors) {
                     ${_ltGroupRow(fi, idx, 0)}
                 </div>
             </div>`).join('');
-        return `<div class="daily-floor-header">${floor.name}</div>${itemRows}`;
+        return `
+            <div style="border:1.5px solid #e0e0e0;border-radius:10px;margin-bottom:8px;overflow:hidden">
+                <div class="daily-floor-header" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;margin:0;border-radius:0" onclick="toggleLtFloor(${fi})">
+                    <span>${floor.name}</span>
+                    <span id="lt_floor_arrow_${fi}" style="font-size:18px;color:#aaa">▸</span>
+                </div>
+                <div id="lt_floor_body_${fi}" style="display:none;padding:8px">
+                    ${itemRows}
+                </div>
+            </div>`;
     }).join('');
 
     openModal("Log Today's Hours", `
@@ -2871,7 +2898,7 @@ function _openLogTodayModal(floors) {
     `, () => {
         const date = document.getElementById('lt_date').value;
         let saved  = 0;
-        floors.forEach((floor, fi) => {
+        activeFloors.forEach((floor, fi) => {
             floor.items.forEach((item, idx) => {
                 const key        = `${fi}_${idx}`;
                 const groupCount = _ltGroups[key] || 1;
