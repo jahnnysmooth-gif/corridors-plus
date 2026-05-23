@@ -2615,7 +2615,13 @@ function openModal(title, bodyHtml, saveFn, hideActions) {
     document.getElementById('modalTitle').textContent = title;
     document.getElementById('modalBody').innerHTML    = bodyHtml;
     document.getElementById('modalOverlay').classList.add('open');
-    document.getElementById('modalActions').style.display = hideActions ? 'none' : 'flex';
+    const actions = document.getElementById('modalActions');
+    if (hideActions) {
+        actions.style.display = 'none';
+    } else {
+        actions.innerHTML = `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveModal()">Save</button>`;
+        actions.style.display = 'flex';
+    }
     modalSaveFn = saveFn;
     setTimeout(() => {
         const first = document.querySelector('.modal input:not([type=date])');
