@@ -666,14 +666,14 @@ function syncMaterials(payload) {
     if (deletions.length > 0) {
       const activeIds  = new Set(updates.map(m => String(m['App ID']||'').trim()).filter(Boolean));
       const activeKeys = new Set(updates.map(m => (String(m['Trade']||'')+'||'+String(m['Material']||'')).toLowerCase()));
-      // Deletions with an id: match by App ID; also match by trade+name on rows missing an App ID
-      const withId    = deletions.filter(d => d.id  && !activeIds.has(String(d.id).trim()));
-      // Deletions without an id (legacy entries): match by trade+name only on rows missing an App ID
-      const withoutId = deletions.filter(d => !d.id && !activeKeys.has((String(d.trade||'')+'||'+String(d.name||'')).toLowerCase()));
-      const delIds  = new Set(withId.map(d => String(d.id).trim()));
-      const delKeys = new Set([...withId, ...withoutId]
-                        .filter(d => !activeKeys.has((String(d.trade||'')+'||'+String(d.name||'')).toLowerCase()))
-                        .map(d => (String(d.trade||'')+'||'+String(d.name||'')).toLowerCase()));
+      const pending    = deletions.filter(d => {
+        if (d.id && activeIds.has(String(d.id).trim())) return false;
+        const k = (String(d.trade||'')+'||'+String(d.name||'')).toLowerCase();
+        return !activeKeys.has(k);
+      });
+      const delIds  = new Set(pending.filter(d => d.id).map(d => String(d.id).trim()));
+      // Trade+name keys for ALL pending deletions — used for rows without an App ID and for legacy no-id entries
+      const delKeys = new Set(pending.map(d => (String(d.trade||'')+'||'+String(d.name||'')).toLowerCase()));
       if (delIds.size > 0 || delKeys.size > 0) {
         const freshData = sheet.getDataRange().getValues();
         const freshHdr2 = freshData[0].map(h => String(h).trim());
@@ -683,7 +683,7 @@ function syncMaterials(payload) {
         for (let i = freshData.length - 1; i >= 1; i--) {
           const rowId  = String(fhAppId  >= 0 ? freshData[i][fhAppId]  : '').trim();
           const rowKey = (String(fhTrade2 >= 0 ? freshData[i][fhTrade2] : '') + '||' + String(fhMat2 >= 0 ? freshData[i][fhMat2] : '')).toLowerCase();
-          if ((rowId && delIds.has(rowId)) || (!rowId && delKeys.has(rowKey))) sheet.deleteRow(i + 1);
+          if ((rowId && delIds.has(rowId)) || delKeys.has(rowKey)) sheet.deleteRow(i + 1);
         }
       }
     }
