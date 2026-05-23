@@ -1342,7 +1342,7 @@ function renderHome() {
             <div style="display:flex;flex-direction:column;gap:8px">
                 <div style="display:flex;align-items:center;gap:10px;font-size:14px;color:#333">
                     <span style="background:#1a3a5c;color:white;font-size:11px;font-weight:800;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0">1</span>
-                    Tap <strong>Labor Hours</strong> → <strong>+ Add Floor</strong> to set up your floors
+                    Tap <strong>Floor Management</strong> → <strong>+ Add Floor</strong> to set up your floors
                 </div>
                 <div style="display:flex;align-items:center;gap:10px;font-size:14px;color:#333">
                     <span style="background:#1a3a5c;color:white;font-size:11px;font-weight:800;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0">2</span>
@@ -1369,7 +1369,7 @@ function renderHome() {
             </button>
             <button class="home-tile labor" onclick="navigate('floors')">
                 <span class="home-tile-icon">👷</span>
-                <div class="home-tile-label">Labor Hours</div>
+                <div class="home-tile-label">Floor Management</div>
                 <div class="home-tile-sub">${totalFloors === 0 ? 'Add your first floor' : `${totalFloors} floor${totalFloors !== 1 ? 's' : ''} · ${totalHrs} man-hrs`}</div>
             </button>
             <button class="home-tile" style="border-top:4px solid #7c3aed" onclick="navigate('reports')">
@@ -1418,8 +1418,10 @@ function renderFloors() {
     let html = '';
 
 
-    const activeFloors    = state.floors.filter(f => !f.completed);
-    const completedFloors = state.floors.filter(f =>  f.completed);
+    const completedFloors  = state.floors.filter(f => f.completed);
+    const notCompleted     = state.floors.filter(f => !f.completed);
+    const activeFloors     = notCompleted.filter(f => (f.items || []).some(i => i.status === 'active' || i.status === 'done'));
+    const notStartedFloors = notCompleted.filter(f => (f.items || []).every(i => !i.status || i.status === 'pending'));
 
     if (state.floors.length === 0) {
         html += `<div class="empty-state">No floors yet.<br>Tap <strong>+ Add Floor</strong> below to get started.</div>`;
@@ -1470,6 +1472,11 @@ function renderFloors() {
         </div>`;
 
         activeFloors.forEach(floor => { html += renderFloorCard(floor); });
+
+        if (notStartedFloors.length > 0) {
+            html += `<div class="completed-section-header">Not Started</div>`;
+            notStartedFloors.forEach(floor => { html += renderFloorCard(floor); });
+        }
 
         if (completedFloors.length > 0) {
             html += `<div class="completed-section-header">Completed Floors</div>`;
