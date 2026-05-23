@@ -2137,44 +2137,6 @@ function renderFloor(floor) {
     html += `<button class="add-btn" onclick="openAddItem('${floor.id}')">+ Add Work Item</button>`;
 
     // Materials used on this floor
-    const floorMatUsage = [];
-    (state.materials || []).forEach(mat => {
-        const entries = (mat.log || []).filter(e => e.type === 'usage' && e.floorId === floor.id);
-        if (entries.length > 0) {
-            const total = entries.reduce((s, e) => s + e.qty, 0);
-            floorMatUsage.push({ name: mat.name, unit: mat.unit, trade: mat.trade || 'Other', total, matId: mat.id });
-        }
-    });
-    floorMatUsage.sort((a, b) => a.trade.localeCompare(b.trade) || a.name.localeCompare(b.name));
-
-    html += `<div class="card" style="margin-top:16px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-            <span style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;color:#1a3a5c">Materials Used</span>
-            <button onclick="navigate('materials')" style="background:none;border:none;font-size:12px;color:#1a3a5c;font-weight:600;cursor:pointer;padding:0">View All ›</button>
-        </div>`;
-    if (floorMatUsage.length === 0) {
-        html += `<div style="font-size:13px;color:#aaa;font-style:italic;padding:4px 0">No materials logged for this floor yet.</div>`;
-    } else {
-        const byTrade = {};
-        floorMatUsage.forEach(m => {
-            if (!byTrade[m.trade]) byTrade[m.trade] = [];
-            byTrade[m.trade].push(m);
-        });
-        const tradeKeys = TRADE_ORDER.filter(t => byTrade[t]);
-        Object.keys(byTrade).forEach(t => { if (!TRADE_ORDER.includes(t)) tradeKeys.push(t); });
-        tradeKeys.forEach(trade => {
-            const color = TRADE_COLORS[trade] || '#475569';
-            html += `<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.6px;color:${color};margin:10px 0 4px">${TRADE_ICONS[trade] || '📦'} ${trade}</div>`;
-            byTrade[trade].forEach(m => {
-                html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f5f5f5;cursor:pointer" onclick="navigate('material',null,null,'${m.matId}','${m.trade}')">
-                    <span style="font-size:14px;color:#1a1a2e">${m.name}</span>
-                    <span style="font-size:14px;font-weight:700;color:#1a3a5c">${m.total} <span style="font-size:11px;font-weight:400;color:#999">${m.unit}</span></span>
-                </div>`;
-            });
-        });
-    }
-    html += `</div>`;
-
     html += `<div class="delete-zone">
         <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn btn-secondary btn-sm" onclick="renameFloor('${floor.id}')">&#9998; Rename Floor</button>
