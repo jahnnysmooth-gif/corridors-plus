@@ -1250,8 +1250,8 @@ function render() {
         back.onclick = () => navigate('home');
         title.textContent = 'Attendance';
         exp.style.display = 'block';
-        exp.textContent = '📄'; exp.title = 'Export PDF';
-        exp.onclick = () => exportAttendancePDF(_attendanceDate);
+        exp.textContent = '👥'; exp.title = 'Manage Roster';
+        exp.onclick = () => { _attView = 'roster'; app.innerHTML = renderAttendance(); };
         app.innerHTML = renderAttendance();
 
     } else if (view.screen === 'reports') {
@@ -4947,7 +4947,7 @@ function openSignInDetailModal(workerId, day, afterSave) {
         (member ? member.name + ' — ' : '') + 'Sign In',
         `<div class="form-group">
             <label>Hours Worked</label>
-            <input id="signin_hours" type="number" min="1" max="24" step="0.5" placeholder="e.g. 8" value="${existingDetail.hours || ''}" />
+            <input id="signin_hours" type="number" min="1" max="24" step="0.5" value="${existingDetail.hours || 8}" />
         </div>`,
         () => {
             const hours = parseFloat(document.getElementById('signin_hours')?.value) || 0;
@@ -5272,134 +5272,116 @@ function submitAttendanceToday() {
 }
 
 function renderAttendance() {
-    const t    = today();
-    const crew = state.crew || [];
+    const t           = today();
+    const crew        = state.crew || [];
     const checkedIds  = getCheckedIds(_attendanceDate);
     const presentCount = checkedIds.size;
-    const isToday = _attendanceDate === t;
+    const isToday     = _attendanceDate === t;
     const currentDay  = getAttendanceDay(_attendanceDate);
     const allChecked  = crew.length > 0 && presentCount === crew.length;
 
     let html = '';
 
-    // Tab switcher
-    html += `<div style="display:flex;gap:0;margin-bottom:16px;border:1.5px solid #e0e0e0;border-radius:10px;overflow:hidden">
-        <button onclick="_attView='signin';document.getElementById('att_tab_signin').style.display='block';document.getElementById('att_tab_roster').style.display='none';this.style.background='#1a3a5c';this.style.color='white';document.getElementById('att_roster_tab_btn').style.background='';document.getElementById('att_roster_tab_btn').style.color=''" id="att_signin_tab_btn"
-            style="flex:1;padding:10px;border:none;cursor:pointer;font-size:14px;font-weight:600;background:${_attView==='signin'?'#1a3a5c':'white'};color:${_attView==='signin'?'white':'#555'}">
-            Sign-In
-        </button>
-        <button onclick="_attView='roster';document.getElementById('att_tab_roster').style.display='block';document.getElementById('att_tab_signin').style.display='none';this.style.background='#1a3a5c';this.style.color='white';document.getElementById('att_signin_tab_btn').style.background='';document.getElementById('att_signin_tab_btn').style.color=''" id="att_roster_tab_btn"
-            style="flex:1;padding:10px;border:none;border-left:1.5px solid #e0e0e0;cursor:pointer;font-size:14px;font-weight:600;background:${_attView==='roster'?'#1a3a5c':'white'};color:${_attView==='roster'?'white':'#555'}">
-            Manage Roster
-        </button>
-    </div>`;
-
-    // ── Sign-In tab ──
-    html += `<div id="att_tab_signin" style="display:${_attView==='roster'?'none':'block'}">`;
-
-    if (crew.length === 0) {
-        html += `<div class="card"><div class="empty-state">No crew roster yet.<br>Tap <strong>Manage Roster</strong> above, then <strong>+ Add Crew Member</strong> to get started.</div></div>`;
-    } else {
-        // Back to Today button when viewing a past day
-        if (!isToday) {
-            html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:12px" onclick="setAttendanceDate('${t}')">← Back to Today</button>`;
-        }
-
-        // Section header
-        html += `<div class="section-header">
-            <span class="section-title">${isToday ? 'Today' : displayDate(_attendanceDate)} · ${presentCount} on site</span>
-            <div style="display:flex;gap:6px;align-items:center">
-                <button class="icon-btn" onclick="${allChecked ? `deselectAllWorkers('${_attendanceDate}')` : `selectAllWorkers('${_attendanceDate}')`}">${allChecked ? 'Deselect All' : 'Select All'}</button>
-            </div>
+    // ── Roster view ──
+    if (_attView === 'roster') {
+        html += `<div class="section-header"><span class="section-title">Crew Roster (${crew.length})</span>
+            <button class="icon-btn" onclick="_attView='signin';document.getElementById('app').innerHTML=renderAttendance()">← Sign-In</button>
         </div>`;
-
-        // Worker list
-        html += `<div class="card" style="padding:8px 16px">`;
-        crew.forEach(w => {
-            const checked = checkedIds.has(w.id);
-            const detail = (currentDay?.details || {})[w.id];
-            const detailLine = checked && detail?.hours
-                ? `<div style="font-size:11px;color:#0891b2;margin-top:2px">${detail.hours} hrs</div>`
-                : '';
-            html += `<div class="worker-row att-row${checked?' att-checked':''}" onclick="toggleSignIn('${w.id}','${_attendanceDate}')" style="cursor:pointer">
-                <div style="display:flex;align-items:center;gap:12px">
-                    <input type="checkbox" ${checked?'checked':''} onclick="event.stopPropagation();toggleSignIn('${w.id}','${_attendanceDate}')"
-                        style="width:20px;height:20px;accent-color:#0891b2;cursor:pointer;flex-shrink:0" />
+        if (crew.length === 0) {
+            html += `<div class="card"><div class="empty-state">No crew members yet.<br>Add everyone here once, then sign them in daily.</div></div>`;
+        } else {
+            html += `<div class="card" style="padding:8px 16px">`;
+            crew.forEach(w => {
+                html += `<div class="worker-row">
                     <div>
                         <div class="worker-name">${w.name}</div>
                         ${w.trade ? `<div class="worker-trade">${w.trade}</div>` : ''}
-                        ${detailLine}
                     </div>
-                </div>
-                <div style="display:flex;align-items:center;gap:8px">
-                    ${checked ? `<button class="edit-row" style="font-size:14px" onclick="event.stopPropagation();editSignInDetail('${w.id}','${_attendanceDate}')">&#9998;</button>` : ''}
-                    ${checked ? `<span style="color:#0891b2;font-size:13px;font-weight:700">On site</span>` : `<span style="color:#ccc;font-size:13px">—</span>`}
-                </div>
-            </div>`;
-        });
-        html += `</div>`;
-
-        // Action buttons
-        if (isToday) {
-            html += `<button id="att_submit_btn" class="btn btn-primary" style="width:100%;margin-top:8px;padding:14px;font-size:15px;font-weight:700" onclick="submitAttendanceToday()">✓ Submit Today's Attendance</button>`;
-            html += `<button class="btn btn-secondary" style="width:100%;margin-top:6px" onclick="openWeeklyAttendancePicker()">&#8681; Weekly Attendance PDF</button>`;
-        } else {
-            html += `<button class="btn btn-danger" style="width:100%;margin-top:6px" onclick="deleteAttendanceDay('${_attendanceDate}')">Delete This Day</button>`;
+                    <div style="display:flex;gap:8px">
+                        <button class="edit-row" onclick="editCrewMember('${w.id}')">&#9998;</button>
+                        <button class="delete-row" onclick="removeCrewMember('${w.id}')">×</button>
+                    </div>
+                </div>`;
+            });
+            html += `</div>`;
         }
-
-        // Recent Days list (only shown when viewing today)
-        if (isToday) {
-            const allPastDays = (state.attendance || []).filter(a => a.date !== t).sort((a,b) => b.date.localeCompare(a.date));
-            const pastDays = _attShowAll ? allPastDays : allPastDays.slice(0, 10);
-
-            html += `<div class="section-header" style="margin-top:20px"><span class="section-title">Recent Days</span></div>`;
-            html += `<div style="margin-bottom:10px"><input type="date" style="width:100%;padding:10px 12px;border:1.5px solid #e0e0e0;border-radius:10px;font-size:14px;color:#1a1a2e" onchange="if(this.value)setAttendanceDate(this.value)" placeholder="Pick any date…" /></div>`;
-
-            if (allPastDays.length > 0) {
-                html += `<div class="card">`;
-                pastDays.forEach(a => {
-                    const names = (a.workerIds || []).map(id => { const m = findWorker(id); return m ? m.name.split(' ')[0] : null; }).filter(Boolean);
-                    html += `<div class="worker-row" style="cursor:pointer" onclick="setAttendanceDate('${a.date}')">
-                        <div>
-                            <div class="worker-name">${displayDate(a.date)}</div>
-                            <div class="worker-trade">${(a.workerIds||[]).length} on site · ${names.join(', ')}</div>
-                        </div>
-                        <span style="color:#ccc;font-size:20px">›</span>
-                    </div>`;
-                });
-                html += `</div>`;
-                if (allPastDays.length > 10) {
-                    html += `<button class="btn btn-secondary" style="width:100%;margin-top:8px" onclick="_attShowAll=!_attShowAll;document.getElementById('app').innerHTML=renderAttendance()">${_attShowAll ? 'Show Less' : 'Show All ' + allPastDays.length + ' Days'}</button>`;
-                }
-            }
-        }
+        html += `<button class="btn btn-primary" style="width:100%;margin-top:8px;padding:14px;font-size:15px" onclick="addCrewMember()">+ Add Crew Member</button>`;
+        return html;
     }
 
-    html += `</div>`; // end sign-in tab
-
-    // ── Roster tab ──
-    html += `<div id="att_tab_roster" style="display:${_attView==='roster'?'block':'none'}">`;
-    html += `<div class="section-header"><span class="section-title">Crew Roster (${crew.length})</span></div>`;
+    // ── Sign-In view ──
     if (crew.length === 0) {
-        html += `<div class="card"><div class="empty-state">No crew members yet.<br>Add everyone here once, then sign them in daily from the <strong>Sign-In</strong> tab.</div></div>`;
-    } else {
-        html += `<div class="card" style="padding:8px 16px">`;
-        crew.forEach(w => {
-            html += `<div class="worker-row">
+        html += `<div class="card"><div class="empty-state">No crew roster yet.<br>Tap 👥 in the top right, then <strong>+ Add Crew Member</strong> to get started.</div></div>`;
+        return html;
+    }
+
+    // Back to Today button when viewing a past day
+    if (!isToday) {
+        html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:12px" onclick="setAttendanceDate('${t}')">← Back to Today</button>`;
+    }
+
+    // Section header
+    html += `<div class="section-header">
+        <span class="section-title">${isToday ? 'Today' : displayDate(_attendanceDate)} · ${presentCount} of ${crew.length} on site</span>
+        <button class="icon-btn" onclick="${allChecked ? `deselectAllWorkers('${_attendanceDate}')` : `selectAllWorkers('${_attendanceDate}')`}">${allChecked ? 'Deselect All' : 'Select All'}</button>
+    </div>`;
+
+    // Worker list
+    html += `<div class="card" style="padding:8px 16px">`;
+    crew.forEach(w => {
+        const checked = checkedIds.has(w.id);
+        const detail  = (currentDay?.details || {})[w.id];
+        const hoursLine = checked && detail?.hours
+            ? `<div style="font-size:11px;color:#0891b2;margin-top:2px">${detail.hours} hrs</div>`
+            : '';
+        html += `<div class="worker-row att-row${checked?' att-checked':''}" onclick="toggleSignIn('${w.id}','${_attendanceDate}')" style="cursor:pointer">
+            <div style="display:flex;align-items:center;gap:12px">
+                <input type="checkbox" ${checked?'checked':''} onclick="event.stopPropagation();toggleSignIn('${w.id}','${_attendanceDate}')"
+                    style="width:20px;height:20px;accent-color:#0891b2;cursor:pointer;flex-shrink:0" />
                 <div>
                     <div class="worker-name">${w.name}</div>
                     ${w.trade ? `<div class="worker-trade">${w.trade}</div>` : ''}
+                    ${hoursLine}
                 </div>
-                <div style="display:flex;gap:8px">
-                    <button class="edit-row" onclick="editCrewMember('${w.id}')">&#9998;</button>
-                    <button class="delete-row" onclick="removeCrewMember('${w.id}')">×</button>
-                </div>
-            </div>`;
-        });
-        html += `</div>`;
+            </div>
+            ${checked ? `<button class="edit-row" style="font-size:14px" onclick="event.stopPropagation();editSignInDetail('${w.id}','${_attendanceDate}')">&#9998;</button>` : ''}
+        </div>`;
+    });
+    html += `</div>`;
+
+    // Buttons
+    if (isToday) {
+        html += `<button class="btn btn-secondary" style="width:100%;margin-top:8px" onclick="openWeeklyAttendancePicker()">&#8681; Weekly Attendance PDF</button>`;
+    } else {
+        html += `<button class="btn btn-danger" style="width:100%;margin-top:6px" onclick="deleteAttendanceDay('${_attendanceDate}')">Delete This Day</button>`;
     }
-    html += `<button class="btn btn-primary" style="width:100%;margin-top:8px;padding:14px;font-size:15px" onclick="addCrewMember()">+ Add Crew Member</button>`;
-    html += `</div>`; // end roster tab
+
+    // Recent Days — shown when viewing today, includes today if attendance taken
+    if (isToday) {
+        const todayDay = (state.attendance || []).find(a => a.date === t);
+        const allDays  = (state.attendance || []).slice().sort((a,b) => b.date.localeCompare(a.date));
+        const showDays = _attShowAll ? allDays : allDays.slice(0, 10);
+
+        if (allDays.length > 0) {
+            html += `<div class="section-header" style="margin-top:20px"><span class="section-title">Recent Days</span></div>`;
+            html += `<div class="card">`;
+            showDays.forEach(a => {
+                const isCurrentDay = a.date === t;
+                const names = (a.workerIds || []).map(id => { const m = findWorker(id); return m ? m.name.split(' ')[0] : null; }).filter(Boolean);
+                html += `<div class="worker-row" style="cursor:pointer${isCurrentDay?';background:#f0f9ff':''}" onclick="setAttendanceDate('${a.date}')">
+                    <div>
+                        <div class="worker-name">${isCurrentDay ? 'Today ✓' : displayDate(a.date)}</div>
+                        <div class="worker-trade">${(a.workerIds||[]).length} on site · ${names.join(', ')}</div>
+                    </div>
+                    <span style="color:#ccc;font-size:20px">›</span>
+                </div>`;
+            });
+            html += `</div>`;
+            if (allDays.length > 10) {
+                html += `<button class="btn btn-secondary" style="width:100%;margin-top:8px" onclick="_attShowAll=!_attShowAll;document.getElementById('app').innerHTML=renderAttendance()">${_attShowAll ? 'Show Less' : 'Show All ' + allDays.length + ' Days'}</button>`;
+            }
+        }
+    }
 
     return html;
 }
