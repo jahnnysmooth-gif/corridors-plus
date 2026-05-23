@@ -2806,23 +2806,13 @@ function openGlobalLogToday() {
 
 function _ltGroupRow(fi, idx, g) {
     const isExtra = g > 0;
-    return `<div class="form-row"${isExtra ? ' style="margin-top:6px;padding-top:6px;border-top:1px dashed #e0e0e0"' : ''}>
-        <div class="form-group" style="margin-bottom:0">
-            <label>${isExtra ? `G${g+1} · ` : ''}Skilled</label>
-            <input type="number" min="0" id="lt_s_${fi}_${idx}_g${g}" placeholder="—" />
-        </div>
-        <div class="form-group" style="margin-bottom:0">
-            <label>Skld Hrs</label>
-            <input type="number" min="0.5" step="0.5" id="lt_sh_${fi}_${idx}_g${g}" placeholder="—" />
-        </div>
-        <div class="form-group" style="margin-bottom:0">
-            <label>Laborer</label>
-            <input type="number" min="0" id="lt_l_${fi}_${idx}_g${g}" placeholder="—" />
-        </div>
-        <div class="form-group" style="margin-bottom:0">
-            <label>Lab Hrs</label>
-            <input type="number" min="0.5" step="0.5" id="lt_lh_${fi}_${idx}_g${g}" placeholder="—" />
-        </div>
+    const inputStyle = 'width:100%;padding:7px 8px;border:1.5px solid #e0e0e0;border-radius:7px;font-size:14px;font-weight:600;color:#1a1a2e;background:white;outline:none';
+    const labelStyle = 'display:block;font-size:10px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:3px';
+    return `<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px${isExtra ? ';margin-top:6px;padding-top:6px;border-top:1px dashed #e0e0e0' : ''}">
+        <div><label style="${labelStyle}">${isExtra ? `G${g+1} · ` : ''}Skilled</label><input type="number" min="0" id="lt_s_${fi}_${idx}_g${g}" placeholder="—" style="${inputStyle}" /></div>
+        <div><label style="${labelStyle}">Skld Hrs</label><input type="number" min="0.5" step="0.5" id="lt_sh_${fi}_${idx}_g${g}" placeholder="—" style="${inputStyle}" /></div>
+        <div><label style="${labelStyle}">Laborer</label><input type="number" min="0" id="lt_l_${fi}_${idx}_g${g}" placeholder="—" style="${inputStyle}" /></div>
+        <div><label style="${labelStyle}">Lab Hrs</label><input type="number" min="0.5" step="0.5" id="lt_lh_${fi}_${idx}_g${g}" placeholder="—" style="${inputStyle}" /></div>
     </div>`;
 }
 
@@ -2877,7 +2867,7 @@ function _openLogTodayModal(floors) {
                     <span>${floor.name}</span>
                     <span id="lt_floor_arrow_${fi}" style="font-size:18px;color:#aaa">▸</span>
                 </div>
-                <div id="lt_floor_body_${fi}" style="display:none;padding:8px">
+                <div id="lt_floor_body_${fi}" style="display:none;padding:12px 14px">
                     ${itemRows}
                 </div>
             </div>`;
