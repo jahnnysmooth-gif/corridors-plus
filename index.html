@@ -1767,6 +1767,7 @@ function renderMaterialDetail(mat) {
     html += `<div class="delete-zone">
         <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn btn-secondary btn-sm" onclick="renameMaterial('${mat.id}')">&#9998; Rename</button>
+            <button class="btn btn-secondary btn-sm" onclick="setStartQty('${mat.id}')">&#9964; Unit${mat.unit ? ': ' + mat.unit : ''}</button>
             <button class="btn btn-secondary btn-sm" onclick="setParQty('${mat.id}')">&#9651; Min${mat.parQty > 0 ? ': ' + mat.parQty : ''}</button>
             <button class="btn btn-secondary btn-sm" onclick="setReorderQty('${mat.id}')">&#128666; Order qty${mat.reorderQty > 0 ? ': ' + mat.reorderQty : ''}</button>
             <button class="btn btn-secondary btn-sm" style="background:#92400e;color:white;border-color:#92400e" onclick="archiveMaterial('${mat.id}')">&#128230; Archive</button>
