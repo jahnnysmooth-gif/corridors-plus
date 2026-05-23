@@ -662,17 +662,19 @@ function syncMaterials(payload) {
     }
 
     // Handle deletions — only delete rows that have a matching App ID
-    // Rows with no App ID are manually-added sheet rows and must never be touched
     const deletions = payload.deletions || [];
     if (deletions.length > 0) {
       const activeIds  = new Set(updates.map(m => String(m['App ID']||'').trim()).filter(Boolean));
       const activeKeys = new Set(updates.map(m => (String(m['Trade']||'')+'||'+String(m['Material']||'')).toLowerCase()));
-      const pendingDel = deletions.filter(d => d.id && !activeIds.has(String(d.id).trim()));
-      const delIds     = new Set(pendingDel.map(d => String(d.id).trim()));
-      // Also match by trade+name for rows that were added from the sheet and never got an App ID written
-      const delKeys    = new Set(pendingDel.filter(d => !activeKeys.has((String(d.trade||'')+'||'+String(d.name||'')).toLowerCase()))
-                           .map(d => (String(d.trade||'')+'||'+String(d.name||'')).toLowerCase()));
-      if (delIds.size > 0) {
+      // Deletions with an id: match by App ID; also match by trade+name on rows missing an App ID
+      const withId    = deletions.filter(d => d.id  && !activeIds.has(String(d.id).trim()));
+      // Deletions without an id (legacy entries): match by trade+name only on rows missing an App ID
+      const withoutId = deletions.filter(d => !d.id && !activeKeys.has((String(d.trade||'')+'||'+String(d.name||'')).toLowerCase()));
+      const delIds  = new Set(withId.map(d => String(d.id).trim()));
+      const delKeys = new Set([...withId, ...withoutId]
+                        .filter(d => !activeKeys.has((String(d.trade||'')+'||'+String(d.name||'')).toLowerCase()))
+                        .map(d => (String(d.trade||'')+'||'+String(d.name||'')).toLowerCase()));
+      if (delIds.size > 0 || delKeys.size > 0) {
         const freshData = sheet.getDataRange().getValues();
         const freshHdr2 = freshData[0].map(h => String(h).trim());
         const fhAppId   = freshHdr2.indexOf('App ID');
