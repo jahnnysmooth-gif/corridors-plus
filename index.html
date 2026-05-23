@@ -2359,6 +2359,7 @@ let _qlWorkerIds = new Set();
 let _qlGroups = 1;
 let _ltGroups = {};
 let _ltWorkerIds = {};
+let _ltModalFloors = [];
 
 function qlGroupHtml(i) {
     const lastSkld = localStorage.getItem('hallway_last_skld_hrs') || '8';
@@ -2432,27 +2433,27 @@ function _ltPresentWorkers(date) {
     return att ? (att.workerIds || []).map(id => findWorker(id)).filter(Boolean) : crew;
 }
 
-function _ltWorkerChipsHtml(fi, idx, date) {
+function _ltWorkerChipsHtml(fi, idx, g, date) {
     const present = _ltPresentWorkers(date);
     if (present.length === 0) return '';
-    const key = `${fi}_${idx}`;
+    const key = `${fi}_${idx}_g${g}`;
     if (!_ltWorkerIds[key]) _ltWorkerIds[key] = new Set();
     const sel = _ltWorkerIds[key];
     return `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px">
         ${present.map(w => {
             const active = sel.has(w.id);
-            return `<button type="button" id="ltw_${fi}_${idx}_${w.id}" onclick="toggleLtWorker(${fi},${idx},'${w.id}')"
+            return `<button type="button" id="ltw_${fi}_${idx}_g${g}_${w.id}" onclick="toggleLtWorker(${fi},${idx},${g},'${w.id}')"
                 style="padding:4px 10px;border-radius:99px;border:1.5px solid ${active ? '#1a3a5c' : '#d1d5db'};background:${active ? '#1a3a5c' : 'white'};font-size:11px;font-weight:600;cursor:pointer;color:${active ? 'white' : '#374151'}">${w.name}</button>`;
         }).join('')}
     </div>`;
 }
 
-function toggleLtWorker(fi, idx, id) {
-    const key = `${fi}_${idx}`;
+function toggleLtWorker(fi, idx, g, id) {
+    const key = `${fi}_${idx}_g${g}`;
     if (!_ltWorkerIds[key]) _ltWorkerIds[key] = new Set();
     const s = _ltWorkerIds[key];
     if (s.has(id)) s.delete(id); else s.add(id);
-    const btn = document.getElementById(`ltw_${fi}_${idx}_${id}`);
+    const btn = document.getElementById(`ltw_${fi}_${idx}_g${g}_${id}`);
     if (btn) {
         const active = s.has(id);
         btn.style.background  = active ? '#1a3a5c' : 'white';
@@ -2463,10 +2464,14 @@ function toggleLtWorker(fi, idx, id) {
 
 function _ltRefreshAllWorkerChips(date) {
     _ltWorkerIds = {};
-    document.querySelectorAll('[id^="lt_worker_chips_"]').forEach(el => {
-        const parts = el.id.replace('lt_worker_chips_', '').split('_');
-        const fi = parseInt(parts[0]), idx = parseInt(parts[1]);
-        el.innerHTML = _ltWorkerChipsHtml(fi, idx, date);
+    _ltModalFloors.forEach((floor, fi) => {
+        floor.items.filter(i => i.status !== 'done').forEach((item, idx) => {
+            const groupCount = _ltGroups[`${fi}_${idx}`] || 1;
+            for (let g = 0; g < groupCount; g++) {
+                const el = document.getElementById(`lt_worker_chips_${fi}_${idx}_g${g}`);
+                if (el) el.innerHTML = _ltWorkerChipsHtml(fi, idx, g, date);
+            }
+        });
     });
 }
 
@@ -2853,11 +2858,15 @@ function _ltGroupRow(fi, idx, g) {
     const isExtra = g > 0;
     const inputStyle = 'width:100%;padding:7px 8px;border:1.5px solid #e0e0e0;border-radius:7px;font-size:14px;font-weight:600;color:#1a1a2e;background:white;outline:none';
     const labelStyle = 'display:block;font-size:10px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:3px';
-    return `<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px${isExtra ? ';margin-top:6px;padding-top:6px;border-top:1px dashed #e0e0e0' : ''}">
-        <div><label style="${labelStyle}">${isExtra ? `G${g+1} · ` : ''}Skilled</label><input type="number" min="0" id="lt_s_${fi}_${idx}_g${g}" placeholder="—" style="${inputStyle}" /></div>
-        <div><label style="${labelStyle}">Skld Hrs</label><input type="number" min="0.5" step="0.5" id="lt_sh_${fi}_${idx}_g${g}" placeholder="—" style="${inputStyle}" /></div>
-        <div><label style="${labelStyle}">Laborer</label><input type="number" min="0" id="lt_l_${fi}_${idx}_g${g}" placeholder="—" style="${inputStyle}" /></div>
-        <div><label style="${labelStyle}">Lab Hrs</label><input type="number" min="0.5" step="0.5" id="lt_lh_${fi}_${idx}_g${g}" placeholder="—" style="${inputStyle}" /></div>
+    const date = document.getElementById('lt_date')?.value || today();
+    return `<div style="${isExtra ? 'margin-top:6px;padding-top:6px;border-top:1px dashed #e0e0e0' : ''}">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px">
+            <div><label style="${labelStyle}">${isExtra ? `G${g+1} · ` : ''}Skilled</label><input type="number" min="0" id="lt_s_${fi}_${idx}_g${g}" placeholder="—" style="${inputStyle}" /></div>
+            <div><label style="${labelStyle}">Skld Hrs</label><input type="number" min="0.5" step="0.5" id="lt_sh_${fi}_${idx}_g${g}" placeholder="—" style="${inputStyle}" /></div>
+            <div><label style="${labelStyle}">Laborer</label><input type="number" min="0" id="lt_l_${fi}_${idx}_g${g}" placeholder="—" style="${inputStyle}" /></div>
+            <div><label style="${labelStyle}">Lab Hrs</label><input type="number" min="0.5" step="0.5" id="lt_lh_${fi}_${idx}_g${g}" placeholder="—" style="${inputStyle}" /></div>
+        </div>
+        <div id="lt_worker_chips_${fi}_${idx}_g${g}">${_ltWorkerChipsHtml(fi, idx, g, date)}</div>
     </div>`;
 }
 
@@ -2883,11 +2892,13 @@ function toggleLtFloor(fi) {
 function _openLogTodayModal(floors) {
     _ltGroups = {};
     _ltWorkerIds = {};
+    _ltModalFloors = [];
     const t   = today();
     const yes = yesterday();
 
     // Only show active floors (at least one item active or done, not completed)
     const activeFloors = floors.filter(f => !f.completed && (f.items || []).some(i => i.status === 'active' || i.status === 'done'));
+    _ltModalFloors = activeFloors;
 
     const calIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
 
@@ -2906,7 +2917,6 @@ function _openLogTodayModal(floors) {
                 <div id="lt_groups_${fi}_${idx}">
                     ${_ltGroupRow(fi, idx, 0)}
                 </div>
-                <div id="lt_worker_chips_${fi}_${idx}">${_ltWorkerChipsHtml(fi, idx, t)}</div>
             </div>`).join('');
         return `
             <div style="border:1.5px solid #dde3ed;border-radius:12px;margin-bottom:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.05)">
@@ -2952,7 +2962,7 @@ function _openLogTodayModal(floors) {
                     if (laborer > 0 && laborerHours <= 0) { alert(`${item.name}: enter hours for Laborer workers.`); return; }
                     if (mh > 0) {
                         const entry = { date, skilled, skilledHours, laborer, laborerHours };
-                        const wids = _ltWorkerIds[`${fi}_${idx}`];
+                        const wids = _ltWorkerIds[`${fi}_${idx}_g${g}`];
                         if (wids && wids.size > 0) entry.workerIds = [...wids];
                         item.hoursLog.push(entry);
                         if ((item.status || 'pending') === 'pending') item.status = 'active';
