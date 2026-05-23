@@ -5133,12 +5133,14 @@ function selectAllWorkers(date) {
     date = date || today();
     if (!state.attendance) state.attendance = [];
     if (!state.crew) state.crew = [];
+    const activeCrew = state.crew.filter(c => c.active !== false);
     let day = state.attendance.find(a => a.date === date);
     if (!day) { day = { id: uid(), date: date, workerIds: [] }; state.attendance.push(day); }
-    day.workerIds = state.crew.map(c => c.id);
+    day.workerIds = activeCrew.map(c => c.id);
     day.details = day.details || {};
-    state.crew.forEach(c => {
-        if (!day.details[c.id]) day.details[c.id] = {};
+    activeCrew.forEach(c => {
+        if (!day.details[c.id]) day.details[c.id] = { hours: 8 };
+        else if (!day.details[c.id].hours) day.details[c.id].hours = 8;
     });
     persist();
     document.getElementById('app').innerHTML = renderAttendance();
@@ -5291,6 +5293,7 @@ function renderAttendance() {
 
     // Sub-header — always visible
     const subHeader = `<div style="display:flex;gap:8px;margin-bottom:16px">
+        <button onclick="exportAttendancePDF('${_attendanceDate}')" style="flex:1;padding:10px;background:#f1f5f9;border:1.5px solid #e0e0e0;border-radius:10px;font-size:13px;font-weight:600;color:#1a3a5c;cursor:pointer">🖨️ Daily PDF</button>
         <button onclick="openWeeklyAttendancePicker()" style="flex:1;padding:10px;background:#f1f5f9;border:1.5px solid #e0e0e0;border-radius:10px;font-size:13px;font-weight:600;color:#1a3a5c;cursor:pointer">📄 Weekly PDF</button>
         <button onclick="_attView='roster';document.getElementById('app').innerHTML=renderAttendance()" style="flex:1;padding:10px;background:#f1f5f9;border:1.5px solid #e0e0e0;border-radius:10px;font-size:13px;font-weight:600;color:#1a3a5c;cursor:pointer">👥 Manage Roster</button>
     </div>`;
