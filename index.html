@@ -1355,10 +1355,11 @@ function renderHome() {
             </div>
         </div>` : ''}
         <div class="home-grid">
-            <button class="home-tile labor" onclick="navigate('floors')">
-                <span class="home-tile-icon">👷</span>
-                <div class="home-tile-label">Labor Hours</div>
-                <div class="home-tile-sub">${totalFloors === 0 ? 'Add your first floor' : `${totalFloors} floor${totalFloors !== 1 ? 's' : ''} · ${totalHrs} man-hrs`}</div>
+            <button class="home-tile attendance" onclick="navigate('attendance')" style="position:relative">
+                ${todayWorkers > 0 ? `<span style="position:absolute;top:12px;right:12px;background:#0891b2;color:white;font-size:11px;font-weight:800;padding:2px 8px;border-radius:99px">${todayWorkers} in</span>` : ''}
+                <span class="home-tile-icon">✅</span>
+                <div class="home-tile-label">Attendance</div>
+                <div class="home-tile-sub">${todayWorkers > 0 ? `${todayWorkers} worker${todayWorkers !== 1 ? 's' : ''} signed in today` : 'Sign in your crew daily'}</div>
             </button>
             <button class="home-tile materials" onclick="navigate('materials')" style="position:relative">
                 ${lowCount > 0 ? `<span style="position:absolute;top:12px;right:12px;background:#dc2626;color:white;font-size:11px;font-weight:800;padding:2px 8px;border-radius:99px">${lowCount} low</span>` : ''}
@@ -1366,11 +1367,10 @@ function renderHome() {
                 <div class="home-tile-label">Materials</div>
                 <div class="home-tile-sub">${matCount === 0 ? 'Track stock & deliveries' : `${matCount} material${matCount !== 1 ? 's' : ''}${lastEod ? ' · updated ' + displayDate(lastEod) : ''}`}</div>
             </button>
-            <button class="home-tile attendance" onclick="navigate('attendance')" style="position:relative">
-                ${todayWorkers > 0 ? `<span style="position:absolute;top:12px;right:12px;background:#0891b2;color:white;font-size:11px;font-weight:800;padding:2px 8px;border-radius:99px">${todayWorkers} in</span>` : ''}
-                <span class="home-tile-icon">✅</span>
-                <div class="home-tile-label">Attendance</div>
-                <div class="home-tile-sub">${todayWorkers > 0 ? `${todayWorkers} worker${todayWorkers !== 1 ? 's' : ''} signed in today` : 'Sign in your crew daily'}</div>
+            <button class="home-tile labor" onclick="navigate('floors')">
+                <span class="home-tile-icon">👷</span>
+                <div class="home-tile-label">Labor Hours</div>
+                <div class="home-tile-sub">${totalFloors === 0 ? 'Add your first floor' : `${totalFloors} floor${totalFloors !== 1 ? 's' : ''} · ${totalHrs} man-hrs`}</div>
             </button>
             <button class="home-tile" style="border-top:4px solid #7c3aed" onclick="navigate('reports')">
                 <span class="home-tile-icon">📊</span>
