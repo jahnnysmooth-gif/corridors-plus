@@ -2181,7 +2181,7 @@ function renderItem(floor, item) {
         <div class="quick-log-inputs">
             <div class="quick-log-field">
                 <label>Skilled</label>
-                <input type="number" id="ql_skilled" min="0" value="0" oninput="qlPreview()" />
+                <input type="number" id="ql_skilled" min="0" placeholder="0" oninput="qlPreview()" />
             </div>
             <div class="quick-log-field">
                 <label>Skilled Hrs</label>
@@ -2189,7 +2189,7 @@ function renderItem(floor, item) {
             </div>
             <div class="quick-log-field">
                 <label>Laborer</label>
-                <input type="number" id="ql_laborer" min="0" value="0" oninput="qlPreview()" />
+                <input type="number" id="ql_laborer" min="0" placeholder="0" oninput="qlPreview()" />
             </div>
             <div class="quick-log-field">
                 <label>Laborer Hrs</label>
@@ -2314,9 +2314,9 @@ function quickLog(floorId, itemId) {
     if (skilledHours > 0) localStorage.setItem('hallway_last_skld_hrs', String(skilledHours));
     if (laborerHours > 0) localStorage.setItem('hallway_last_lab_hrs',  String(laborerHours));
     setTimeout(() => {
-        document.getElementById('ql_skilled').value = '0';
+        document.getElementById('ql_skilled').value = '';
         document.getElementById('ql_skilled_hours').value = '';
-        document.getElementById('ql_laborer').value = '0';
+        document.getElementById('ql_laborer').value = '';
         document.getElementById('ql_laborer_hours').value = '';
         const p = document.getElementById('ql_preview');
         if (p) p.value = '';
