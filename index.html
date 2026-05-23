@@ -6129,8 +6129,8 @@ async function syncPush() {
             'All-time Used':        allUsed
         };
     });
-    const deletions = (state.deletedMaterials || []).map(d => ({ name: d.name, trade: d.trade }));
-    const archives  = (state.materials || []).filter(m => m.archived).map(m => ({ name: m.name, trade: m.trade || '' }));
+    const deletions = (state.deletedMaterials || []).map(d => ({ id: d.id, name: d.name, trade: d.trade }));
+    const archives  = (state.materials || []).filter(m => m.archived).map(m => ({ id: m.id, name: m.name, trade: m.trade || '' }));
     try {
         const resp = await fetch(url, {
             method: 'POST',
@@ -6141,10 +6141,8 @@ async function syncPush() {
         if (result.error) throw new Error(result.error);
         localStorage.setItem('hallway_sheets_last_sync', new Date().toISOString());
         state.pendingConfirms  = [];
-        // Trim deletedMaterials — sheet has processed them; keep last 100 as a safety buffer
-        if ((state.deletedMaterials || []).length > 100) {
-            state.deletedMaterials = state.deletedMaterials.slice(-100);
-        }
+        // Clear processed deletions — the sheet has handled them; sending stale deletions would nuke re-added rows
+        state.deletedMaterials = [];
         persist();
         toast.style.opacity = '0';
         setTimeout(() => toast.remove(), 300);

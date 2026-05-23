@@ -629,10 +629,11 @@ function syncMaterials(payload) {
     newRows.forEach(row => sheet.appendRow(row));
 
     // Handle archives — move rows from Master to Archived tab
+    // Match by App ID first, then trade+name (never name-only to avoid false matches on sheet-added rows)
     const archives = payload.archives || [];
     if (archives.length > 0) {
+      const archiveIdKeys    = new Set(archives.map(d => String(d.id||'').trim()).filter(Boolean));
       const archiveExactKeys = new Set(archives.map(d => (String(d.trade||'') + '||' + String(d.name||'')).toLowerCase()));
-      const archiveNameKeys  = new Set(archives.map(d => String(d.name||'').trim().toLowerCase()));
       let archSheet = ss.getSheetByName('Archived');
       if (!archSheet) {
         archSheet = ss.insertSheet('Archived');
@@ -645,13 +646,15 @@ function syncMaterials(payload) {
       const archMatIdx = archHdr.indexOf('Material');
       const freshData  = sheet.getDataRange().getValues();
       const freshHdr   = freshData[0].map(h => String(h).trim().replace(/[\r\n]+/g,' ').replace(/\s+/g,' '));
-      const fTrade = freshHdr.indexOf('Trade');
-      const fMat   = freshHdr.indexOf('Material');
+      const fTrade  = freshHdr.indexOf('Trade');
+      const fMat    = freshHdr.indexOf('Material');
+      const fAppId  = freshHdr.indexOf('App ID');
       for (let i = freshData.length - 1; i >= 1; i--) {
         const rowName  = String(fMat   >= 0 ? freshData[i][fMat]   : '').trim().toLowerCase();
         const rowTrade = String(fTrade >= 0 ? freshData[i][fTrade] : '').trim().toLowerCase();
+        const rowId    = String(fAppId >= 0 ? freshData[i][fAppId] : '').trim();
         const exactKey = rowTrade + '||' + rowName;
-        const matched  = archiveExactKeys.has(exactKey) || archiveNameKeys.has(rowName);
+        const matched  = (rowId && archiveIdKeys.has(rowId)) || archiveExactKeys.has(exactKey);
         if (matched && rowName) {
           const alreadyArchived = archSheet.getDataRange().getValues().slice(1).some(r => {
             return String(archMatIdx >= 0 ? r[archMatIdx] : '').trim().toLowerCase() === rowName;
@@ -665,22 +668,31 @@ function syncMaterials(payload) {
     }
 
     // Handle deletions — remove sheet rows for materials deleted in the app
-    // Skip any item that is also present in the materials payload (re-added after deletion)
+    // Match by App ID first, then trade+name — never name-only to avoid wiping sheet-added rows
     const deletions = payload.deletions || [];
     if (deletions.length > 0) {
+      const activeIds  = new Set(updates.map(m => String(m['App ID']||'').trim()).filter(Boolean));
       const activeKeys = new Set(updates.map(m => (String(m['Trade']||'') + '||' + String(m['Material']||'')).toLowerCase()));
-      const delKeys = new Set(
+      const delById    = new Set(
+        deletions.filter(d => d.id && !activeIds.has(String(d.id).trim())).map(d => String(d.id).trim())
+      );
+      const delByKey   = new Set(
         deletions
-          .filter(d => !activeKeys.has((String(d.trade||'') + '||' + String(d.name||'')).toLowerCase()))
+          .filter(d => !d.id && !activeKeys.has((String(d.trade||'') + '||' + String(d.name||'')).toLowerCase()))
           .map(d => (String(d.trade||'') + '||' + String(d.name||'')).toLowerCase())
       );
-      if (delKeys.size > 0) {
-        const freshData     = sheet.getDataRange().getValues();
-        const freshHdrTrade = freshData[0].map(h => String(h).trim()).indexOf('Trade');
-        const freshHdrMat   = freshData[0].map(h => String(h).trim()).indexOf('Material');
+      if (delById.size > 0 || delByKey.size > 0) {
+        const freshData  = sheet.getDataRange().getValues();
+        const freshHdr2  = freshData[0].map(h => String(h).trim());
+        const fhTrade    = freshHdr2.indexOf('Trade');
+        const fhMat      = freshHdr2.indexOf('Material');
+        const fhAppId    = freshHdr2.indexOf('App ID');
         for (let i = freshData.length - 1; i >= 1; i--) {
-          const key = (String(freshData[i][freshHdrTrade]||'') + '||' + String(freshData[i][freshHdrMat]||'')).toLowerCase();
-          if (delKeys.has(key)) sheet.deleteRow(i + 1);
+          const rowId  = String(fhAppId >= 0 ? freshData[i][fhAppId] : '').trim();
+          const rowKey = (String(freshData[i][fhTrade]||'') + '||' + String(freshData[i][fhMat]||'')).toLowerCase();
+          if ((rowId && delById.has(rowId)) || (!rowId && delByKey.has(rowKey))) {
+            sheet.deleteRow(i + 1);
+          }
         }
       }
     }
