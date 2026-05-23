@@ -227,7 +227,7 @@ function generateWeeklyRecap(payload) {
 
     const d = payload.weekData || {};
 
-    const prompt = `You are summarizing a week of work for a NYC hallway renovation contractor (Corridor's Plus) at Georgetown Plaza.
+    const prompt = `You are writing a weekly recap paragraph for a NYC hallway renovation contractor named Corridor's Plus, working at Georgetown Plaza.
 
 WEEK: ${d.label || ''}
 
@@ -243,14 +243,22 @@ ${d.notes || 'None'}
 FLOOR & ITEM STATUS:
 ${d.floorStatus || 'None'}
 
-Write a professional weekly recap of 3–5 sentences in plain paragraph prose. Cover: what was accomplished, how the crew performed, any notable progress or setbacks mentioned in the notes, and a brief forward-looking sentence on what needs to happen next week. Use past tense. Do not use bullet points or headers. Do not repeat raw numbers already shown in the report tables — focus on the narrative story of the week.`;
+Write 3 to 5 sentences of plain prose summarizing the week. Describe what was accomplished on each floor, how the crew performed, and any notable issues or setbacks from the notes. End with one forward-looking sentence about what needs to happen next week.
+
+STRICT RULES — failure to follow any of these will make the output unusable:
+- Output plain sentences only. Nothing else.
+- No markdown of any kind. No pound signs, no asterisks, no underscores, no backticks.
+- No headers, no titles, no bold, no bullet points, no numbered lists.
+- Do not start with the company name or week date — jump straight into the recap.
+- Do not repeat raw numbers from the tables. Focus on the story of the week.
+- Write in past tense.`;
 
     const response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
       method: 'post',
       headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
       payload: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 400,
+        max_tokens: 600,
         messages: [{ role: 'user', content: prompt }]
       }),
       muteHttpExceptions: true,
