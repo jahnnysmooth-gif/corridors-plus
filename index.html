@@ -4431,7 +4431,7 @@ function exportWeeklySummary(offsetWeeks) {
         const recapSection = `
             <h2 style="font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#1a3a5c;margin:24px 0 10px;border-top:2px solid #1a3a5c;padding-top:10px">Weekly Recap</h2>
             <p style="font-size:13px;line-height:1.7;color:#333">${recapText || 'No recap available.'}</p>`;
-        return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Weekly Summary</title>
+        return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Weekly Summary ${label}</title>
         <style>* { box-sizing:border-box; margin:0; padding:0; } body { font-family:Arial,sans-serif; font-size:13px; color:#111; padding:28px; max-width:700px; margin:0 auto; }
         h1 { font-size:20px; font-weight:800; text-transform:uppercase; letter-spacing:1px; color:#1a3a5c; margin-bottom:4px; }
         .meta { font-size:12px; color:#666; margin-bottom:8px; }
