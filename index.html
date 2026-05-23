@@ -2837,7 +2837,18 @@ function setLtDateFromPicker(val) {
 
 // ── Delete ────────────────────────────────────────────────────────────────────
 function deleteHoursEntry(floorId, itemId, idx) {
-    if (!confirm('Delete this entry?')) return;
+    const floor = state.floors.find(f => f.id === floorId);
+    const item  = floor.items.find(i => i.id === itemId);
+    const entry = item.hoursLog[idx];
+    const label = entry ? displayDate(entry.date) : 'this entry';
+    openModal('Delete Entry', `<p style="margin:8px 0 16px;color:#555">Remove the log entry for <strong>${label}</strong>? This cannot be undone.</p>`,
+        null, true);
+    document.getElementById('modalActions').style.display = 'flex';
+    document.getElementById('modalActions').innerHTML = `
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-danger" onclick="closeModal();_confirmDeleteEntry('${floorId}','${itemId}',${idx})">Delete</button>`;
+}
+function _confirmDeleteEntry(floorId, itemId, idx) {
     const floor = state.floors.find(f => f.id === floorId);
     const item  = floor.items.find(i => i.id === itemId);
     item.hoursLog.splice(idx, 1);
@@ -5804,6 +5815,58 @@ if (_savedCode) {
 } else {
     document.getElementById('syncOverlay').classList.add('open');
 }
+
+// ── Pull-to-refresh ───────────────────────────────────────────────────────────
+(function() {
+    const THRESHOLD = 72;
+    let startY = 0, pulling = false, indicator = null;
+
+    function getIndicator() {
+        if (!indicator) {
+            indicator = document.createElement('div');
+            indicator.style.cssText = 'position:fixed;top:0;left:0;right:0;display:flex;align-items:center;justify-content:center;height:0;overflow:hidden;background:#1a3a5c;color:white;font-size:13px;font-weight:600;transition:height 0.15s;z-index:200;gap:8px';
+            document.body.appendChild(indicator);
+        }
+        return indicator;
+    }
+
+    document.addEventListener('touchstart', e => {
+        if (window.scrollY === 0) { startY = e.touches[0].clientY; pulling = true; }
+    }, { passive: true });
+
+    document.addEventListener('touchmove', e => {
+        if (!pulling) return;
+        const dist = Math.min(e.touches[0].clientY - startY, THRESHOLD * 1.5);
+        if (dist <= 0) return;
+        const ind = getIndicator();
+        const ready = dist >= THRESHOLD;
+        ind.style.height = Math.min(dist, THRESHOLD) + 'px';
+        ind.innerHTML = ready ? '↻ Release to sync' : '↓ Pull to sync';
+    }, { passive: true });
+
+    document.addEventListener('touchend', e => {
+        if (!pulling) return;
+        pulling = false;
+        const dist = e.changedTouches[0].clientY - startY;
+        const ind = getIndicator();
+        ind.style.height = '0';
+        if (dist >= THRESHOLD && db && syncCode) {
+            ind.innerHTML = '↻ Syncing…';
+            ind.style.height = '44px';
+            db.ref('projects/' + syncCode + '/state').once('value').then(snap => {
+                ind.style.height = '0';
+                const remote = snap.val();
+                if (remote && remote.floors && remote.floors.length > 0 &&
+                    !(remote.savedAt && state.savedAt && remote.savedAt < state.savedAt)) {
+                    state = remote;
+                    localStorage.setItem('hallway_tracker_v2', JSON.stringify(state));
+                    render();
+                }
+                showToast('Synced ✓', 1800);
+            }).catch(() => { ind.style.height = '0'; showToast('Sync failed', 1800); });
+        }
+    }, { passive: true });
+})();
 
 // Auto-sync with Google Sheets every 15 minutes (only when URL is configured)
 setInterval(() => {
