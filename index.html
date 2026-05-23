@@ -6141,8 +6141,6 @@ async function syncPush() {
         if (result.error) throw new Error(result.error);
         localStorage.setItem('hallway_sheets_last_sync', new Date().toISOString());
         state.pendingConfirms  = [];
-        // Clear processed deletions — the sheet has handled them; sending stale deletions would nuke re-added rows
-        state.deletedMaterials = [];
         persist();
         toast.style.opacity = '0';
         setTimeout(() => toast.remove(), 300);
