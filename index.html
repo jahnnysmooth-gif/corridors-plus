@@ -5124,18 +5124,18 @@ function renderAttendance() {
 
     // Tab switcher
     html += `<div style="display:flex;gap:0;margin-bottom:16px;border:1.5px solid #e0e0e0;border-radius:10px;overflow:hidden">
-        <button onclick="_attView='signin';document.getElementById('att_tab_signin').style.display='';document.getElementById('att_tab_roster').style.display='none';this.style.background='#1a3a5c';this.style.color='white';document.getElementById('att_roster_tab_btn').style.background='';document.getElementById('att_roster_tab_btn').style.color=''" id="att_signin_tab_btn"
+        <button onclick="_attView='signin';document.getElementById('att_tab_signin').style.display='block';document.getElementById('att_tab_roster').style.display='none';this.style.background='#1a3a5c';this.style.color='white';document.getElementById('att_roster_tab_btn').style.background='';document.getElementById('att_roster_tab_btn').style.color=''" id="att_signin_tab_btn"
             style="flex:1;padding:10px;border:none;cursor:pointer;font-size:14px;font-weight:600;background:${_attView==='signin'?'#1a3a5c':'white'};color:${_attView==='signin'?'white':'#555'}">
             Sign-In
         </button>
-        <button onclick="_attView='roster';document.getElementById('att_tab_roster').style.display='';document.getElementById('att_tab_signin').style.display='none';this.style.background='#1a3a5c';this.style.color='white';document.getElementById('att_signin_tab_btn').style.background='';document.getElementById('att_signin_tab_btn').style.color=''" id="att_roster_tab_btn"
+        <button onclick="_attView='roster';document.getElementById('att_tab_roster').style.display='block';document.getElementById('att_tab_signin').style.display='none';this.style.background='#1a3a5c';this.style.color='white';document.getElementById('att_signin_tab_btn').style.background='';document.getElementById('att_signin_tab_btn').style.color=''" id="att_roster_tab_btn"
             style="flex:1;padding:10px;border:none;border-left:1.5px solid #e0e0e0;cursor:pointer;font-size:14px;font-weight:600;background:${_attView==='roster'?'#1a3a5c':'white'};color:${_attView==='roster'?'white':'#555'}">
             Manage Roster
         </button>
     </div>`;
 
     // ── Sign-In tab ──
-    html += `<div id="att_tab_signin" style="display:${_attView==='roster'?'none':''}">`;
+    html += `<div id="att_tab_signin" style="display:${_attView==='roster'?'none':'block'}">`;
 
     if (crew.length === 0) {
         html += `<div class="card"><div class="empty-state">No crew roster yet.<br>Go to "Manage Roster" to add workers.</div></div>`;
@@ -5218,7 +5218,7 @@ function renderAttendance() {
     html += `</div>`; // end sign-in tab
 
     // ── Roster tab ──
-    html += `<div id="att_tab_roster" style="display:${_attView==='roster'?'':'none'}">`;
+    html += `<div id="att_tab_roster" style="display:${_attView==='roster'?'block':'none'}">`;
     html += `<div class="section-header"><span class="section-title">Crew Roster (${crew.length})</span></div>`;
     if (crew.length === 0) {
         html += `<div class="card"><div class="empty-state">No crew members yet.<br>Add everyone once, then check them in daily.</div></div>`;
