@@ -1257,12 +1257,18 @@ function render() {
     } else if (view.screen === 'reports') {
         back.style.display = 'block';
         back.onclick = () => navigate('home');
+        title.textContent = 'Reports';
+        app.innerHTML = renderReportsHub();
+
+    } else if (view.screen === 'dailyreports') {
+        back.style.display = 'block';
+        back.onclick = () => navigate('reports');
         title.textContent = 'Daily Reports';
-        app.innerHTML = renderReports();
+        app.innerHTML = renderDailyReports();
 
     } else if (view.screen === 'report') {
         back.style.display = 'block';
-        back.onclick = () => navigate('reports');
+        back.onclick = () => navigate('dailyreports');
         title.textContent = view.reportDate ? displayDate(view.reportDate) : 'Report';
         exp.style.display = 'block';
         exp.onclick = () => exportDailyReportPDF(view.reportDate);
@@ -1369,9 +1375,9 @@ function renderHome() {
                 <div class="home-tile-sub">${todayWorkers > 0 ? `${todayWorkers} worker${todayWorkers !== 1 ? 's' : ''} signed in today` : 'Sign in your crew daily'}</div>
             </button>
             <button class="home-tile" style="border-top:4px solid #7c3aed" onclick="navigate('reports')">
-                <span class="home-tile-icon">📝</span>
-                <div class="home-tile-label">Daily Reports</div>
-                <div class="home-tile-sub">${(state.reports||{})[today()]?.notes ? 'Notes saved for today' : reportDaysCount > 0 ? `${reportDaysCount} day${reportDaysCount !== 1 ? 's' : ''} logged` : 'Notes & daily summaries'}</div>
+                <span class="home-tile-icon">📊</span>
+                <div class="home-tile-label">Reports</div>
+                <div class="home-tile-sub">${reportDaysCount > 0 ? `${reportDaysCount} day${reportDaysCount !== 1 ? 's' : ''} logged` : 'All your reports'}</div>
             </button>
             <button class="home-tile" style="border-top:4px solid #e11d48" onclick="navigate('receipts')">
                 <span class="home-tile-icon">🧾</span>
@@ -3571,11 +3577,12 @@ function downloadCSV(csv, filename) {
     URL.revokeObjectURL(url);
 }
 
-function openExportModal() {
+function openExportModal(defaultFormat) {
     const floorOptions = state.floors.map(f =>
         `<option value="${f.id}"${view.floorId === f.id ? ' selected' : ''}>${f.name}</option>`
     ).join('');
     const defaultAll = !view.floorId ? ' selected' : '';
+    defaultFormat = defaultFormat || 'pdf';
 
     openModal('Export Labor Report', `
         <div class="form-group">
@@ -3588,10 +3595,9 @@ function openExportModal() {
         <div class="form-group">
             <label>Format</label>
             <select id="exp_format">
-                <option value="pdf">PDF (Print / Save)</option>
-                <option value="csv">CSV (Spreadsheet)</option>
-                <option value="summary">Cross-Floor Summary (PDF)</option>
-                <option value="weekly_summary">Weekly Summary (PDF)</option>
+                <option value="pdf"${defaultFormat==='pdf'?' selected':''}>PDF (Print / Save)</option>
+                <option value="csv"${defaultFormat==='csv'?' selected':''}>CSV (Spreadsheet)</option>
+                <option value="summary"${defaultFormat==='summary'?' selected':''}>Floor Comparison (PDF)</option>
             </select>
         </div>
         <div class="form-group">
@@ -3634,11 +3640,7 @@ function openExportModal() {
                                              : state.floors.filter(f => f.id === floorSel);
         const inRange  = d => d >= start && d <= end;
 
-        if (format === 'weekly_summary') {
-            closeModal();
-            exportWeeklySummary();
-            return;
-        } else if (format === 'summary') {
+        if (format === 'summary') {
             let periodLabel;
             if (period === 'weekly') periodLabel = `Week of ${shortDate(start)} - ${shortDate(end)}`;
             else if (period === 'monthly') { const [y,m]=start.split('-'); const mo=['January','February','March','April','May','June','July','August','September','October','November','December']; periodLabel=`${mo[parseInt(m)-1]} ${y}`; }
@@ -5323,8 +5325,43 @@ function renderAttendance() {
     return html;
 }
 
-// ── Reports ──────────────────────────────────────────────────────────────────
-function renderReports() {
+// ── Reports Hub ───────────────────────────────────────────────────────────────
+function renderReportsHub() {
+    const crew = state.crew || [];
+    const hasFloors = (state.floors || []).length > 0;
+    const hasAttendance = (state.attendance || []).length > 0;
+    return `
+        <div class="home-grid">
+            <button class="home-tile" style="border-top:4px solid #7c3aed" onclick="navigate('dailyreports')">
+                <span class="home-tile-icon">📅</span>
+                <div class="home-tile-label">Daily Reports</div>
+                <div class="home-tile-sub">Notes & daily summaries</div>
+            </button>
+            <button class="home-tile" style="border-top:4px solid #1a3a5c" onclick="${hasFloors ? 'openExportModal()' : 'alert(\'Add a floor first.\')'}">
+                <span class="home-tile-icon">👷</span>
+                <div class="home-tile-label">Hours by Floor</div>
+                <div class="home-tile-sub">PDF or CSV labor export</div>
+            </button>
+            <button class="home-tile" style="border-top:4px solid #0891b2" onclick="${hasFloors ? 'openExportModal(\'summary\')' : 'alert(\'Add a floor first.\')'}">
+                <span class="home-tile-icon">🏢</span>
+                <div class="home-tile-label">Floor Comparison</div>
+                <div class="home-tile-sub">Man-hours across all floors</div>
+            </button>
+            <button class="home-tile" style="border-top:4px solid #16a34a" onclick="${hasFloors ? 'exportWeeklySummary()' : 'alert(\'Add a floor first.\')'}">
+                <span class="home-tile-icon">📊</span>
+                <div class="home-tile-label">Weekly Summary</div>
+                <div class="home-tile-sub">Week-by-week breakdown</div>
+            </button>
+            <button class="home-tile" style="border-top:4px solid #0891b2" onclick="${hasAttendance ? 'openWeeklyAttendancePicker()' : 'alert(\'No attendance records yet.\')'}">
+                <span class="home-tile-icon">✅</span>
+                <div class="home-tile-label">Weekly Attendance</div>
+                <div class="home-tile-sub">Crew sign-in sheets</div>
+            </button>
+        </div>`;
+}
+
+// ── Daily Reports ─────────────────────────────────────────────────────────────
+function renderDailyReports() {
     const dates = new Set();
     (state.attendance || []).forEach(a => dates.add(a.date));
     (state.floors || []).forEach(f => (f.items||[]).forEach(i => (i.hoursLog||[]).forEach(e => dates.add(e.date))));
