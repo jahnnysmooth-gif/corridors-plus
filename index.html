@@ -4291,6 +4291,7 @@ function exportWeeklySummary(offsetWeeks) {
             </div>
         `, () => {
             const offset = parseInt(document.getElementById('ws_offset').value);
+            closeModal();
             exportWeeklySummary(offset);
         });
         return;
@@ -4424,11 +4425,11 @@ function exportWeeklySummary(offsetWeeks) {
         <h2 style="font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#dc2626;margin:24px 0 10px;border-top:2px solid #dc2626;padding-top:10px">⚠ Low Stock</h2>
         ${lowHtml}`;
 
-    const buildHTML = (recapText) => {
+    const openPDF = (recapText) => {
         const recapSection = `
             <h2 style="font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#1a3a5c;margin:24px 0 10px;border-top:2px solid #1a3a5c;padding-top:10px">Weekly Recap</h2>
             <p style="font-size:13px;line-height:1.7;color:#333">${recapText || 'No recap available.'}</p>`;
-        return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Weekly Summary</title>
+        const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Weekly Summary</title>
         <style>* { box-sizing:border-box; margin:0; padding:0; } body { font-family:Arial,sans-serif; font-size:13px; color:#111; padding:28px; max-width:700px; margin:0 auto; }
         h1 { font-size:20px; font-weight:800; text-transform:uppercase; letter-spacing:1px; color:#1a3a5c; margin-bottom:4px; }
         .meta { font-size:12px; color:#666; margin-bottom:8px; }
@@ -4439,15 +4440,11 @@ function exportWeeklySummary(offsetWeeks) {
         <div class="meta">Generated: ${displayDate(today())}</div>
         ${recapSection}${workerSection}${laborSection}${lowSection}
         <script>window.onload = () => window.print();<\/script></body></html>`;
+        window.open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank');
     };
-
-    // Open window synchronously (required to avoid popup blocker), then fill it
-    const win = window.open('', '_blank');
-    if (!win) { alert('Allow popups for this site to view the PDF.'); return; }
 
     const gasUrl = localStorage.getItem('hallway_sheets_url');
     if (gasUrl && (laborLines.length > 0 || attLines.length > 0)) {
-        win.document.write('<p style="font-family:sans-serif;padding:40px;color:#555">✦ Claude is writing your recap…</p>');
         const toast = showToast('✦ Claude is writing your recap…');
         fetch(gasUrl, {
             method: 'POST',
@@ -4463,11 +4460,10 @@ function exportWeeklySummary(offsetWeeks) {
             })
         })
         .then(r => r.json())
-        .then(res => { toast.style.opacity = '0'; win.document.open(); win.document.write(buildHTML(res.recap || '')); win.document.close(); })
-        .catch(() => { toast.style.opacity = '0'; win.document.open(); win.document.write(buildHTML('')); win.document.close(); });
+        .then(res => { toast.style.opacity = '0'; openPDF(res.recap || ''); })
+        .catch(() => { toast.style.opacity = '0'; openPDF(''); });
     } else {
-        win.document.write(buildHTML(''));
-        win.document.close();
+        openPDF('');
     }
 }
 
