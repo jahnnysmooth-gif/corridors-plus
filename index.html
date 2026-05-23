@@ -3307,7 +3307,7 @@ function deleteMaterial(matId) {
     const mat = state.materials.find(m => m.id === matId);
     if (mat) {
         if (!state.deletedMaterials) state.deletedMaterials = [];
-        state.deletedMaterials.push({ name: mat.name, trade: mat.trade || '' });
+        state.deletedMaterials.push({ id: mat.id, name: mat.name, trade: mat.trade || '' });
     }
     state.materials = state.materials.filter(m => m.id !== matId);
     persist(); navigate('materials');
