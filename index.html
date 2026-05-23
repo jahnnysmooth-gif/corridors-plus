@@ -2221,7 +2221,6 @@ function renderItem(floor, item) {
             </div>
             <button class="log-btn" onclick="quickLog('${floor.id}','${item.id}')">LOG</button>
         </div>
-        <div id="ql_worker_section">${_qlWorkerChipsHtml(t)}</div>
         <div style="margin-top:10px">
             <input type="text" id="ql_note" placeholder="Note (optional) — e.g. rain delay, short day" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px" maxlength="120" />
         </div>
@@ -2331,14 +2330,15 @@ function quickLog(floorId, itemId) {
         if (laborerHours > 0 && laborer <= 0) { alert(`Group ${i+1}: Enter a Laborer worker count.`); return; }
         const entry = { date, skilled, skilledHours, laborer, laborerHours };
         if (note) entry.note = note;
-        if (i === 0 && _qlWorkerIds.size > 0) entry.workerIds = [..._qlWorkerIds];
+        const wids = _qlWorkerIds[i];
+        if (wids && wids.size > 0) entry.workerIds = [...wids];
         item.hoursLog.push(entry);
         if (skilledHours > 0) lastSkldHrs = skilledHours;
         if (laborerHours > 0) lastLabHrs  = laborerHours;
         saved++;
     }
     if (saved === 0) { alert('Enter at least one Skilled or Laborer worker.'); return; }
-    _qlWorkerIds.clear();
+    _qlWorkerIds = {};
     _qlGroups = 1;
     if ((item.status || 'pending') === 'pending') item.status = 'active';
     persist();
@@ -2355,7 +2355,7 @@ function quickLog(floorId, itemId) {
 }
 
 // ── Quick log worker chips ────────────────────────────────────────────────────
-let _qlWorkerIds = new Set();
+let _qlWorkerIds = {};
 let _qlGroups = 1;
 let _ltGroups = {};
 let _ltWorkerIds = {};
@@ -2364,25 +2364,29 @@ let _ltModalFloors = [];
 function qlGroupHtml(i) {
     const lastSkld = localStorage.getItem('hallway_last_skld_hrs') || '8';
     const lastLab  = localStorage.getItem('hallway_last_lab_hrs')  || '8';
-    const divider  = i > 0 ? ' style="margin-top:8px;padding-top:8px;border-top:1px dashed #e0e0e0"' : '';
+    const divider  = i > 0 ? 'margin-top:10px;padding-top:10px;border-top:1px dashed #e0e0e0' : '';
     const label    = i > 0 ? `Group ${i+1} · ` : '';
-    return `<div class="quick-log-inputs" id="ql_group_${i}"${divider}>
-        <div class="quick-log-field">
-            <label>${label}Skilled</label>
-            <input type="number" id="ql_skilled_${i}" min="0" placeholder="0" oninput="qlPreview()" />
+    const date     = document.getElementById('ql_date')?.value || today();
+    return `<div id="ql_group_${i}"${divider ? ` style="${divider}"` : ''}>
+        <div class="quick-log-inputs">
+            <div class="quick-log-field">
+                <label>${label}Skilled</label>
+                <input type="number" id="ql_skilled_${i}" min="0" placeholder="0" oninput="qlPreview()" />
+            </div>
+            <div class="quick-log-field">
+                <label>Skilled Hrs</label>
+                <input type="number" id="ql_skilled_hours_${i}" min="0.5" step="0.5" placeholder="${lastSkld}" oninput="qlPreview()" />
+            </div>
+            <div class="quick-log-field">
+                <label>Laborer</label>
+                <input type="number" id="ql_laborer_${i}" min="0" placeholder="0" oninput="qlPreview()" />
+            </div>
+            <div class="quick-log-field">
+                <label>Laborer Hrs</label>
+                <input type="number" id="ql_laborer_hours_${i}" min="0.5" step="0.5" placeholder="${lastLab}" oninput="qlPreview()" />
+            </div>
         </div>
-        <div class="quick-log-field">
-            <label>Skilled Hrs</label>
-            <input type="number" id="ql_skilled_hours_${i}" min="0.5" step="0.5" placeholder="${lastSkld}" oninput="qlPreview()" />
-        </div>
-        <div class="quick-log-field">
-            <label>Laborer</label>
-            <input type="number" id="ql_laborer_${i}" min="0" placeholder="0" oninput="qlPreview()" />
-        </div>
-        <div class="quick-log-field">
-            <label>Laborer Hrs</label>
-            <input type="number" id="ql_laborer_hours_${i}" min="0.5" step="0.5" placeholder="${lastLab}" oninput="qlPreview()" />
-        </div>
+        <div id="ql_worker_chips_${i}">${_qlWorkerChipsHtml(date, i)}</div>
     </div>`;
 }
 
@@ -2393,38 +2397,45 @@ function addQlGroup() {
     _qlGroups++;
 }
 
-function _qlWorkerChipsHtml(date) {
+function _qlWorkerChipsHtml(date, g) {
     const att     = (state.attendance || []).find(a => a.date === date);
-    const crew    = state.crew || [];
-    const present = att
-        ? (att.workerIds || []).map(id => findWorker(id)).filter(Boolean)
-        : crew;
+    const crew    = (state.crew || []).filter(c => c.active !== false);
+    const present = att ? (att.workerIds || []).map(id => findWorker(id)).filter(Boolean) : crew;
     if (present.length === 0) return '';
+    if (!_qlWorkerIds[g]) _qlWorkerIds[g] = new Set();
+    const sel   = _qlWorkerIds[g];
     const label = att ? 'Who worked this task?' : 'Who worked this task? (all crew)';
     return `<div style="margin-top:10px">
         <div style="font-size:11px;color:#888;font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">${label}</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px">
-            ${present.map(w => `<button type="button" id="qlw_${w.id}" onclick="toggleQlWorker('${w.id}')"
-                style="padding:5px 12px;border-radius:99px;border:1.5px solid #d1d5db;background:white;font-size:12px;font-weight:600;cursor:pointer;color:#374151;transition:all .15s">${w.name}</button>`).join('')}
+            ${present.map(w => {
+                const active = sel.has(w.id);
+                return `<button type="button" id="qlw_g${g}_${w.id}" onclick="toggleQlWorker(${g},'${w.id}')"
+                    style="padding:5px 12px;border-radius:99px;border:1.5px solid ${active ? '#1a3a5c' : '#d1d5db'};background:${active ? '#1a3a5c' : 'white'};font-size:12px;font-weight:600;cursor:pointer;color:${active ? 'white' : '#374151'};transition:all .15s">${w.name}</button>`;
+            }).join('')}
         </div>
     </div>`;
 }
 
-function toggleQlWorker(id) {
-    if (_qlWorkerIds.has(id)) { _qlWorkerIds.delete(id); } else { _qlWorkerIds.add(id); }
-    const btn = document.getElementById('qlw_' + id);
+function toggleQlWorker(g, id) {
+    if (!_qlWorkerIds[g]) _qlWorkerIds[g] = new Set();
+    const s = _qlWorkerIds[g];
+    if (s.has(id)) s.delete(id); else s.add(id);
+    const btn = document.getElementById(`qlw_g${g}_${id}`);
     if (btn) {
-        const sel = _qlWorkerIds.has(id);
-        btn.style.background   = sel ? '#1a3a5c' : 'white';
-        btn.style.color        = sel ? 'white'   : '#374151';
-        btn.style.borderColor  = sel ? '#1a3a5c' : '#d1d5db';
+        const sel = s.has(id);
+        btn.style.background  = sel ? '#1a3a5c' : 'white';
+        btn.style.color       = sel ? 'white'   : '#374151';
+        btn.style.borderColor = sel ? '#1a3a5c' : '#d1d5db';
     }
 }
 
 function _qlRefreshWorkerChips(date) {
-    const section = document.getElementById('ql_worker_section');
-    if (section) section.innerHTML = _qlWorkerChipsHtml(date);
-    _qlWorkerIds.clear();
+    _qlWorkerIds = {};
+    for (let i = 0; i < _qlGroups; i++) {
+        const el = document.getElementById(`ql_worker_chips_${i}`);
+        if (el) el.innerHTML = _qlWorkerChipsHtml(date, i);
+    }
 }
 
 function _ltPresentWorkers(date) {
