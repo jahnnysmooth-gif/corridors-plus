@@ -5360,7 +5360,7 @@ function renderAttendance() {
 
     // Back to Today button when viewing a past day
     if (!isToday) {
-        html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:12px" onclick="setAttendanceDate('${t}')">← Back to Today</button>`;
+        html += `<button style="width:100%;margin-bottom:12px;padding:12px;background:#fff7ed;border:1.5px solid #f97316;border-radius:10px;color:#c2410c;font-size:14px;font-weight:700;cursor:pointer" onclick="setAttendanceDate('${t}')">← Back to Today</button>`;
     }
 
     // Section header
