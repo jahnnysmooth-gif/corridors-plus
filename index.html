@@ -4314,7 +4314,7 @@ function exportWeeklySummary(offsetWeeks) {
         if (fSkilled + fLaborer === 0) return;
         grandSkilled += fSkilled; grandLaborer += fLaborer;
         laborHtml += `<tr>
-            <td style="padding:8px 10px;border-bottom:1px solid #eee;font-weight:600">${floor.name}</td>
+            <td style="padding:8px 10px;border-bottom:1px solid #eee;font-weight:600;white-space:nowrap">${floor.name}</td>
             <td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:right">${fSkilled}</td>
             <td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:right">${fLaborer}</td>
             <td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:right;font-weight:700;color:#1a3a5c">${fSkilled + fLaborer}</td>
@@ -4423,7 +4423,7 @@ function exportWeeklySummary(offsetWeeks) {
         const pct     = total ? Math.round((done / total) * 100) : 0;
         const activeItems = items.filter(i => i.status === 'active').map(i => i.name).join(', ');
         floorStatusHtml += `<tr>
-            <td style="padding:8px 10px;border-bottom:1px solid #eee;font-weight:600">${floor.name}</td>
+            <td style="padding:8px 10px;border-bottom:1px solid #eee;font-weight:600;white-space:nowrap">${floor.name}</td>
             <td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:center;color:#16a34a;font-weight:700">${done}</td>
             <td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:center;color:#d97706;font-weight:700">${active}</td>
             <td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:center;color:#9ca3af">${pending}</td>
