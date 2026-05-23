@@ -1249,9 +1249,7 @@ function render() {
         back.style.display = 'block';
         back.onclick = () => navigate('home');
         title.textContent = 'Attendance';
-        exp.style.display = 'block';
-        exp.textContent = '👥'; exp.title = 'Manage Roster';
-        exp.onclick = () => { _attView = 'roster'; app.innerHTML = renderAttendance(); };
+        exp.style.display = 'none';
         app.innerHTML = renderAttendance();
 
     } else if (view.screen === 'reports') {
@@ -5075,6 +5073,14 @@ function removeCrewMember(id) {
     document.getElementById('app').innerHTML = renderAttendance();
 }
 
+function toggleCrewActive(id) {
+    const w = (state.crew || []).find(c => c.id === id);
+    if (!w) return;
+    w.active = w.active === false ? true : false;
+    persist();
+    document.getElementById('app').innerHTML = renderAttendance();
+}
+
 function crewSortOrder(trade) {
     if (trade === 'Supervisor') return 0;
     if (trade === 'Foreman') return 1;
@@ -5275,44 +5281,77 @@ function submitAttendanceToday() {
 function renderAttendance() {
     const t           = today();
     const crew        = state.crew || [];
+    const activeCrew  = crew.filter(w => w.active !== false);
+    const inactiveCrew = crew.filter(w => w.active === false);
     const checkedIds  = getCheckedIds(_attendanceDate);
     const presentCount = checkedIds.size;
     const isToday     = _attendanceDate === t;
     const currentDay  = getAttendanceDay(_attendanceDate);
-    const allChecked  = crew.length > 0 && presentCount === crew.length;
+    const allChecked  = activeCrew.length > 0 && activeCrew.every(w => checkedIds.has(w.id));
 
-    let html = '';
+    // Sub-header — always visible
+    const subHeader = `<div style="display:flex;gap:8px;margin-bottom:16px">
+        <button onclick="openWeeklyAttendancePicker()" style="flex:1;padding:10px;background:#f1f5f9;border:1.5px solid #e0e0e0;border-radius:10px;font-size:13px;font-weight:600;color:#1a3a5c;cursor:pointer">📄 Weekly PDF</button>
+        <button onclick="_attView='roster';document.getElementById('app').innerHTML=renderAttendance()" style="flex:1;padding:10px;background:#f1f5f9;border:1.5px solid #e0e0e0;border-radius:10px;font-size:13px;font-weight:600;color:#1a3a5c;cursor:pointer">👥 Manage Roster</button>
+    </div>`;
+
+    let html = subHeader;
 
     // ── Roster view ──
     if (_attView === 'roster') {
-        html += `<div class="section-header"><span class="section-title">Crew Roster (${crew.length})</span>
-            <button class="icon-btn" onclick="_attView='signin';document.getElementById('app').innerHTML=renderAttendance()">← Sign-In</button>
+        html += `<div class="section-header"><span class="section-title">Crew Roster</span>
+            <button class="icon-btn" onclick="_attView='signin';document.getElementById('app').innerHTML=renderAttendance()">← Back</button>
         </div>`;
+
         if (crew.length === 0) {
             html += `<div class="card"><div class="empty-state">No crew members yet.<br>Add everyone here once, then sign them in daily.</div></div>`;
         } else {
-            html += `<div class="card" style="padding:8px 16px">`;
-            crew.forEach(w => {
-                html += `<div class="worker-row">
-                    <div>
-                        <div class="worker-name">${w.name}</div>
-                        ${w.trade ? `<div class="worker-trade">${w.trade}</div>` : ''}
-                    </div>
-                    <div style="display:flex;gap:8px">
-                        <button class="edit-row" onclick="editCrewMember('${w.id}')">&#9998;</button>
-                        <button class="delete-row" onclick="removeCrewMember('${w.id}')">×</button>
-                    </div>
-                </div>`;
-            });
-            html += `</div>`;
+            // Active crew
+            if (activeCrew.length > 0) {
+                html += `<div style="font-size:11px;font-weight:700;color:#16a34a;text-transform:uppercase;letter-spacing:0.6px;margin:8px 0 6px">Active (${activeCrew.length})</div>`;
+                html += `<div class="card" style="padding:8px 16px">`;
+                activeCrew.forEach(w => {
+                    html += `<div class="worker-row">
+                        <div>
+                            <div class="worker-name">${w.name}</div>
+                            ${w.trade ? `<div class="worker-trade">${w.trade}</div>` : ''}
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <button class="edit-row" onclick="editCrewMember('${w.id}')">&#9998;</button>
+                            <button onclick="toggleCrewActive('${w.id}')" style="padding:4px 10px;border:1.5px solid #e5e7eb;border-radius:99px;font-size:11px;font-weight:600;color:#6b7280;background:none;cursor:pointer">Set Inactive</button>
+                        </div>
+                    </div>`;
+                });
+                html += `</div>`;
+            }
+
+            // Inactive crew
+            if (inactiveCrew.length > 0) {
+                html += `<div style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.6px;margin:16px 0 6px">Inactive (${inactiveCrew.length})</div>`;
+                html += `<div class="card" style="padding:8px 16px;opacity:0.6">`;
+                inactiveCrew.forEach(w => {
+                    html += `<div class="worker-row">
+                        <div>
+                            <div class="worker-name" style="color:#9ca3af">${w.name}</div>
+                            ${w.trade ? `<div class="worker-trade">${w.trade}</div>` : ''}
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <button onclick="toggleCrewActive('${w.id}')" style="padding:4px 10px;border:1.5px solid #16a34a;border-radius:99px;font-size:11px;font-weight:600;color:#16a34a;background:none;cursor:pointer">Reactivate</button>
+                            <button class="delete-row" onclick="removeCrewMember('${w.id}')">×</button>
+                        </div>
+                    </div>`;
+                });
+                html += `</div>`;
+            }
         }
-        html += `<button class="btn btn-primary" style="width:100%;margin-top:8px;padding:14px;font-size:15px" onclick="addCrewMember()">+ Add Crew Member</button>`;
+
+        html += `<button class="btn btn-primary" style="width:100%;margin-top:12px;padding:14px;font-size:15px" onclick="addCrewMember()">+ Add Crew Member</button>`;
         return html;
     }
 
     // ── Sign-In view ──
-    if (crew.length === 0) {
-        html += `<div class="card"><div class="empty-state">No crew roster yet.<br>Tap 👥 in the top right, then <strong>+ Add Crew Member</strong> to get started.</div></div>`;
+    if (activeCrew.length === 0) {
+        html += `<div class="card"><div class="empty-state">No active crew members.<br>Tap <strong>Manage Roster</strong> above to add or reactivate crew.</div></div>`;
         return html;
     }
 
@@ -5323,13 +5362,13 @@ function renderAttendance() {
 
     // Section header
     html += `<div class="section-header">
-        <span class="section-title">${isToday ? 'Today' : displayDate(_attendanceDate)} · ${presentCount} of ${crew.length} on site</span>
+        <span class="section-title">${isToday ? 'Today' : displayDate(_attendanceDate)} · ${presentCount} of ${activeCrew.length} on site</span>
         <button class="icon-btn" onclick="${allChecked ? `deselectAllWorkers('${_attendanceDate}')` : `selectAllWorkers('${_attendanceDate}')`}">${allChecked ? 'Deselect All' : 'Select All'}</button>
     </div>`;
 
     // Worker list
     html += `<div class="card" style="padding:8px 16px">`;
-    crew.forEach(w => {
+    activeCrew.forEach(w => {
         const checked = checkedIds.has(w.id);
         const detail  = (currentDay?.details || {})[w.id];
         const hoursLine = checked && detail?.hours
@@ -5351,9 +5390,7 @@ function renderAttendance() {
     html += `</div>`;
 
     // Buttons
-    if (isToday) {
-        html += `<button class="btn btn-secondary" style="width:100%;margin-top:8px" onclick="openWeeklyAttendancePicker()">&#8681; Weekly Attendance PDF</button>`;
-    } else {
+    if (!isToday) {
         html += `<button class="btn btn-danger" style="width:100%;margin-top:6px" onclick="deleteAttendanceDay('${_attendanceDate}')">Delete This Day</button>`;
     }
 
