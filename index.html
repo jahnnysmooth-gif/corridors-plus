@@ -1474,8 +1474,11 @@ function renderFloors() {
         activeFloors.forEach(floor => { html += renderFloorCard(floor); });
 
         if (notStartedFloors.length > 0) {
-            html += `<div class="completed-section-header">Not Started</div>`;
-            notStartedFloors.forEach(floor => { html += renderFloorCard(floor); });
+            html += `<div class="completed-section-header" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between" onclick="_showNotStarted=!_showNotStarted;document.getElementById('app').innerHTML=renderFloors()">
+                <span>Not Started (${notStartedFloors.length})</span>
+                <span style="color:#ccc;font-size:20px">${_showNotStarted ? '▾' : '▸'}</span>
+            </div>`;
+            if (_showNotStarted) notStartedFloors.forEach(floor => { html += renderFloorCard(floor); });
         }
 
         if (completedFloors.length > 0) {
@@ -2627,6 +2630,7 @@ function openAddFloor() {
 
 // ── Reorder floors ────────────────────────────────────────────────────────────
 let _reorderFloorsMode = false;
+let _showNotStarted = false;
 
 function moveFloor(idx, dir) {
     const newIdx = idx + dir;
