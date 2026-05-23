@@ -2861,7 +2861,7 @@ function _openLogTodayModal(floors) {
     }
 
     let rows = activeFloors.map((floor, fi) => {
-        const itemRows = floor.items.map((item, idx) => `
+        const itemRows = floor.items.filter(item => item.status !== 'done').map((item, idx) => `
             <div class="daily-row">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
                     <div class="daily-row-label" style="margin-bottom:0">${item.name}</div>
