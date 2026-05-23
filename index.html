@@ -4483,6 +4483,14 @@ function exportWeeklySummary(offsetWeeks) {
     if (gasUrl && (laborLines.length > 0 || attLines.length > 0)) {
         // Open window NOW while we still have the user's click (async callbacks can't open windows)
         const win = window.open('', '_blank');
+        win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Generating…</title>
+        <style>body{margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:Arial,sans-serif;background:#f8fafc}
+        .spinner{width:40px;height:40px;border:4px solid #e5e7eb;border-top-color:#1a3a5c;border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:20px}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        p{color:#1a3a5c;font-size:15px;font-weight:600}
+        small{color:#9ca3af;font-size:12px;margin-top:6px}</style></head>
+        <body><div class="spinner"></div><p>Generating Weekly Summary…</p><small>Claude is writing your recap</small></body></html>`);
+        win.document.close();
         const toast = _showSyncToast('✦ Claude is writing your recap…');
         const load = (recapText) => { win.document.write(buildHTML(recapText)); win.document.close(); };
         fetch(gasUrl, {
