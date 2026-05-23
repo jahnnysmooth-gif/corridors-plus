@@ -43,12 +43,13 @@
         }
 
         .back-btn {
-            background: none;
-            border: none;
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
             color: white;
-            font-size: 22px;
+            font-size: 18px;
             cursor: pointer;
-            padding: 0 4px;
+            padding: 4px 10px;
+            border-radius: 6px;
             line-height: 1;
         }
 
@@ -71,6 +72,7 @@
             white-space: nowrap;
             line-height: 1;
         }
+        .back-btn:active, .header-btn:active { opacity: 0.6; }
 
         .container {
             padding: 16px;
@@ -730,7 +732,7 @@
 <body>
 
 <header>
-    <button class="back-btn" id="backBtn" style="display:none">&#8592;</button>
+    <button class="back-btn" id="backBtn" style="display:none">‹</button>
     <h1 id="headerTitle">Corridor's Plus <span style="filter:brightness(0) invert(1)">➕</span></h1>
     <span class="sync-indicator" id="syncIndicator" style="display:none"></span>
     <button class="header-btn" id="homeBtn" onclick="navigate('home')" style="display:none">🏠</button>
@@ -1895,7 +1897,6 @@ function renderReorderList() {
         <div class="stat-card"><div class="stat-value">${low.length}</div><div class="stat-label">Need Restocking</div></div>
         <div class="stat-card"><div class="stat-value">${totalOrderItems}</div><div class="stat-label">Qty Set</div></div>
     </div>`;
-
 
     tradeKeys.forEach(trade => {
         const color = TRADE_COLORS[trade] || '#475569';
