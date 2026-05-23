@@ -732,11 +732,11 @@
 <body>
 
 <header>
-    <button class="back-btn" id="backBtn" style="display:none">‹</button>
+    <button class="back-btn" id="backBtn" style="display:none" title="Go back">‹</button>
     <h1 id="headerTitle">Corridor's Plus <span style="filter:brightness(0) invert(1)">➕</span></h1>
     <span class="sync-indicator" id="syncIndicator" style="display:none"></span>
-    <button class="header-btn" id="homeBtn" onclick="navigate('home')" style="display:none">🏠</button>
-    <button class="header-btn" id="exportBtn" onclick="openExportModal()" style="display:none">📤</button>
+    <button class="header-btn" id="homeBtn" onclick="navigate('home')" style="display:none" title="Home">🏠</button>
+    <button class="header-btn" id="exportBtn" onclick="openExportModal()" style="display:none" title="Export">📤</button>
 </header>
 
 <div class="container" id="app"></div>
@@ -1162,6 +1162,7 @@ function render() {
     exp.style.display  = 'none';
     exp.onclick = () => openExportModal();
     exp.textContent = '📤';
+    exp.title = 'Export';
     document.getElementById('homeBtn').style.display = view.screen === 'home' ? 'none' : 'inline-block';
 
     if (view.screen === 'home') {
@@ -1201,7 +1202,7 @@ function render() {
             back.onclick = () => navigate('home');
             title.textContent = 'Material Inventory';
             exp.style.display = 'block';
-            exp.textContent = '📤';
+            exp.textContent = '📤'; exp.title = 'Export Report';
             exp.onclick = () => openMaterialsExportModal();
         }
         app.innerHTML = renderMaterials();
@@ -1225,7 +1226,7 @@ function render() {
         back.onclick = () => navigate('materials');
         title.textContent = 'On Hand';
         exp.style.display = 'block';
-        exp.textContent = '🖨️';
+        exp.textContent = '🖨️'; exp.title = 'Print / Share';
         exp.onclick = () => printOnHand();
         app.innerHTML = renderOnHand();
 
@@ -1240,7 +1241,7 @@ function render() {
         back.onclick = () => navigate('materials');
         title.textContent = 'Reorder List';
         exp.style.display = 'block';
-        exp.textContent = '🖨️';
+        exp.textContent = '🖨️'; exp.title = 'Print / Share';
         exp.onclick = () => printReorderList();
         app.innerHTML = renderReorderList();
 
@@ -1249,7 +1250,7 @@ function render() {
         back.onclick = () => navigate('home');
         title.textContent = 'Attendance';
         exp.style.display = 'block';
-        exp.textContent = '📄';
+        exp.textContent = '📄'; exp.title = 'Export PDF';
         exp.onclick = () => exportAttendancePDF(_attendanceDate);
         app.innerHTML = renderAttendance();
 
@@ -1265,7 +1266,7 @@ function render() {
         title.textContent = view.reportDate ? displayDate(view.reportDate) : 'Report';
         exp.style.display = 'block';
         exp.onclick = () => exportDailyReportPDF(view.reportDate);
-        exp.textContent = '📄';
+        exp.textContent = '📄'; exp.title = 'Export PDF';
         app.innerHTML = renderReport(view.reportDate);
 
     } else if (view.screen === 'receipts') {
@@ -1329,34 +1330,53 @@ function renderHome() {
         return dates.size;
     })();
 
+    const isFirstRun = totalFloors === 0 && (state.crew || []).length === 0;
     return `
+        ${isFirstRun ? `
+        <div style="background:#f0f5ff;border:1.5px solid #c7d7f5;border-radius:14px;padding:18px 20px;margin-bottom:18px">
+            <div style="font-size:15px;font-weight:800;color:#1a3a5c;margin-bottom:12px">👋 Getting Started</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+                <div style="display:flex;align-items:center;gap:10px;font-size:14px;color:#333">
+                    <span style="background:#1a3a5c;color:white;font-size:11px;font-weight:800;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0">1</span>
+                    Tap <strong>Labor Hours</strong> → <strong>+ Add Floor</strong> to set up your floors
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;font-size:14px;color:#333">
+                    <span style="background:#1a3a5c;color:white;font-size:11px;font-weight:800;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0">2</span>
+                    Tap <strong>Attendance</strong> → <strong>Manage Roster</strong> → add your crew
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;font-size:14px;color:#333">
+                    <span style="background:#1a3a5c;color:white;font-size:11px;font-weight:800;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0">3</span>
+                    Use <strong>+ Log Today's Hours</strong> each day to track man-hours
+                </div>
+            </div>
+        </div>` : ''}
         <div class="home-grid">
             <button class="home-tile labor" onclick="navigate('floors')">
                 <span class="home-tile-icon">👷</span>
-                <div class="home-tile-label">Floor Management</div>
-                <div class="home-tile-sub">${totalFloors} floor${totalFloors !== 1 ? 's' : ''} · ${totalHrs} man-hrs</div>
+                <div class="home-tile-label">Labor Hours</div>
+                <div class="home-tile-sub">${totalFloors === 0 ? 'Add your first floor' : `${totalFloors} floor${totalFloors !== 1 ? 's' : ''} · ${totalHrs} man-hrs`}</div>
             </button>
             <button class="home-tile materials" onclick="navigate('materials')" style="position:relative">
                 ${lowCount > 0 ? `<span style="position:absolute;top:12px;right:12px;background:#dc2626;color:white;font-size:11px;font-weight:800;padding:2px 8px;border-radius:99px">${lowCount} low</span>` : ''}
                 <span class="home-tile-icon">🧰</span>
-                <div class="home-tile-label">Material Inventory</div>
-                <div class="home-tile-sub">${matCount} material${matCount !== 1 ? 's' : ''}${lastEod ? ' · last updated ' + displayDate(lastEod) : ''}</div>
+                <div class="home-tile-label">Materials</div>
+                <div class="home-tile-sub">${matCount === 0 ? 'Track stock & deliveries' : `${matCount} material${matCount !== 1 ? 's' : ''}${lastEod ? ' · updated ' + displayDate(lastEod) : ''}`}</div>
             </button>
             <button class="home-tile attendance" onclick="navigate('attendance')" style="position:relative">
                 ${todayWorkers > 0 ? `<span style="position:absolute;top:12px;right:12px;background:#0891b2;color:white;font-size:11px;font-weight:800;padding:2px 8px;border-radius:99px">${todayWorkers} in</span>` : ''}
-                <span class="home-tile-icon">📋</span>
+                <span class="home-tile-icon">✅</span>
                 <div class="home-tile-label">Attendance</div>
-                <div class="home-tile-sub">${todayWorkers > 0 ? `${todayWorkers} worker${todayWorkers !== 1 ? 's' : ''} today` : 'No sign-ins today'}</div>
+                <div class="home-tile-sub">${todayWorkers > 0 ? `${todayWorkers} worker${todayWorkers !== 1 ? 's' : ''} signed in today` : 'Sign in your crew daily'}</div>
             </button>
             <button class="home-tile" style="border-top:4px solid #7c3aed" onclick="navigate('reports')">
-                <span class="home-tile-icon">📋</span>
-                <div class="home-tile-label">Daily</div>
-                <div class="home-tile-sub">${(state.reports||{})[today()]?.notes ? 'Notes saved for today' : reportDaysCount > 0 ? `${reportDaysCount} day${reportDaysCount !== 1 ? 's' : ''} logged` : 'Tap to view'}</div>
+                <span class="home-tile-icon">📝</span>
+                <div class="home-tile-label">Daily Reports</div>
+                <div class="home-tile-sub">${(state.reports||{})[today()]?.notes ? 'Notes saved for today' : reportDaysCount > 0 ? `${reportDaysCount} day${reportDaysCount !== 1 ? 's' : ''} logged` : 'Notes & daily summaries'}</div>
             </button>
             <button class="home-tile" style="border-top:4px solid #e11d48" onclick="navigate('receipts')">
                 <span class="home-tile-icon">🧾</span>
                 <div class="home-tile-label">Receipts</div>
-                <div class="home-tile-sub">${(state.receipts||[]).length} receipt${(state.receipts||[]).length !== 1 ? 's' : ''} saved</div>
+                <div class="home-tile-sub">${(state.receipts||[]).length === 0 ? 'Photo & store receipts' : `${(state.receipts||[]).length} receipt${(state.receipts||[]).length !== 1 ? 's' : ''} saved`}</div>
             </button>
             <button class="home-tile" style="border-top:4px solid #059669" onclick="openPayrollExport()">
                 <span class="home-tile-icon">💰</span>
@@ -1365,7 +1385,8 @@ function renderHome() {
             </button>
         </div>
         <div class="home-subtitle">Georgetown Plaza · Corridor Renovation</div>
-        <button class="btn btn-secondary" style="width:100%;margin-top:20px" onclick="exportWeeklySummary()">&#128196; Weekly Summary</button>
+        ${totalFloors > 0 ? `<button class="log-today-btn" style="margin-top:16px" onclick="openGlobalLogToday()">+ Log Today's Hours</button>` : ''}
+        <button class="btn btn-secondary" style="width:100%;margin-top:10px" onclick="exportWeeklySummary()">&#128196; Weekly Summary</button>
         <div class="backup-row" style="margin-top:12px">
             <button class="btn btn-secondary" onclick="backupData()">&#8681; Backup</button>
             <button class="btn btn-secondary" onclick="document.getElementById('restoreInput').click()">&#8679; Restore</button>
@@ -1399,7 +1420,7 @@ function renderFloors() {
     const completedFloors = state.floors.filter(f =>  f.completed);
 
     if (state.floors.length === 0) {
-        html += `<div class="empty-state">No floors yet.<br>Add your first floor below.</div>`;
+        html += `<div class="empty-state">No floors yet.<br>Tap <strong>+ Add Floor</strong> below to get started.</div>`;
     } else {
         const totalHrs   = state.floors.reduce((s, f) => s + floorManHours(f), 0);
         const totalItems = state.floors.reduce((s, f) => s + f.items.length, 0);
@@ -2022,7 +2043,7 @@ function renderFloor(floor) {
     html += `<button class="log-today-btn" onclick="openFloorLogToday('${floor.id}')">+ Log Today's Hours</button>`;
 
     if (floor.items.length === 0) {
-        html += `<div class="card"><div class="empty-state">No work items yet.</div></div>`;
+        html += `<div class="card"><div class="empty-state">No work items yet.<br>Tap <strong>+ Add Item</strong> below to start tracking hours for this floor.</div></div>`;
     } else {
         const reordering = _reorderFloorId === floor.id;
         html += `<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:6px">
@@ -2214,7 +2235,7 @@ function renderItem(floor, item) {
     </div>`;
 
     if (item.hoursLog.length === 0) {
-        html += `<div class="card"><div class="empty-state">No hours logged yet.</div></div>`;
+        html += `<div class="card"><div class="empty-state">No hours logged yet.<br>Use the form above to log your first entry.</div></div>`;
     } else {
         html += `<div class="card"><table class="log-table">
             <thead><tr><th>Date</th><th>Skilled</th><th>Skld Hrs</th><th>Laborer</th><th>Lab Hrs</th><th>Man-Hrs</th><th>Note</th><th></th></tr></thead><tbody>`;
@@ -5190,7 +5211,7 @@ function renderAttendance() {
     html += `<div id="att_tab_signin" style="display:${_attView==='roster'?'none':'block'}">`;
 
     if (crew.length === 0) {
-        html += `<div class="card"><div class="empty-state">No crew roster yet.<br>Go to "Manage Roster" to add workers.</div></div>`;
+        html += `<div class="card"><div class="empty-state">No crew roster yet.<br>Tap <strong>Manage Roster</strong> above, then <strong>+ Add Crew Member</strong> to get started.</div></div>`;
     } else {
         // Back to Today button when viewing a past day
         if (!isToday) {
@@ -5273,7 +5294,7 @@ function renderAttendance() {
     html += `<div id="att_tab_roster" style="display:${_attView==='roster'?'block':'none'}">`;
     html += `<div class="section-header"><span class="section-title">Crew Roster (${crew.length})</span></div>`;
     if (crew.length === 0) {
-        html += `<div class="card"><div class="empty-state">No crew members yet.<br>Add everyone once, then check them in daily.</div></div>`;
+        html += `<div class="card"><div class="empty-state">No crew members yet.<br>Add everyone here once, then sign them in daily from the <strong>Sign-In</strong> tab.</div></div>`;
     } else {
         html += `<div class="card" style="padding:8px 16px">`;
         crew.forEach(w => {
