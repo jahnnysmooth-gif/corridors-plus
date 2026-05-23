@@ -1678,11 +1678,16 @@ function renderMaterialDetail(mat) {
     const ordered  = mat.procStatus && mat.procStatus.toLowerCase().includes('ordered');
 
     // Stats
-    const lastDeliv = (mat.log||[]).filter(e => e.type==='delivery').sort((a,b) => b.date.localeCompare(a.date))[0];
+    const lastDeliv  = (mat.log||[]).filter(e => e.type==='delivery').sort((a,b) => b.date.localeCompare(a.date))[0];
+    const totalUsed  = (totalDel > 0 && stock !== null) ? Math.max(0, totalDel - stock) : null;
     let html = `<div class="stats-row">
         <div class="stat-card"><div class="stat-value">${stock !== null ? stock : '—'}</div><div class="stat-label">On Hand</div></div>
         <div class="stat-card"><div class="stat-value">${mat.parQty > 0 ? mat.parQty : '—'}</div><div class="stat-label">Min Stock</div></div>
         <div class="stat-card"><div class="stat-value">${lastDeliv ? displayDate(lastDeliv.date) : '—'}</div><div class="stat-label">Last Delivery</div></div>
+    </div>
+    <div class="stats-row" style="margin-top:8px">
+        <div class="stat-card"><div class="stat-value">${totalDel > 0 ? totalDel : '—'}</div><div class="stat-label">All-time Delivered</div></div>
+        <div class="stat-card"><div class="stat-value">${totalUsed !== null ? totalUsed : '—'}</div><div class="stat-label">All-time Used</div></div>
     </div>`;
 
     // Confirm Delivery banner — prominent when ordered
@@ -6095,22 +6100,26 @@ async function syncPush() {
     if (!url) return;
     const toast = _showSyncToast('Pushing to Google Sheets…');
     const materials = (state.materials || []).filter(m => !m.archived).map(mat => {
-        const lastDel = (mat.log || []).filter(e => e.type === 'delivery').sort((a,b) => b.date.localeCompare(a.date))[0];
-        const stock = matCurrentStock(mat);
+        const lastDel  = (mat.log || []).filter(e => e.type === 'delivery').sort((a,b) => b.date.localeCompare(a.date))[0];
+        const stock    = matCurrentStock(mat);
+        const allDeliv = (mat.log || []).filter(e => e.type === 'delivery').reduce((s,e) => s + e.qty, 0);
+        const allUsed  = (allDeliv > 0 && stock !== null) ? Math.max(0, allDeliv - stock) : '';
         return {
-            'Trade':               mat.trade || 'Misc.',
-            'Material':            mat.name,
-            'Brand/Type':          mat.brand || '',
-            'Unit':                mat.unit  || '',
-            'On Hand':             stock !== null ? stock : '',
-            'Min Stock':           mat.parQty    || '',
-            'Last Delivery Date':  lastDel ? lastDel.date : '',
-            'Last Delivery Qty':   lastDel ? lastDel.qty  : '',
-            'Ordered By':          lastDel ? (lastDel.by || '') : '',
-            'To Order':            mat.reorderQty > 0 ? mat.reorderQty : '',
-            'Order Status':        mat.procStatus || '',
-            'Delivery ETA':        mat.deliveryEta || '',
-            'Link':                mat.link  || ''
+            'Trade':                mat.trade || 'Misc.',
+            'Material':             mat.name,
+            'Brand/Type':           mat.brand || '',
+            'Unit':                 mat.unit  || '',
+            'On Hand':              stock !== null ? stock : '',
+            'Min Stock':            mat.parQty    || '',
+            'Last Delivery Date':   lastDel ? lastDel.date : '',
+            'Last Delivery Qty':    lastDel ? lastDel.qty  : '',
+            'Ordered By':           lastDel ? (lastDel.by || '') : '',
+            'To Order':             mat.reorderQty > 0 ? mat.reorderQty : '',
+            'Order Status':         mat.procStatus || '',
+            'Delivery ETA':         mat.deliveryEta || '',
+            'Link':                 mat.link  || '',
+            'All-time Delivered':   allDeliv > 0 ? allDeliv : '',
+            'All-time Used':        allUsed
         };
     });
     const deletions = (state.deletedMaterials || []).map(d => ({ name: d.name, trade: d.trade }));
