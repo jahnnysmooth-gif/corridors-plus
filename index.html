@@ -4447,7 +4447,7 @@ function exportWeeklySummary(offsetWeeks) {
         // Open window NOW while we still have the user's click (async callbacks can't open windows)
         const win = window.open('', '_blank');
         const toast = showToast('✦ Claude is writing your recap…');
-        const load = (recapText) => { win.location.href = URL.createObjectURL(new Blob([buildHTML(recapText)], { type: 'text/html' })); };
+        const load = (recapText) => { win.document.write(buildHTML(recapText)); win.document.close(); };
         fetch(gasUrl, {
             method: 'POST',
             body: JSON.stringify({
