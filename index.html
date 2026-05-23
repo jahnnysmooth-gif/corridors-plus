@@ -103,16 +103,22 @@
         .floor-card {
             background: white;
             border-radius: 12px;
-            padding: 18px 16px;
+            padding: 18px 16px 14px;
             margin-bottom: 10px;
             box-shadow: 0 1px 4px rgba(0,0,0,0.08);
             cursor: pointer;
             transition: box-shadow 0.15s;
             display: flex;
-            align-items: center;
-            justify-content: space-between;
+            flex-direction: column;
+            gap: 10px;
         }
         .floor-card:hover { box-shadow: 0 3px 10px rgba(0,0,0,0.12); }
+        .floor-card-top { display: flex; align-items: center; justify-content: space-between; }
+        .floor-progress-track { height: 6px; background: #f0f0f0; border-radius: 99px; overflow: hidden; }
+        .floor-progress-fill { height: 100%; border-radius: 99px; transition: width 0.3s; }
+        .floor-progress-fill.progress-0   { background: #d1d5db; }
+        .floor-progress-fill.progress-mid { background: #f59e0b; }
+        .floor-progress-fill.progress-100 { background: #22c55e; }
         .floor-card-name { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
         .floor-card-meta { font-size: 13px; color: #999; }
         .floor-card-right { display: flex; align-items: center; gap: 10px; }
@@ -1295,25 +1301,32 @@ function renderFloorCard(floor, extraStyle) {
     const plbl = floor.completed ? 'Complete' : pct === 0 ? 'Not started' : pct === 100 ? 'Complete' : `${pct}% done`;
     const checked = _selectedIds.has(floor.id);
     const styleAttr = extraStyle ? ` style="${extraStyle}"` : '';
+    const barFill = `<div class="floor-progress-track"><div class="floor-progress-fill ${pcls}" style="width:${pct}%"></div></div>`;
     if (_selectMode) {
         return `<div class="floor-card${floor.completed ? ' completed' : ''}${checked ? ' selected' : ''}"${styleAttr} onclick="toggleFloorSelect('${floor.id}')">
-            <input type="checkbox" class="floor-card-checkbox" ${checked ? 'checked' : ''} onclick="event.stopPropagation();toggleFloorSelect('${floor.id}')">
-            <div style="flex:1">
-                <div class="floor-card-name">${floor.name}</div>
-                <div class="floor-card-meta">Started ${displayDate(floor.startDate)} &nbsp;·&nbsp; Est. end ${floor.startDate ? displayDate(addWeeks(floor.startDate, 6)) : '—'} &nbsp;·&nbsp; ${hrs} man-hrs</div>
+            <div class="floor-card-top">
+                <input type="checkbox" class="floor-card-checkbox" ${checked ? 'checked' : ''} onclick="event.stopPropagation();toggleFloorSelect('${floor.id}')">
+                <div style="flex:1">
+                    <div class="floor-card-name">${floor.name}</div>
+                    <div class="floor-card-meta">Started ${displayDate(floor.startDate)} &nbsp;·&nbsp; Est. end ${floor.startDate ? displayDate(addWeeks(floor.startDate, 6)) : '—'} &nbsp;·&nbsp; ${hrs} man-hrs</div>
+                </div>
+                <span class="progress-pill ${pcls}">${plbl}</span>
             </div>
-            <span class="progress-pill ${pcls}">${plbl}</span>
+            ${barFill}
         </div>`;
     }
     return `<div class="floor-card${floor.completed ? ' completed' : ''}"${styleAttr} onclick="navigate('floor','${floor.id}')">
-        <div>
-            <div class="floor-card-name">${floor.name}</div>
-            <div class="floor-card-meta">Started ${displayDate(floor.startDate)} &nbsp;·&nbsp; Est. end ${floor.startDate ? displayDate(addWeeks(floor.startDate, 6)) : '—'} &nbsp;·&nbsp; ${hrs} man-hrs</div>
+        <div class="floor-card-top">
+            <div>
+                <div class="floor-card-name">${floor.name}</div>
+                <div class="floor-card-meta">Started ${displayDate(floor.startDate)} &nbsp;·&nbsp; Est. end ${floor.startDate ? displayDate(addWeeks(floor.startDate, 6)) : '—'} &nbsp;·&nbsp; ${hrs} man-hrs</div>
+            </div>
+            <div class="floor-card-right">
+                <span class="progress-pill ${pcls}">${plbl}</span>
+                <span class="floor-card-arrow">›</span>
+            </div>
         </div>
-        <div class="floor-card-right">
-            <span class="progress-pill ${pcls}">${plbl}</span>
-            <span class="floor-card-arrow">›</span>
-        </div>
+        ${barFill}
     </div>`;
 }
 
