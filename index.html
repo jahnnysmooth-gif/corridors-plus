@@ -52,6 +52,12 @@
             line-height: 1;
         }
 
+        @media (min-width: 768px) {
+            header {
+                padding-left: 72px;
+            }
+        }
+
         header h1 { font-size: 18px; font-weight: 600; flex: 1; }
 
         .header-btn {
@@ -1191,6 +1197,9 @@ function render() {
         } else {
             back.onclick = () => navigate('home');
             title.textContent = 'Material Inventory';
+            exp.style.display = 'block';
+            exp.textContent = 'Export';
+            exp.onclick = () => openMaterialsExportModal();
         }
         app.innerHTML = renderMaterials();
         applyMatFilter();
@@ -1212,6 +1221,9 @@ function render() {
         back.style.display = 'block';
         back.onclick = () => navigate('materials');
         title.textContent = 'On Hand';
+        exp.style.display = 'block';
+        exp.textContent = 'Print';
+        exp.onclick = () => printOnHand();
         app.innerHTML = renderOnHand();
 
     } else if (view.screen === 'orderhistory') {
@@ -1224,12 +1236,18 @@ function render() {
         back.style.display = 'block';
         back.onclick = () => navigate('materials');
         title.textContent = 'Reorder List';
+        exp.style.display = 'block';
+        exp.textContent = 'Print';
+        exp.onclick = () => printReorderList();
         app.innerHTML = renderReorderList();
 
     } else if (view.screen === 'attendance') {
         back.style.display = 'block';
         back.onclick = () => navigate('home');
         title.textContent = 'Attendance';
+        exp.style.display = 'block';
+        exp.textContent = 'PDF';
+        exp.onclick = () => exportAttendancePDF(_attendanceDate);
         app.innerHTML = renderAttendance();
 
     } else if (view.screen === 'reports') {
@@ -1546,7 +1564,6 @@ function renderMaterials() {
     html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px;margin-top:20px${upcomingCount > 0 ? ';background:#1a3a5c;color:white;border-color:#1a3a5c' : ''}" onclick="navigate('deliveries')">&#128666; Upcoming Deliveries${upcomingCount > 0 ? ` <span style="background:white;color:#1a3a5c;font-size:11px;font-weight:800;padding:2px 7px;border-radius:99px;margin-left:4px">${upcomingCount}</span>` : ''}</button>`;
     html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px;background:${lowCount > 0 ? '#7c3aed' : ''};color:${lowCount > 0 ? 'white' : ''};border-color:${lowCount > 0 ? '#7c3aed' : ''}" onclick="navigate('reorder')">&#128203; Reorder List${lowCount > 0 ? ` <span style="background:white;color:#7c3aed;font-size:11px;font-weight:800;padding:2px 7px;border-radius:99px;margin-left:4px">${lowCount}</span>` : ''}</button>`;
     html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px" onclick="navigate('orderhistory')">&#128220; Order History</button>`;
-    html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px" onclick="openMaterialsExportModal()">&#8681; Export Usage Report</button>`;
     html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px" onclick="openSheetsSync()">&#9729; Google Sheets Sync${localStorage.getItem('hallway_sheets_url') ? ' <span style="display:inline-block;width:7px;height:7px;background:#16a34a;border-radius:50%;margin-left:4px;vertical-align:middle"></span>' : ''}</button>`;
     html += `<button class="add-btn" onclick="openAddMaterial()">+ Add Material</button>`;
     html += `</div>`;
@@ -1827,7 +1844,6 @@ function renderOnHand() {
         <div class="stat-card"><div class="stat-value">${knownCount}</div><div class="stat-label">Counted</div></div>
         <div class="stat-card"><div class="stat-value" style="color:${lowCount > 0 ? '#dc2626' : 'inherit'}">${lowCount}</div><div class="stat-label">Low Stock</div></div>
     </div>`;
-    html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:16px" onclick="printOnHand()">&#128438; Print / Share</button>`;
     tradeKeys.forEach(trade => {
         const tradeMats = byTrade[trade];
         const color = TRADE_COLORS[trade] || '#475569';
@@ -1879,7 +1895,6 @@ function renderReorderList() {
         <div class="stat-card"><div class="stat-value">${totalOrderItems}</div><div class="stat-label">Qty Set</div></div>
     </div>`;
 
-    html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:16px" onclick="printReorderList()">&#128438; Print / Share</button>`;
 
     tradeKeys.forEach(trade => {
         const color = TRADE_COLORS[trade] || '#475569';
@@ -5133,7 +5148,6 @@ function renderAttendance() {
             <span class="section-title">${isToday ? 'Today' : displayDate(_attendanceDate)} · ${presentCount} on site</span>
             <div style="display:flex;gap:6px;align-items:center">
                 <button class="icon-btn" onclick="${allChecked ? `deselectAllWorkers('${_attendanceDate}')` : `selectAllWorkers('${_attendanceDate}')`}">${allChecked ? 'Deselect All' : 'Select All'}</button>
-                ${presentCount > 0 ? `<button class="icon-btn" onclick="exportAttendancePDF('${_attendanceDate}')">&#8681; PDF</button>` : ''}
             </div>
         </div>`;
 
@@ -5168,7 +5182,6 @@ function renderAttendance() {
             html += `<button id="att_submit_btn" class="btn btn-primary" style="width:100%;margin-top:8px;padding:14px;font-size:15px;font-weight:700" onclick="submitAttendanceToday()">✓ Submit Today's Attendance</button>`;
             html += `<button class="btn btn-secondary" style="width:100%;margin-top:6px" onclick="exportWeeklyAttendancePDF()">&#8681; Weekly Attendance PDF</button>`;
         } else {
-            if (presentCount > 0) html += `<button class="btn btn-secondary" style="width:100%;margin-top:8px" onclick="exportAttendancePDF('${_attendanceDate}')">&#8681; Export PDF</button>`;
             html += `<button class="btn btn-danger" style="width:100%;margin-top:6px" onclick="deleteAttendanceDay('${_attendanceDate}')">Delete This Day</button>`;
         }
 
