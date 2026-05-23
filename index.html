@@ -6022,15 +6022,14 @@ async function syncPull() {
         const rows = await resp.json();
         if (rows && rows.error) throw new Error(rows.error);
 
-        const deletedKeys  = new Set((state.deletedMaterials || []).map(d => (String(d.trade||'') + '||' + String(d.name||'')).toLowerCase()));
         const confirmedKeys = new Set((state.pendingConfirms || []).map(d => (String(d.trade||'') + '||' + String(d.name||'')).toLowerCase()));
         let added = 0, updated = 0;
         (rows || []).forEach(row => {
             const name = String(row['Material'] || '').trim();
             if (!name) return;
-            // Skip materials that were deleted or archived in the app
+            // If a previously-deleted item reappears in the sheet, the user re-added it intentionally — remove from deletion list
             const dKey = (String(row['Trade']||'') + '||' + name).toLowerCase();
-            if (deletedKeys.has(dKey)) return;
+            state.deletedMaterials = (state.deletedMaterials || []).filter(d => (String(d.trade||'')+'||'+String(d.name||'')).toLowerCase() !== dKey);
             let mat = state.materials.find(m => m.name.toLowerCase() === name.toLowerCase());
             if (mat && mat.archived) return;
             const isNewMat = !mat;
