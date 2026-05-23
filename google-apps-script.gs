@@ -11,7 +11,8 @@ const HEADERS = [
   'On Hand', 'Min Stock',
   'Last Delivery Date', 'Last Delivery Qty', 'Ordered By',
   'To Order', 'Order Status', 'Delivery ETA',
-  'Link', 'Notes'
+  'Link', 'Notes',
+  'All-time Delivered', 'All-time Used'
 ];
 
 // ── GET — pull all materials into the app ─────────────────────────────────────
