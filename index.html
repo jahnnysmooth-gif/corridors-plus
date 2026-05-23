@@ -64,11 +64,12 @@
             background: rgba(255,255,255,0.15);
             border: 1px solid rgba(255,255,255,0.3);
             color: white;
-            padding: 6px 12px;
+            padding: 4px 10px;
             border-radius: 6px;
-            font-size: 13px;
+            font-size: 18px;
             cursor: pointer;
             white-space: nowrap;
+            line-height: 1;
         }
 
         .container {
@@ -732,8 +733,8 @@
     <button class="back-btn" id="backBtn" style="display:none">&#8592;</button>
     <h1 id="headerTitle">Corridor's Plus <span style="filter:brightness(0) invert(1)">➕</span></h1>
     <span class="sync-indicator" id="syncIndicator" style="display:none"></span>
-    <button class="header-btn" id="homeBtn" onclick="navigate('home')" style="display:none">&#8962;</button>
-    <button class="header-btn" id="exportBtn" onclick="openExportModal()" style="display:none">Export</button>
+    <button class="header-btn" id="homeBtn" onclick="navigate('home')" style="display:none">🏠</button>
+    <button class="header-btn" id="exportBtn" onclick="openExportModal()" style="display:none">📤</button>
 </header>
 
 <div class="container" id="app"></div>
@@ -1158,7 +1159,7 @@ function render() {
     back.style.display = 'none';
     exp.style.display  = 'none';
     exp.onclick = () => openExportModal();
-    exp.textContent = 'Export';
+    exp.textContent = '📤';
     document.getElementById('homeBtn').style.display = view.screen === 'home' ? 'none' : 'inline-block';
 
     if (view.screen === 'home') {
@@ -1198,7 +1199,7 @@ function render() {
             back.onclick = () => navigate('home');
             title.textContent = 'Material Inventory';
             exp.style.display = 'block';
-            exp.textContent = 'Export';
+            exp.textContent = '📤';
             exp.onclick = () => openMaterialsExportModal();
         }
         app.innerHTML = renderMaterials();
@@ -1222,7 +1223,7 @@ function render() {
         back.onclick = () => navigate('materials');
         title.textContent = 'On Hand';
         exp.style.display = 'block';
-        exp.textContent = 'Print';
+        exp.textContent = '🖨️';
         exp.onclick = () => printOnHand();
         app.innerHTML = renderOnHand();
 
@@ -1237,7 +1238,7 @@ function render() {
         back.onclick = () => navigate('materials');
         title.textContent = 'Reorder List';
         exp.style.display = 'block';
-        exp.textContent = 'Print';
+        exp.textContent = '🖨️';
         exp.onclick = () => printReorderList();
         app.innerHTML = renderReorderList();
 
@@ -1246,7 +1247,7 @@ function render() {
         back.onclick = () => navigate('home');
         title.textContent = 'Attendance';
         exp.style.display = 'block';
-        exp.textContent = 'PDF';
+        exp.textContent = '📄';
         exp.onclick = () => exportAttendancePDF(_attendanceDate);
         app.innerHTML = renderAttendance();
 
@@ -1262,7 +1263,7 @@ function render() {
         title.textContent = view.reportDate ? displayDate(view.reportDate) : 'Report';
         exp.style.display = 'block';
         exp.onclick = () => exportDailyReportPDF(view.reportDate);
-        exp.textContent = 'PDF';
+        exp.textContent = '📄';
         app.innerHTML = renderReport(view.reportDate);
 
     } else if (view.screen === 'receipts') {
