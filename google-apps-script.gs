@@ -622,7 +622,7 @@ function syncMaterials(payload) {
           sheet.getRange(rowNum, appIdIdx + 1).setValue(appId);
         }
       } else {
-        newRows.push(HEADERS.map(h => (mat[h] !== undefined ? mat[h] : '')));
+        newRows.push(hdr.map(h => (mat[h] !== undefined ? mat[h] : '')));
       }
     });
 
