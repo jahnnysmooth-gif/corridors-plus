@@ -629,7 +629,7 @@
         .mat-meta { font-size: 13px; color: #999; margin-top: 3px; }
         .mat-stock { text-align: right; }
         .mat-stock-num { font-size: 24px; font-weight: 800; color: #1a3a5c; line-height: 1; }
-        .mat-stock-unit { font-size: 12px; color: #999; text-transform: uppercase; letter-spacing: 0.4px; }
+        .mat-stock-unit { font-size: 10px; color: #bbb; text-transform: uppercase; letter-spacing: 0.4px; }
         .mat-stock-none { font-size: 13px; color: #ccc; font-style: italic; }
         .mat-card.low-stock { border-left: 4px solid #dc2626; background: #fff5f5; }
         .mat-stock-num.low { color: #dc2626; }
@@ -1157,7 +1157,7 @@ function hasUnsavedHours() {
 
 function navigate(screen, floorId, itemId, matId, matTrade, reportDate) {
     if (hasUnsavedHours() && !confirm('You have unsaved hours. Leave without logging?')) return;
-    if (screen !== 'materials') _matSearch = '';
+    if (screen !== 'materials') { _matSearch = ''; _matReorderTrade = null; }
     view = { screen, floorId: floorId||null, itemId: itemId||null, matId: matId||null, matTrade: matTrade||null, reportDate: reportDate||null };
     render();
 }
@@ -1568,31 +1568,47 @@ function renderMaterials() {
     const tradeKeys = TRADE_ORDER.filter(t => byTrade[t]);
     Object.keys(byTrade).forEach(t => { if (!TRADE_ORDER.includes(t)) tradeKeys.push(t); });
 
-    // Search bar always at top
-    html += _matSearchBar();
-
     // If a trade is selected, show that trade's material list
     if (view.matTrade) {
         const tradeMats = byTrade[view.matTrade] || [];
         const delivToday = tradeMats.reduce((s,m) => s + (m.log||[]).filter(e => e.type==='delivery' && e.date===today()).reduce((ss,e) => ss+e.qty, 0), 0);
-        html += `<div class="stats-row" style="grid-template-columns:1fr 1fr">
-            <div class="stat-card"><div class="stat-value">${tradeMats.length}</div><div class="stat-label">Materials</div></div>
-            <div class="stat-card"><div class="stat-value">${delivToday}</div><div class="stat-label">Delivered Today</div></div>
+        if (delivToday > 0) {
+            html += `<div class="stat-card" style="margin-bottom:12px"><div class="stat-value">${delivToday}</div><div class="stat-label">Delivered Today</div></div>`;
+        }
+        html += `<div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+            <button class="notes-edit-btn" onclick="_matReorderTrade=_matReorderTrade?null:'${view.matTrade}';document.getElementById('app').innerHTML=renderMaterials()">${_matReorderTrade ? 'Done' : '⇅ Reorder'}</button>
         </div>`;
-        html += `<div id="mat_card_list">`;
-        tradeMats.forEach(mat => { html += _matCardHtml(mat, false); });
-        html += `</div>`;
+        if (_matReorderTrade) {
+            html += `<div class="card" style="padding:8px">`;
+            tradeMats.forEach((mat, idx) => {
+                const stock = matCurrentStock(mat);
+                html += `<div style="display:flex;align-items:center;gap:10px;padding:10px 6px;border-bottom:1px solid #f0f0f0">
+                    <span style="flex:1;font-size:14px;font-weight:600;color:#1a1a2e">${mat.name}</span>
+                    ${stock !== null ? `<span style="font-size:13px;font-weight:700;color:#1a3a5c">${stock} <span style="font-size:10px;color:#bbb">${mat.unit}</span></span>` : `<span style="font-size:12px;color:#ccc;font-style:italic">No count</span>`}
+                    <div style="display:flex;gap:4px">
+                        <button onclick="moveMatItem('${view.matTrade}',${idx},-1)" ${idx===0?'disabled':''} style="width:34px;height:34px;border-radius:8px;border:1.5px solid #e0e0e0;background:${idx===0?'#f5f5f5':'white'};font-size:16px;cursor:${idx===0?'default':'pointer'};color:${idx===0?'#ccc':'#1a3a5c'}">↑</button>
+                        <button onclick="moveMatItem('${view.matTrade}',${idx},1)" ${idx===tradeMats.length-1?'disabled':''} style="width:34px;height:34px;border-radius:8px;border:1.5px solid #e0e0e0;background:${idx===tradeMats.length-1?'#f5f5f5':'white'};font-size:16px;cursor:${idx===tradeMats.length-1?'default':'pointer'};color:${idx===tradeMats.length-1?'#ccc':'#1a3a5c'}">↓</button>
+                    </div>
+                </div>`;
+            });
+            html += `</div>`;
+        } else {
+            html += `<div id="mat_card_list">`;
+            tradeMats.forEach(mat => { html += _matCardHtml(mat, false); });
+            html += `</div>`;
+        }
         html += `<button class="add-btn" onclick="openAddMaterial()">+ Add Material</button>`;
         return html;
     }
 
     // Trade tile grid (main screen)
+    html += _matSearchBar();
     const isLow = m => { const s = matCurrentStock(m); return s !== null && m.parQty > 0 && s < m.parQty; };
     const totalDeliveriesToday = mats.reduce((s, m) => s + (m.log||[]).filter(e => e.type==='delivery' && e.date===today()).reduce((ss,e) => ss+e.qty, 0), 0);
     const lowCount = mats.filter(isLow).length;
-    html += `<div class="stats-row" style="grid-template-columns:1fr 1fr">
+    html += `<div class="stats-row" style="grid-template-columns:${totalDeliveriesToday > 0 ? '1fr 1fr' : '1fr'}">
         <div class="stat-card"><div class="stat-value">${mats.length}</div><div class="stat-label">Materials</div></div>
-        <div class="stat-card"><div class="stat-value">${totalDeliveriesToday}</div><div class="stat-label">Delivered Today</div></div>
+        ${totalDeliveriesToday > 0 ? `<div class="stat-card"><div class="stat-value">${totalDeliveriesToday}</div><div class="stat-label">Delivered Today</div></div>` : ''}
     </div>`;
     if (lowCount > 0) {
         html += `<div class="low-stock-bar"><span style="font-size:18px">⚠️</span><span class="low-stock-bar-text">${lowCount} material${lowCount !== 1 ? 's' : ''} below minimum stock</span></div>`;
@@ -2718,6 +2734,21 @@ function moveFloor(idx, dir) {
 
 // ── Reorder items ─────────────────────────────────────────────────────────────
 let _reorderFloorId = null;
+let _matReorderTrade = null;
+
+function moveMatItem(trade, idx, dir) {
+    const mats = state.materials || [];
+    const tradeMats = mats.filter(m => (m.trade || 'Other') === trade && !m.archived);
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= tradeMats.length) return;
+    const aId = tradeMats[idx].id;
+    const bId = tradeMats[newIdx].id;
+    const aPos = mats.findIndex(m => m.id === aId);
+    const bPos = mats.findIndex(m => m.id === bId);
+    [mats[aPos], mats[bPos]] = [mats[bPos], mats[aPos]];
+    persist();
+    document.getElementById('app').innerHTML = renderMaterials();
+}
 
 function toggleReorderMode(floorId) {
     _reorderFloorId = _reorderFloorId === floorId ? null : floorId;
