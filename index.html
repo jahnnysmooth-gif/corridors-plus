@@ -6111,6 +6111,7 @@ async function syncPush() {
         const allDeliv = (mat.startQty || 0) + (mat.log || []).filter(e => e.type === 'delivery').reduce((s,e) => s + e.qty, 0);
         const allUsed  = (allDeliv > 0 && stock !== null) ? Math.max(0, allDeliv - stock) : '';
         return {
+            'App ID':               mat.id,
             'Trade':                mat.trade || 'Misc.',
             'Material':             mat.name,
             'Brand/Type':           mat.brand || '',

@@ -7,7 +7,7 @@ const MASTER_SHEET       = 'Materials List';
 const RECEIPTS_FOLDER_ID = '19TGCyD8v0j0UyahztXXuwIEGLVyk3LVJ';
 
 const HEADERS = [
-  'Trade', 'Material', 'Brand/Type', 'Unit',
+  'App ID', 'Trade', 'Material', 'Brand/Type', 'Unit',
   'On Hand', 'Min Stock',
   'Last Delivery Date', 'Last Delivery Qty', 'Ordered By',
   'To Order', 'Order Status', 'Delivery ETA',
@@ -583,18 +583,22 @@ function syncMaterials(payload) {
       return json({ error: 'Material column not found in sheet headers. Re-run setup() or check the header row.' });
     }
 
-    // Build two maps: trade+name (exact) and name-only (fallback)
+    // Build three maps: App ID, trade+name (exact), and name-only (fallback)
+    const idMap       = {};  // "appId" → 1-based row
     const rowMap      = {};  // "trade||name" → 1-based row
-    const nameOnlyMap = {};  // "name" → 1-based row (fallback when trade is missing/mismatched)
+    const nameOnlyMap = {};  // "name" → 1-based row
+    const appIdIdx    = hdr.indexOf('App ID');
     allData.slice(1).forEach((r, i) => {
-      const name  = String(r[matIdx] || '').trim().toLowerCase();
-      const trade = tradeIdx >= 0 ? String(r[tradeIdx] || '').trim().toLowerCase() : '';
+      const name   = String(r[matIdx]   || '').trim().toLowerCase();
+      const trade  = tradeIdx  >= 0 ? String(r[tradeIdx]  || '').trim().toLowerCase() : '';
+      const appId  = appIdIdx  >= 0 ? String(r[appIdIdx]  || '').trim() : '';
       if (!name) return;
+      if (appId) idMap[appId] = i + 2;
       rowMap[trade + '||' + name] = i + 2;
       if (!nameOnlyMap[name]) nameOnlyMap[name] = i + 2;
     });
 
-    // Fields the app is allowed to overwrite — Notes is sheet-managed
+    // Fields the app is allowed to overwrite — Notes and Delivery ETA are sheet-managed
     const APP_FIELDS = HEADERS.filter(h => h !== 'Notes' && h !== 'Delivery ETA');
 
     const updates = payload.materials || [];
@@ -603,8 +607,9 @@ function syncMaterials(payload) {
     updates.forEach(mat => {
       const name     = String(mat['Material'] || '').trim().toLowerCase();
       const trade    = String(mat['Trade']    || '').trim().toLowerCase();
-      const exactKey = trade + '||' + name;
-      const rowNum   = rowMap[exactKey] || nameOnlyMap[name];
+      const appId    = String(mat['App ID']   || '').trim();
+      // Match by App ID first, then trade+name, then name only
+      const rowNum   = (appId && idMap[appId]) || rowMap[trade + '||' + name] || nameOnlyMap[name];
       if (rowNum) {
         APP_FIELDS.forEach(field => {
           const colIdx = hdr.indexOf(field);
@@ -612,6 +617,10 @@ function syncMaterials(payload) {
             sheet.getRange(rowNum, colIdx + 1).setValue(mat[field]);
           }
         });
+        // Backfill App ID if the row doesn't have one yet
+        if (appIdIdx >= 0 && appId && !allData[rowNum - 1][appIdIdx]) {
+          sheet.getRange(rowNum, appIdIdx + 1).setValue(appId);
+        }
       } else {
         newRows.push(HEADERS.map(h => (mat[h] !== undefined ? mat[h] : '')));
       }
