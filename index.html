@@ -1283,14 +1283,15 @@ function render() {
 }
 
 // ── Floors screen ─────────────────────────────────────────────────────────────
-function renderFloorCard(floor) {
+function renderFloorCard(floor, extraStyle) {
     const hrs  = floorManHours(floor);
     const pct  = floorProgress(floor);
     const pcls = floor.completed ? 'progress-100' : pct === 0 ? 'progress-0' : pct === 100 ? 'progress-100' : 'progress-mid';
     const plbl = floor.completed ? 'Complete' : pct === 0 ? 'Not started' : pct === 100 ? 'Complete' : `${pct}% done`;
     const checked = _selectedIds.has(floor.id);
+    const styleAttr = extraStyle ? ` style="${extraStyle}"` : '';
     if (_selectMode) {
-        return `<div class="floor-card${floor.completed ? ' completed' : ''}${checked ? ' selected' : ''}" onclick="toggleFloorSelect('${floor.id}')">
+        return `<div class="floor-card${floor.completed ? ' completed' : ''}${checked ? ' selected' : ''}"${styleAttr} onclick="toggleFloorSelect('${floor.id}')">
             <input type="checkbox" class="floor-card-checkbox" ${checked ? 'checked' : ''} onclick="event.stopPropagation();toggleFloorSelect('${floor.id}')">
             <div style="flex:1">
                 <div class="floor-card-name">${floor.name}</div>
@@ -1299,7 +1300,7 @@ function renderFloorCard(floor) {
             <span class="progress-pill ${pcls}">${plbl}</span>
         </div>`;
     }
-    return `<div class="floor-card${floor.completed ? ' completed' : ''}" onclick="navigate('floor','${floor.id}')">
+    return `<div class="floor-card${floor.completed ? ' completed' : ''}"${styleAttr} onclick="navigate('floor','${floor.id}')">
         <div>
             <div class="floor-card-name">${floor.name}</div>
             <div class="floor-card-meta">Started ${displayDate(floor.startDate)} &nbsp;·&nbsp; Est. end ${floor.startDate ? displayDate(addWeeks(floor.startDate, 6)) : '—'} &nbsp;·&nbsp; ${hrs} man-hrs</div>
@@ -1478,7 +1479,7 @@ function renderFloors() {
                 <span>Not Started (${notStartedFloors.length})</span>
                 <span style="color:#ccc;font-size:20px">${_showNotStarted ? '▾' : '▸'}</span>
             </div>`;
-            if (_showNotStarted) notStartedFloors.forEach(floor => { html += renderFloorCard(floor); });
+            if (_showNotStarted) notStartedFloors.forEach(floor => { html += renderFloorCard(floor, 'background:#fff7ed;border:1.5px solid #f97316'); });
         }
 
         if (completedFloors.length > 0) {
