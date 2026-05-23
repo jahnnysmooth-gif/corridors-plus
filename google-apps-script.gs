@@ -603,14 +603,18 @@ function syncMaterials(payload) {
 
     const updates = payload.materials || [];
     const newRows = [];
+    const claimedRows = new Set(); // prevent two app materials matching the same sheet row
 
     updates.forEach(mat => {
       const name     = String(mat['Material'] || '').trim().toLowerCase();
       const trade    = String(mat['Trade']    || '').trim().toLowerCase();
       const appId    = String(mat['App ID']   || '').trim();
-      // Match by App ID first, then trade+name, then name only
-      const rowNum   = (appId && idMap[appId]) || rowMap[trade + '||' + name] || nameOnlyMap[name];
+      // Match by App ID first (strongest), then trade+name, then name only
+      let rowNum = (appId && idMap[appId]) || rowMap[trade + '||' + name] || nameOnlyMap[name];
+      // Never let two app materials write to the same sheet row
+      if (rowNum && claimedRows.has(rowNum)) rowNum = null;
       if (rowNum) {
+        claimedRows.add(rowNum);
         APP_FIELDS.forEach(field => {
           const colIdx = hdr.indexOf(field);
           if (colIdx >= 0 && mat[field] !== undefined) {
@@ -872,6 +876,21 @@ function setRowColors() {
 
   sheet.setConditionalFormatRules(rules);
   Logger.log('Row colors applied! Low stock = red, Ordered = green, trade groups color-coded.');
+}
+
+// ── Clear all App IDs so the next sync re-establishes correct links by name ───
+function repairAppIds() {
+  const ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(MASTER_SHEET);
+  if (!sheet) { Logger.log('Sheet not found.'); return; }
+  const data     = sheet.getDataRange().getValues();
+  const hdr      = data[0].map(h => String(h).trim());
+  const appIdIdx = hdr.indexOf('App ID');
+  if (appIdIdx < 0) { Logger.log('App ID column not found.'); return; }
+  for (let i = 1; i < data.length; i++) {
+    sheet.getRange(i + 1, appIdIdx + 1).setValue('');
+  }
+  Logger.log('App IDs cleared. Now sync from the app to re-establish all links.');
 }
 
 // ── Add missing columns to Master sheet without touching existing data ────────

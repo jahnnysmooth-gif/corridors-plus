@@ -6027,10 +6027,16 @@ async function syncPull() {
         (rows || []).forEach(row => {
             const name = String(row['Material'] || '').trim();
             if (!name) return;
-            // If a previously-deleted item reappears in the sheet, the user re-added it intentionally — remove from deletion list
             const dKey = (String(row['Trade']||'') + '||' + name).toLowerCase();
-            if ((state.deletedMaterials || []).some(d => (String(d.trade||'')+'||'+String(d.name||'')).toLowerCase() === dKey)) return;
-            let mat = state.materials.find(m => m.name.toLowerCase() === name.toLowerCase());
+            const dName = name.toLowerCase();
+            if ((state.deletedMaterials || []).some(d => {
+                const dt = String(d.trade||'').toLowerCase(), dn = String(d.name||'').toLowerCase();
+                return (dt + '||' + dn) === dKey || dn === dName;
+            })) return;
+            const rowAppId = String(row['App ID'] || '').trim();
+            let mat = rowAppId ? state.materials.find(m => m.id === rowAppId) : null;
+            const matchedById = !!mat;
+            if (!mat) mat = state.materials.find(m => m.name.toLowerCase() === name.toLowerCase());
             if (mat && mat.archived) return;
             const isNewMat = !mat;
             if (!mat) {
