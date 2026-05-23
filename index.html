@@ -374,7 +374,7 @@
 
         .quick-log-inputs {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr auto;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
             gap: 8px;
             align-items: flex-end;
         }
@@ -1137,10 +1137,10 @@ function getItem(f)  { return f.items.find(i => i.id === view.itemId); }
 // ── Navigation ────────────────────────────────────────────────────────────────
 function hasUnsavedHours() {
     if (view.screen !== 'item') return false;
-    const s  = parseFloat(document.getElementById('ql_skilled')?.value)       || 0;
-    const sh = parseFloat(document.getElementById('ql_skilled_hours')?.value) || 0;
-    const l  = parseFloat(document.getElementById('ql_laborer')?.value)       || 0;
-    const lh = parseFloat(document.getElementById('ql_laborer_hours')?.value) || 0;
+    const s  = parseFloat(document.getElementById('ql_skilled_0')?.value)       || 0;
+    const sh = parseFloat(document.getElementById('ql_skilled_hours_0')?.value) || 0;
+    const l  = parseFloat(document.getElementById('ql_laborer_0')?.value)       || 0;
+    const lh = parseFloat(document.getElementById('ql_laborer_hours_0')?.value) || 0;
     return (s + l + sh + lh) > 0;
 }
 
@@ -2212,24 +2212,10 @@ function renderItem(floor, item) {
             <input type="date" id="ql_date_picker" onchange="setQlDateFromPicker(this.value)" />
         </div>
         <input type="hidden" id="ql_date" value="${t}" />
-        <div class="quick-log-inputs">
-            <div class="quick-log-field">
-                <label>Skilled</label>
-                <input type="number" id="ql_skilled" min="0" placeholder="0" oninput="qlPreview()" />
-            </div>
-            <div class="quick-log-field">
-                <label>Skilled Hrs</label>
-                <input type="number" id="ql_skilled_hours" min="0.5" step="0.5" placeholder="${localStorage.getItem('hallway_last_skld_hrs') || '8'}" oninput="qlPreview()" />
-            </div>
-            <div class="quick-log-field">
-                <label>Laborer</label>
-                <input type="number" id="ql_laborer" min="0" placeholder="0" oninput="qlPreview()" />
-            </div>
-            <div class="quick-log-field">
-                <label>Laborer Hrs</label>
-                <input type="number" id="ql_laborer_hours" min="0.5" step="0.5" placeholder="${localStorage.getItem('hallway_last_lab_hrs') || '8'}" oninput="qlPreview()" />
-            </div>
-            <div class="quick-log-field">
+        <div id="ql_groups_container">${qlGroupHtml(0)}</div>
+        <div style="display:flex;gap:8px;align-items:flex-end;margin-top:10px">
+            <button onclick="addQlGroup()" style="padding:10px 12px;background:#f1f5f9;border:1.5px solid #e0e0e0;border-radius:8px;font-size:13px;font-weight:600;color:#1a3a5c;cursor:pointer;white-space:nowrap">+ Group</button>
+            <div class="quick-log-field" style="flex:1">
                 <label>Man-Hrs</label>
                 <input type="text" id="ql_preview" readonly placeholder="—" style="background:#f5f8ff;color:#1a3a5c;font-weight:700;cursor:default" />
             </div>
@@ -2314,54 +2300,96 @@ function renderItem(floor, item) {
 
 // ── Quick log ─────────────────────────────────────────────────────────────────
 function qlPreview() {
-    const s  = parseFloat(document.getElementById('ql_skilled')?.value)       || 0;
-    const sh = parseFloat(document.getElementById('ql_skilled_hours')?.value) || 0;
-    const l  = parseFloat(document.getElementById('ql_laborer')?.value)       || 0;
-    const lh = parseFloat(document.getElementById('ql_laborer_hours')?.value) || 0;
-    const mh = s * sh + l * lh;
+    let total = 0;
+    for (let i = 0; i < _qlGroups; i++) {
+        const s  = parseFloat(document.getElementById(`ql_skilled_${i}`)?.value)       || 0;
+        const sh = parseFloat(document.getElementById(`ql_skilled_hours_${i}`)?.value) || 0;
+        const l  = parseFloat(document.getElementById(`ql_laborer_${i}`)?.value)       || 0;
+        const lh = parseFloat(document.getElementById(`ql_laborer_hours_${i}`)?.value) || 0;
+        total += s * sh + l * lh;
+    }
     const el = document.getElementById('ql_preview');
-    if (el) el.value = mh > 0 ? String(mh) : '';
+    if (el) el.value = total > 0 ? String(total) : '';
 }
 
 function quickLog(floorId, itemId) {
-    const skilled       = parseFloat(document.getElementById('ql_skilled')?.value)       || 0;
-    const skilledHours  = parseFloat(document.getElementById('ql_skilled_hours')?.value) || 0;
-    const laborer       = parseFloat(document.getElementById('ql_laborer')?.value)       || 0;
-    const laborerHours  = parseFloat(document.getElementById('ql_laborer_hours')?.value) || 0;
-    const date          = document.getElementById('ql_date')?.value;
-    const note          = (document.getElementById('ql_note')?.value || '').trim();
-    if (skilled + laborer < 1) { alert('Enter at least one Skilled or Laborer worker.'); return; }
-    if (skilled > 0 && skilledHours <= 0) { alert('Enter hours for Skilled workers.'); return; }
-    if (laborer > 0 && laborerHours <= 0) { alert('Enter hours for Laborer workers.'); return; }
-    if (skilledHours > 0 && skilled <= 0) { alert('Enter a Skilled worker count.'); return; }
-    if (laborerHours > 0 && laborer <= 0) { alert('Enter a Laborer worker count.'); return; }
+    const date = document.getElementById('ql_date')?.value;
+    const note = (document.getElementById('ql_note')?.value || '').trim();
     const floor = state.floors.find(f => f.id === floorId);
     const item  = floor.items.find(i => i.id === itemId);
-    const entry = { date, skilled, skilledHours, laborer, laborerHours };
-    if (note) entry.note = note;
-    if (_qlWorkerIds.size > 0) entry.workerIds = [..._qlWorkerIds];
+    let saved = 0;
+    let lastSkldHrs = 0, lastLabHrs = 0;
+    for (let i = 0; i < _qlGroups; i++) {
+        const skilled      = parseFloat(document.getElementById(`ql_skilled_${i}`)?.value)       || 0;
+        const skilledHours = parseFloat(document.getElementById(`ql_skilled_hours_${i}`)?.value) || 0;
+        const laborer      = parseFloat(document.getElementById(`ql_laborer_${i}`)?.value)       || 0;
+        const laborerHours = parseFloat(document.getElementById(`ql_laborer_hours_${i}`)?.value) || 0;
+        if (skilled + laborer === 0 && skilledHours === 0 && laborerHours === 0) continue;
+        if (skilled > 0 && skilledHours <= 0) { alert(`Group ${i+1}: Enter hours for Skilled workers.`); return; }
+        if (laborer > 0 && laborerHours <= 0) { alert(`Group ${i+1}: Enter hours for Laborer workers.`); return; }
+        if (skilledHours > 0 && skilled <= 0) { alert(`Group ${i+1}: Enter a Skilled worker count.`); return; }
+        if (laborerHours > 0 && laborer <= 0) { alert(`Group ${i+1}: Enter a Laborer worker count.`); return; }
+        const entry = { date, skilled, skilledHours, laborer, laborerHours };
+        if (note) entry.note = note;
+        if (i === 0 && _qlWorkerIds.size > 0) entry.workerIds = [..._qlWorkerIds];
+        item.hoursLog.push(entry);
+        if (skilledHours > 0) lastSkldHrs = skilledHours;
+        if (laborerHours > 0) lastLabHrs  = laborerHours;
+        saved++;
+    }
+    if (saved === 0) { alert('Enter at least one Skilled or Laborer worker.'); return; }
     _qlWorkerIds.clear();
-    item.hoursLog.push(entry);
+    _qlGroups = 1;
     if ((item.status || 'pending') === 'pending') item.status = 'active';
     persist();
     render();
-    if (skilledHours > 0) localStorage.setItem('hallway_last_skld_hrs', String(skilledHours));
-    if (laborerHours > 0) localStorage.setItem('hallway_last_lab_hrs',  String(laborerHours));
+    if (lastSkldHrs > 0) localStorage.setItem('hallway_last_skld_hrs', String(lastSkldHrs));
+    if (lastLabHrs  > 0) localStorage.setItem('hallway_last_lab_hrs',  String(lastLabHrs));
     setTimeout(() => {
-        document.getElementById('ql_skilled').value = '';
-        document.getElementById('ql_skilled_hours').value = '';
-        document.getElementById('ql_laborer').value = '';
-        document.getElementById('ql_laborer_hours').value = '';
         const p = document.getElementById('ql_preview');
         if (p) p.value = '';
         const n = document.getElementById('ql_note');
         if (n) n.value = '';
-        document.getElementById('ql_skilled_hours')?.focus();
+        document.getElementById('ql_skilled_hours_0')?.focus();
     }, 50);
 }
 
 // ── Quick log worker chips ────────────────────────────────────────────────────
 let _qlWorkerIds = new Set();
+let _qlGroups = 1;
+let _ltGroups = {};
+
+function qlGroupHtml(i) {
+    const lastSkld = localStorage.getItem('hallway_last_skld_hrs') || '8';
+    const lastLab  = localStorage.getItem('hallway_last_lab_hrs')  || '8';
+    const divider  = i > 0 ? ' style="margin-top:8px;padding-top:8px;border-top:1px dashed #e0e0e0"' : '';
+    const label    = i > 0 ? `Group ${i+1} · ` : '';
+    return `<div class="quick-log-inputs" id="ql_group_${i}"${divider}>
+        <div class="quick-log-field">
+            <label>${label}Skilled</label>
+            <input type="number" id="ql_skilled_${i}" min="0" placeholder="0" oninput="qlPreview()" />
+        </div>
+        <div class="quick-log-field">
+            <label>Skilled Hrs</label>
+            <input type="number" id="ql_skilled_hours_${i}" min="0.5" step="0.5" placeholder="${lastSkld}" oninput="qlPreview()" />
+        </div>
+        <div class="quick-log-field">
+            <label>Laborer</label>
+            <input type="number" id="ql_laborer_${i}" min="0" placeholder="0" oninput="qlPreview()" />
+        </div>
+        <div class="quick-log-field">
+            <label>Laborer Hrs</label>
+            <input type="number" id="ql_laborer_hours_${i}" min="0.5" step="0.5" placeholder="${lastLab}" oninput="qlPreview()" />
+        </div>
+    </div>`;
+}
+
+function addQlGroup() {
+    const container = document.getElementById('ql_groups_container');
+    if (!container) return;
+    container.insertAdjacentHTML('beforeend', qlGroupHtml(_qlGroups));
+    _qlGroups++;
+}
 
 function _qlWorkerChipsHtml(date) {
     const att     = (state.attendance || []).find(a => a.date === date);
@@ -2776,7 +2804,40 @@ function openGlobalLogToday() {
     _openLogTodayModal(state.floors);
 }
 
+function _ltGroupRow(fi, idx, g) {
+    const isExtra = g > 0;
+    return `<div class="form-row"${isExtra ? ' style="margin-top:6px;padding-top:6px;border-top:1px dashed #e0e0e0"' : ''}>
+        <div class="form-group" style="margin-bottom:0">
+            <label>${isExtra ? `G${g+1} · ` : ''}Skilled</label>
+            <input type="number" min="0" id="lt_s_${fi}_${idx}_g${g}" placeholder="—" />
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+            <label>Skld Hrs</label>
+            <input type="number" min="0.5" step="0.5" id="lt_sh_${fi}_${idx}_g${g}" placeholder="—" />
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+            <label>Laborer</label>
+            <input type="number" min="0" id="lt_l_${fi}_${idx}_g${g}" placeholder="—" />
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+            <label>Lab Hrs</label>
+            <input type="number" min="0.5" step="0.5" id="lt_lh_${fi}_${idx}_g${g}" placeholder="—" />
+        </div>
+    </div>`;
+}
+
+function addLtGroup(fi, idx) {
+    const key = `${fi}_${idx}`;
+    if (!_ltGroups[key]) _ltGroups[key] = 1;
+    const g = _ltGroups[key];
+    _ltGroups[key]++;
+    const container = document.getElementById(`lt_groups_${fi}_${idx}`);
+    if (!container) return;
+    container.insertAdjacentHTML('beforeend', _ltGroupRow(fi, idx, g));
+}
+
 function _openLogTodayModal(floors) {
+    _ltGroups = {};
     const t   = today();
     const yes = yesterday();
 
@@ -2784,24 +2845,12 @@ function _openLogTodayModal(floors) {
     let rows = floors.map((floor, fi) => {
         const itemRows = floor.items.map((item, idx) => `
             <div class="daily-row">
-                <div class="daily-row-label">${item.name}</div>
-                <div class="form-row">
-                    <div class="form-group" style="margin-bottom:0">
-                        <label>Skilled</label>
-                        <input type="number" min="0" id="lt_s_${fi}_${idx}" placeholder="—" />
-                    </div>
-                    <div class="form-group" style="margin-bottom:0">
-                        <label>Skld Hrs</label>
-                        <input type="number" min="0.5" step="0.5" id="lt_sh_${fi}_${idx}" placeholder="—" />
-                    </div>
-                    <div class="form-group" style="margin-bottom:0">
-                        <label>Laborer</label>
-                        <input type="number" min="0" id="lt_l_${fi}_${idx}" placeholder="—" />
-                    </div>
-                    <div class="form-group" style="margin-bottom:0">
-                        <label>Lab Hrs</label>
-                        <input type="number" min="0.5" step="0.5" id="lt_lh_${fi}_${idx}" placeholder="—" />
-                    </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                    <div class="daily-row-label" style="margin-bottom:0">${item.name}</div>
+                    <button onclick="addLtGroup(${fi},${idx})" style="padding:3px 8px;background:#f1f5f9;border:1.5px solid #e0e0e0;border-radius:6px;font-size:11px;font-weight:700;color:#1a3a5c;cursor:pointer">+ Group</button>
+                </div>
+                <div id="lt_groups_${fi}_${idx}">
+                    ${_ltGroupRow(fi, idx, 0)}
                 </div>
             </div>`).join('');
         return `<div class="daily-floor-header">${floor.name}</div>${itemRows}`;
@@ -2824,19 +2873,24 @@ function _openLogTodayModal(floors) {
         let saved  = 0;
         floors.forEach((floor, fi) => {
             floor.items.forEach((item, idx) => {
-                const skilled      = parseFloat(document.getElementById(`lt_s_${fi}_${idx}`)?.value)  || 0;
-                const skilledHours = parseFloat(document.getElementById(`lt_sh_${fi}_${idx}`)?.value) || 0;
-                const laborer      = parseFloat(document.getElementById(`lt_l_${fi}_${idx}`)?.value)  || 0;
-                const laborerHours = parseFloat(document.getElementById(`lt_lh_${fi}_${idx}`)?.value) || 0;
-                const mh = skilled * skilledHours + laborer * laborerHours;
-                if (skilledHours > 0 && skilled <= 0) { alert(`${item.name}: enter a Skilled worker count.`); return; }
-                if (laborerHours > 0 && laborer <= 0) { alert(`${item.name}: enter a Laborer worker count.`); return; }
-                if (skilled > 0 && skilledHours <= 0) { alert(`${item.name}: enter hours for Skilled workers.`); return; }
-                if (laborer > 0 && laborerHours <= 0) { alert(`${item.name}: enter hours for Laborer workers.`); return; }
-                if (mh > 0) {
-                    item.hoursLog.push({ date, skilled, skilledHours, laborer, laborerHours });
-                    if ((item.status || 'pending') === 'pending') item.status = 'active';
-                    saved++;
+                const key        = `${fi}_${idx}`;
+                const groupCount = _ltGroups[key] || 1;
+                for (let g = 0; g < groupCount; g++) {
+                    const skilled      = parseFloat(document.getElementById(`lt_s_${fi}_${idx}_g${g}`)?.value)  || 0;
+                    const skilledHours = parseFloat(document.getElementById(`lt_sh_${fi}_${idx}_g${g}`)?.value) || 0;
+                    const laborer      = parseFloat(document.getElementById(`lt_l_${fi}_${idx}_g${g}`)?.value)  || 0;
+                    const laborerHours = parseFloat(document.getElementById(`lt_lh_${fi}_${idx}_g${g}`)?.value) || 0;
+                    const mh = skilled * skilledHours + laborer * laborerHours;
+                    if (skilled + laborer === 0 && skilledHours === 0 && laborerHours === 0) continue;
+                    if (skilledHours > 0 && skilled <= 0) { alert(`${item.name}: enter a Skilled worker count.`); return; }
+                    if (laborerHours > 0 && laborer <= 0) { alert(`${item.name}: enter a Laborer worker count.`); return; }
+                    if (skilled > 0 && skilledHours <= 0) { alert(`${item.name}: enter hours for Skilled workers.`); return; }
+                    if (laborer > 0 && laborerHours <= 0) { alert(`${item.name}: enter hours for Laborer workers.`); return; }
+                    if (mh > 0) {
+                        item.hoursLog.push({ date, skilled, skilledHours, laborer, laborerHours });
+                        if ((item.status || 'pending') === 'pending') item.status = 'active';
+                        saved++;
+                    }
                 }
             });
         });
