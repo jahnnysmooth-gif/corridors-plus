@@ -665,17 +665,23 @@ function syncMaterials(payload) {
     // Rows with no App ID are manually-added sheet rows and must never be touched
     const deletions = payload.deletions || [];
     if (deletions.length > 0) {
-      const activeIds = new Set(updates.map(m => String(m['App ID']||'').trim()).filter(Boolean));
-      const delIds    = new Set(
-        deletions.filter(d => d.id && !activeIds.has(String(d.id).trim())).map(d => String(d.id).trim())
-      );
+      const activeIds  = new Set(updates.map(m => String(m['App ID']||'').trim()).filter(Boolean));
+      const activeKeys = new Set(updates.map(m => (String(m['Trade']||'')+'||'+String(m['Material']||'')).toLowerCase()));
+      const pendingDel = deletions.filter(d => d.id && !activeIds.has(String(d.id).trim()));
+      const delIds     = new Set(pendingDel.map(d => String(d.id).trim()));
+      // Also match by trade+name for rows that were added from the sheet and never got an App ID written
+      const delKeys    = new Set(pendingDel.filter(d => !activeKeys.has((String(d.trade||'')+'||'+String(d.name||'')).toLowerCase()))
+                           .map(d => (String(d.trade||'')+'||'+String(d.name||'')).toLowerCase()));
       if (delIds.size > 0) {
         const freshData = sheet.getDataRange().getValues();
         const freshHdr2 = freshData[0].map(h => String(h).trim());
         const fhAppId   = freshHdr2.indexOf('App ID');
+        const fhTrade2  = freshHdr2.indexOf('Trade');
+        const fhMat2    = freshHdr2.indexOf('Material');
         for (let i = freshData.length - 1; i >= 1; i--) {
-          const rowId = String(fhAppId >= 0 ? freshData[i][fhAppId] : '').trim();
-          if (rowId && delIds.has(rowId)) sheet.deleteRow(i + 1);
+          const rowId  = String(fhAppId  >= 0 ? freshData[i][fhAppId]  : '').trim();
+          const rowKey = (String(fhTrade2 >= 0 ? freshData[i][fhTrade2] : '') + '||' + String(fhMat2 >= 0 ? freshData[i][fhMat2] : '')).toLowerCase();
+          if ((rowId && delIds.has(rowId)) || (!rowId && delKeys.has(rowKey))) sheet.deleteRow(i + 1);
         }
       }
     }
