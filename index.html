@@ -6112,6 +6112,7 @@ async function syncPull() {
             } else {
                 mat.brand      = row['Brand/Type'] || mat.brand || '';
                 mat.link       = row['Link']       || mat.link  || '';
+                if (row['Unit']) mat.unit = String(row['Unit']).trim();
                 mat.parQty     = row['Min Stock'] !== '' && row['Min Stock'] !== undefined ? (parseFloat(row['Min Stock']) || 0) : (mat.parQty || 0);
                 // Check confirmedKeys using both the sheet's trade and the app's trade (handles mismatch)
                 const matKeyByRow = (String(row['Trade']||'') + '||' + name).toLowerCase();

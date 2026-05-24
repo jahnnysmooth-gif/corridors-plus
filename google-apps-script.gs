@@ -598,12 +598,22 @@ function syncMaterials(payload) {
       if (!nameOnlyMap[name]) nameOnlyMap[name] = i + 2;
     });
 
-    // Fields the app is allowed to overwrite — Notes and Delivery ETA are sheet-managed
-    const APP_FIELDS = HEADERS.filter(h => h !== 'Notes' && h !== 'Delivery ETA');
+    // Fields the app overwrites on existing rows.
+    // Trade and Unit are write-once (set on new row creation only, never overwritten after).
+    // Ordered By, To Order, Order Status, Link, Notes, Delivery ETA are always sheet-managed.
+    const SHEET_OWNED = new Set(['Notes', 'Delivery ETA', 'Unit', 'Ordered By', 'To Order', 'Order Status', 'Link', 'Trade']);
+    const APP_FIELDS = HEADERS.filter(h => !SHEET_OWNED.has(h));
 
     const updates = payload.materials || [];
-    const newRows = [];
+    const tradeInsertMap = {}; // trade -> { insertAfterRow, rows[] }
     const claimedRows = new Set(); // prevent two app materials matching the same sheet row
+
+    // Pre-compute last row index per trade from the original sheet snapshot
+    const lastRowByTrade = {};
+    allData.slice(1).forEach((r, i) => {
+      const t = tradeIdx >= 0 ? String(r[tradeIdx] || '').trim().toLowerCase() : '';
+      if (t) lastRowByTrade[t] = i + 2; // 1-based row number (header is row 1)
+    });
 
     updates.forEach(mat => {
       const name     = String(mat['Material'] || '').trim().toLowerCase();
@@ -626,11 +636,27 @@ function syncMaterials(payload) {
           sheet.getRange(rowNum, appIdIdx + 1).setValue(appId);
         }
       } else {
-        newRows.push(hdr.map(h => (mat[h] !== undefined ? mat[h] : '')));
+        // Group new rows by trade so we can insert them into the correct group
+        if (!tradeInsertMap[trade]) {
+          tradeInsertMap[trade] = { insertAfterRow: lastRowByTrade[trade] || 0, rows: [] };
+        }
+        tradeInsertMap[trade].rows.push(hdr.map(h => (mat[h] !== undefined ? mat[h] : '')));
       }
     });
 
-    newRows.forEach(row => sheet.appendRow(row));
+    // Insert new rows into their trade groups, processing bottom-to-top so row numbers stay valid
+    const insertGroups = Object.values(tradeInsertMap).sort((a, b) => b.insertAfterRow - a.insertAfterRow);
+    insertGroups.forEach(({ insertAfterRow, rows }) => {
+      if (insertAfterRow > 0) {
+        rows.forEach((rowData, i) => {
+          sheet.insertRowAfter(insertAfterRow + i);
+          sheet.getRange(insertAfterRow + i + 1, 1, 1, rowData.length).setValues([rowData]);
+        });
+      } else {
+        // Trade group not found in sheet — append at bottom
+        rows.forEach(rowData => sheet.appendRow(rowData));
+      }
+    });
 
     // Handle archives — move rows from Master to Archived tab
     // Only match rows that have an App ID — never touch manually-added sheet rows
