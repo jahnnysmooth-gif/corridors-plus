@@ -1239,6 +1239,12 @@ function render() {
         exp.onclick = () => printOnHand();
         app.innerHTML = renderOnHand();
 
+    } else if (view.screen === 'archived') {
+        back.style.display = 'block';
+        back.onclick = () => navigate('materials');
+        title.textContent = 'Archived Materials';
+        app.innerHTML = renderArchivedMaterials();
+
     } else if (view.screen === 'orderhistory') {
         back.style.display = 'block';
         back.onclick = () => navigate('materials');
@@ -1627,7 +1633,7 @@ function renderMaterials() {
         </button>`;
     });
     if (archivedMats.length > 0) {
-        html += `<button class="trade-tile" style="border-top:4px solid #9ca3af;background:#f9fafb" onclick="const s=document.getElementById('archived_section');s.style.display=s.style.display==='none'?'block':'none'">
+        html += `<button class="trade-tile" style="border-top:4px solid #9ca3af;background:#f9fafb" onclick="navigate('archived')">
             <span class="trade-tile-icon">&#128230;</span>
             <div class="trade-tile-label" style="color:#6b7280">Archived</div>
             <div class="trade-tile-sub" style="color:#9ca3af">${archivedMats.length} item${archivedMats.length !== 1 ? 's' : ''}</div>
@@ -1664,19 +1670,6 @@ function renderMaterials() {
     html += `</div>`;
 
     // Archived section
-    if (archivedMats.length > 0) {
-        html += `<div id="archived_section" style="display:none;margin-top:16px">`;
-        archivedMats.forEach(mat => {
-            html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:white;border-radius:10px;margin-bottom:6px;border:1px solid #e5e7eb;opacity:0.7">
-                <div>
-                    <div style="font-size:14px;font-weight:700;color:#555">${mat.name}</div>
-                    <div style="font-size:12px;color:#aaa">${mat.trade || 'Other'}</div>
-                </div>
-                <button onclick="unarchiveMaterial('${mat.id}')" style="padding:6px 14px;background:#92400e;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">Unarchive</button>
-            </div>`;
-        });
-        html += `</div>`;
-    }
 
     return html;
 }
@@ -1802,6 +1795,29 @@ function renderMaterialDetail(mat) {
 }
 
 // ── Order History screen ──────────────────────────────────────────────────────
+function renderArchivedMaterials() {
+    const archivedMats = (state.materials || []).filter(m => m.archived);
+    if (archivedMats.length === 0) {
+        return `<div style="text-align:center;padding:60px 20px">
+            <div style="font-size:48px;margin-bottom:16px">📦</div>
+            <div style="font-size:18px;font-weight:700;color:#1a1a2e;margin-bottom:8px">No archived materials</div>
+            <div style="font-size:14px;color:#999">Archived items will appear here.</div>
+        </div>`;
+    }
+    let html = `<div style="padding:4px 0">`;
+    archivedMats.forEach(mat => {
+        html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:white;border-radius:12px;margin-bottom:8px;border:1px solid #e5e7eb;opacity:0.75">
+            <div>
+                <div style="font-size:15px;font-weight:700;color:#555">${mat.name}</div>
+                <div style="font-size:12px;color:#aaa;margin-top:2px">${mat.trade || 'Other'}</div>
+            </div>
+            <button onclick="unarchiveMaterial('${mat.id}')" style="padding:8px 16px;background:#92400e;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Unarchive</button>
+        </div>`;
+    });
+    html += `</div>`;
+    return html;
+}
+
 function renderOrderHistory() {
     const mats = state.materials || [];
     // Collect all delivery entries across all materials
