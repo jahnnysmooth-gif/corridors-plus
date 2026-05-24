@@ -1146,11 +1146,10 @@ function getItem(f)  { return f.items.find(i => i.id === view.itemId); }
 // ── Navigation ────────────────────────────────────────────────────────────────
 function hasUnsavedHours() {
     if (view.screen !== 'item') return false;
-    const s  = parseFloat(document.getElementById('ql_skilled_0')?.value)       || 0;
-    const sh = parseFloat(document.getElementById('ql_skilled_hours_0')?.value) || 0;
-    const l  = parseFloat(document.getElementById('ql_laborer_0')?.value)       || 0;
-    const lh = parseFloat(document.getElementById('ql_laborer_hours_0')?.value) || 0;
-    return (s + l + sh + lh) > 0;
+    const container = document.getElementById('ql_groups_container');
+    if (!container) return false;
+    const inputs = container.querySelectorAll('input[type="number"]');
+    return Array.from(inputs).some(inp => parseFloat(inp.value) > 0);
 }
 
 function navigate(screen, floorId, itemId, matId, matTrade, reportDate) {
@@ -3761,7 +3760,14 @@ function restoreData(input) {
     reader.onload = e => {
         try {
             const data = JSON.parse(e.target.result);
-            if (!data.floors) throw new Error('Invalid file');
+            const errors = [];
+            if (!data || typeof data !== 'object')          errors.push('File is not a valid JSON object.');
+            if (!Array.isArray(data.floors))                errors.push('Missing or invalid floors array.');
+            if (data.floors && data.floors.some(f => !f.id || !f.name))
+                                                            errors.push('One or more floors are missing required fields (id, name).');
+            if (data.materials !== undefined && !Array.isArray(data.materials))
+                                                            errors.push('Materials field is present but not an array.');
+            if (errors.length > 0) throw new Error(errors.join('\n'));
             if (!confirm(`This will replace all current data with the backup. Continue?`)) return;
             state = data;
             if (!state.materials) state.materials = [];
@@ -3769,8 +3775,8 @@ function restoreData(input) {
             persist();
             render();
             alert('Data restored successfully.');
-        } catch {
-            alert('Invalid backup file. Please select a valid .json backup.');
+        } catch (err) {
+            alert('Could not restore backup:\n\n' + err.message);
         }
         input.value = '';
     };
