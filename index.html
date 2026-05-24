@@ -1607,10 +1607,7 @@ function renderMaterials() {
     const isLow = m => { const s = matCurrentStock(m); return s !== null && m.parQty > 0 && s < m.parQty; };
     const totalDeliveriesToday = mats.reduce((s, m) => s + (m.log||[]).filter(e => e.type==='delivery' && e.date===today()).reduce((ss,e) => ss+e.qty, 0), 0);
     const lowCount = mats.filter(isLow).length;
-    html += `<div class="stats-row" style="grid-template-columns:${totalDeliveriesToday > 0 ? '1fr 1fr' : '1fr'}">
-        <div class="stat-card"><div class="stat-value">${mats.length}</div><div class="stat-label">Materials</div></div>
-        ${totalDeliveriesToday > 0 ? `<div class="stat-card"><div class="stat-value">${totalDeliveriesToday}</div><div class="stat-label">Delivered Today</div></div>` : ''}
-    </div>`;
+    if (totalDeliveriesToday > 0) html += `<div class="stats-row" style="grid-template-columns:1fr"><div class="stat-card"><div class="stat-value">${totalDeliveriesToday}</div><div class="stat-label">Delivered Today</div></div></div>`;
     if (lowCount > 0) {
         html += `<div class="low-stock-bar"><span style="font-size:18px">⚠️</span><span class="low-stock-bar-text">${lowCount} material${lowCount !== 1 ? 's' : ''} below minimum stock</span></div>`;
     }
@@ -1659,7 +1656,7 @@ function renderMaterials() {
         </button>
       </div>
     </div>`;
-    html += `<button class="trade-tile" style="width:100%;border-top:4px solid #14532d;background:#16a34a;color:white;margin-bottom:10px;flex-direction:row;justify-content:center;gap:10px;padding:16px" onclick="openSheetsSync()">
+    html += `<button class="trade-tile" style="width:100%;border-top:4px solid #14532d;background:#16a34a;color:white;margin-bottom:10px;flex-direction:row;justify-content:center;gap:10px;padding:26px 16px" onclick="openSheetsSync()">
         <span style="font-size:22px">&#9729;</span>
         <span style="font-size:15px;font-weight:700">Google Sheets Sync${localStorage.getItem('hallway_sheets_url') ? ' <span style="display:inline-block;width:8px;height:8px;background:white;border-radius:50%;margin-left:6px;vertical-align:middle;opacity:0.9"></span>' : ''}</span>
     </button>`;
