@@ -897,7 +897,7 @@ const DEFAULT_MATERIALS = [
 function matCurrentStock(mat) {
     const log = mat.log || [];
     // Preferred: latest manual count update as base + deliveries strictly after it
-    const adjusts = log.filter(e => e.type === 'adjust').sort((a,b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+    const adjusts = log.map((e,i) => ({...e,_idx:i})).filter(e => e.type === 'adjust').sort((a,b) => b.date.localeCompare(a.date) || b._idx - a._idx);
     if (adjusts.length > 0) {
         const last = adjusts[0];
         const delivAfter = log.filter(e => e.type === 'delivery' && (e.date > last.date || (e.date === last.date && e.id > last.id))).reduce((s,e) => s + e.qty, 0);
