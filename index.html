@@ -6038,7 +6038,7 @@ async function syncPull() {
             if (!mat) {
                 mat = {
                     id: uid(), name,
-                    trade: row['Trade'] || 'Misc.',
+                    trade: String(row['Trade'] || '').trim() || 'Misc.',
                     unit: row['Unit'] || '',
                     startQty: parseFloat(row['On Hand']) || 0,
                     parQty: parseFloat(row['Min Stock']) || 0,
@@ -6067,7 +6067,7 @@ async function syncPull() {
                     mat.deliveryEta = _normalizeEtaDate(row['Delivery ETA'] || '');
                 }
                 mat.notes = row['Notes'] || '';
-                if (row['Trade']) mat.trade = row['Trade'];
+                if (row['Trade']) mat.trade = String(row['Trade']).trim();
                 updated++;
             }
             // Import last delivery — skip for brand new materials (startQty already accounts for it)
