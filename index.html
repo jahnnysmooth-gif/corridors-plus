@@ -6028,14 +6028,10 @@ async function syncPull() {
             const name = String(row['Material'] || '').trim();
             if (!name) return;
             const dKey = (String(row['Trade']||'') + '||' + name).toLowerCase();
-            const dName = name.toLowerCase();
-            if ((state.deletedMaterials || []).some(d => {
-                const dt = String(d.trade||'').toLowerCase(), dn = String(d.name||'').toLowerCase();
-                return (dt + '||' + dn) === dKey || dn === dName;
-            })) return;
+            if ((state.deletedMaterials || []).some(d => (String(d.trade||'')+'||'+String(d.name||'')).toLowerCase() === dKey)) return;
             const rowAppId = String(row['App ID'] || '').trim();
             let mat = rowAppId ? state.materials.find(m => m.id === rowAppId) : null;
-            const matchedById = !!mat;
+            if (rowAppId && !mat) return;
             if (!mat) mat = state.materials.find(m => m.name.toLowerCase() === name.toLowerCase());
             if (mat && mat.archived) return;
             const isNewMat = !mat;
