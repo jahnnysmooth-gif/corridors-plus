@@ -2280,9 +2280,9 @@ function renderItem(floor, item) {
             const d  = entryDisplay(entry);
             const mh = entryManHours(entry);
             const workerNames = (entry.workerIds || []).map(id => {
-                const w = (state.crew || []).find(c => c.id === id);
-                return w ? w.name.split(' ')[0] : null;
-            }).filter(Boolean);
+                const w = findWorker(id);
+                return w ? w.name.split(' ')[0] : 'Former Employee';
+            });
             html += `<tr>
                 <td>${displayDate(entry.date)}${workerNames.length > 0 ? `<div style="font-size:10px;color:#1a73e8;margin-top:2px">${workerNames.join(', ')}</div>` : ''}</td>
                 <td>${d.skilled}</td>
@@ -3182,9 +3182,11 @@ function editMatDay(matId, date) {
     const mat       = state.materials.find(m => m.id === matId);
     const delivQty  = (mat.log||[]).filter(e => e.type === 'delivery' && e.date === date).reduce((s,e) => s+e.qty, 0);
     const usageQty  = (mat.log||[]).filter(e => e.type === 'usage'    && e.date === date).reduce((s,e) => s+e.qty, 0);
-    const usageEntry = (mat.log||[]).find(e => e.type === 'usage' && e.date === date);
-    const floorId   = usageEntry?.floorId || '';
-    const itemId    = usageEntry?.itemId  || '';
+    const usageEntries = (mat.log||[]).filter(e => e.type === 'usage' && e.date === date);
+    const allSameFloor = usageEntries.length > 0 && usageEntries.every(e => e.floorId === usageEntries[0].floorId);
+    const allSameItem  = usageEntries.length > 0 && usageEntries.every(e => e.itemId  === usageEntries[0].itemId);
+    const floorId   = allSameFloor ? (usageEntries[0]?.floorId || '') : '';
+    const itemId    = allSameItem  ? (usageEntries[0]?.itemId  || '') : '';
     const selFloor  = (state.floors||[]).find(f => f.id === floorId);
     const floorOpts = `<option value="">General / All Floors</option>` +
         (state.floors||[]).map(f => `<option value="${f.id}"${f.id === floorId ? ' selected' : ''}>${f.name}</option>`).join('');
@@ -4314,7 +4316,12 @@ function rcFileSelected(input) {
             const canvas = document.createElement('canvas');
             canvas.width = w; canvas.height = h;
             canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-            _rcPages.push(canvas.toDataURL('image/jpeg', 0.82));
+            try {
+                _rcPages.push(canvas.toDataURL('image/jpeg', 0.82));
+            } catch(e) {
+                alert('Could not process image — the file may be restricted by your browser security settings.');
+                return;
+            }
 
             // Tiny thumbnail for persistent display (~3–5 KB each)
             const TH = 200;
@@ -4324,7 +4331,9 @@ function rcFileSelected(input) {
             const tCanvas = document.createElement('canvas');
             tCanvas.width = tw; tCanvas.height = th;
             tCanvas.getContext('2d').drawImage(img, 0, 0, tw, th);
-            _rcThumbs.push(tCanvas.toDataURL('image/jpeg', 0.45));
+            try {
+                _rcThumbs.push(tCanvas.toDataURL('image/jpeg', 0.45));
+            } catch(e) { _rcThumbs.push(''); }
 
             // Re-render thumbnails using full-size for preview quality
             const thumbs = document.getElementById('rc_thumbs');
@@ -4716,7 +4725,7 @@ function exportWeeklySummary(offsetWeeks) {
         <button class="close-btn" onclick="window.close()">✕ Close</button></body></html>`);
         win.document.close();
         const toast = _showSyncToast('✦ Claude is writing your recap…');
-        const load = (recapText) => { win.document.write(buildHTML(recapText)); win.document.close(); };
+        const load = (recapText) => { try { win.document.write(buildHTML(recapText)); win.document.close(); } catch(e) {} };
         fetch(gasUrl, {
             method: 'POST',
             body: JSON.stringify({
@@ -5005,6 +5014,7 @@ function disconnectSync() {
     if (!confirm('Disconnect from "' + syncCode + '"? The app will ask for a sync code next time.')) return;
     if (db) db.ref('projects/' + syncCode + '/state').off();
     db = null; syncCode = null; _localWrite = false;
+    _matSearch = ''; _selectMode = false; _selectedIds.clear();
     localStorage.removeItem('hallway_sync_code');
     const el = document.getElementById('syncIndicator');
     if (el) el.style.display = 'none';
