@@ -1611,6 +1611,7 @@ function renderMaterials() {
 
     // Trade tile grid — hidden when searching
     html += `<div id="mat_trade_grid"><div class="trade-grid">`;
+    const archivedMats = (state.materials || []).filter(m => m.archived);
     tradeKeys.forEach(trade => {
         const tradeMats = byTrade[trade];
         const color = TRADE_COLORS[trade] || '#475569';
@@ -1625,6 +1626,13 @@ function renderMaterials() {
             <div class="trade-tile-sub">${sub}</div>
         </button>`;
     });
+    if (archivedMats.length > 0) {
+        html += `<button class="trade-tile" style="border-top:4px solid #9ca3af;background:#f9fafb" onclick="const s=document.getElementById('archived_section');s.style.display=s.style.display==='none'?'block':'none'">
+            <span class="trade-tile-icon">&#128230;</span>
+            <div class="trade-tile-label" style="color:#6b7280">Archived</div>
+            <div class="trade-tile-sub" style="color:#9ca3af">${archivedMats.length} item${archivedMats.length !== 1 ? 's' : ''}</div>
+        </button>`;
+    }
     html += `</div>`;
     const upcomingCount = (state.materials||[]).filter(m => !m.archived && m.procStatus && m.procStatus.toLowerCase().includes('ordered')).length;
     html += `<div style="margin-top:20px;margin-bottom:10px;padding:14px;border-radius:16px;background:linear-gradient(#f1f3f5,#f1f3f5) padding-box,linear-gradient(135deg,#1e40af 0%,#f59e0b 100%) border-box;border:3px solid transparent">
@@ -1656,13 +1664,8 @@ function renderMaterials() {
     html += `</div>`;
 
     // Archived section
-    const archivedMats = (state.materials || []).filter(m => m.archived);
     if (archivedMats.length > 0) {
-        html += `<div style="margin-top:24px">
-            <button onclick="this.parentElement.querySelector('.archived-list').style.display = this.parentElement.querySelector('.archived-list').style.display === 'none' ? 'block' : 'none'; this.textContent = this.textContent.includes('Show') ? '&#128230; Archived (${archivedMats.length}) ▲' : '&#128230; Archived (${archivedMats.length}) ▼';"
-                style="width:100%;padding:10px 14px;background:#f3f4f6;border:1.5px solid #e5e7eb;border-radius:10px;font-size:13px;font-weight:700;color:#666;cursor:pointer;text-align:left">
-                &#128230; Archived (${archivedMats.length}) ▼</button>
-            <div class="archived-list" style="display:none;margin-top:8px">`;
+        html += `<div id="archived_section" style="display:none;margin-top:16px">`;
         archivedMats.forEach(mat => {
             html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:white;border-radius:10px;margin-bottom:6px;border:1px solid #e5e7eb;opacity:0.7">
                 <div>
@@ -1672,7 +1675,7 @@ function renderMaterials() {
                 <button onclick="unarchiveMaterial('${mat.id}')" style="padding:6px 14px;background:#92400e;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">Unarchive</button>
             </div>`;
         });
-        html += `</div></div>`;
+        html += `</div>`;
     }
 
     return html;
