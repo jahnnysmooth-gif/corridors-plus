@@ -1659,7 +1659,10 @@ function renderMaterials() {
         </button>
       </div>
     </div>`;
-    html += `<button class="btn btn-secondary" style="width:100%;margin-bottom:10px" onclick="openSheetsSync()">&#9729; Google Sheets Sync${localStorage.getItem('hallway_sheets_url') ? ' <span style="display:inline-block;width:7px;height:7px;background:#16a34a;border-radius:50%;margin-left:4px;vertical-align:middle"></span>' : ''}</button>`;
+    html += `<button class="trade-tile" style="width:100%;border-top:4px solid #14532d;background:#16a34a;color:white;margin-bottom:10px;flex-direction:row;justify-content:center;gap:10px;padding:16px" onclick="openSheetsSync()">
+        <span style="font-size:22px">&#9729;</span>
+        <span style="font-size:15px;font-weight:700">Google Sheets Sync${localStorage.getItem('hallway_sheets_url') ? ' <span style="display:inline-block;width:8px;height:8px;background:white;border-radius:50%;margin-left:6px;vertical-align:middle;opacity:0.9"></span>' : ''}</span>
+    </button>`;
     html += `<button class="add-btn" onclick="openAddMaterial()">+ Add Material</button>`;
     html += `</div>`;
 
