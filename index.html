@@ -1706,7 +1706,7 @@ function renderMaterialDetail(mat) {
     // Confirm Delivery banner — prominent when ordered
     if (ordered) {
         html += `<button class="confirm-delivery-banner" onclick="confirmDelivery('${mat.id}')">
-            &#10003; Confirm Delivery${mat.reorderQty > 0 ? ' of ' + mat.reorderQty + ' ' + mat.unit : ''}
+            &#10003; Confirm Delivery${mat.reorderQty > 0 ? ' — expected ' + mat.reorderQty + ' ' + mat.unit : ''}
             <span style="font-size:12px;font-weight:400;display:block;margin-top:2px;opacity:0.85">Tap to receive this order — count updates automatically</span>
         </button>`;
         html += `<button onclick="cancelOrder('${mat.id}')" style="width:100%;margin-bottom:10px;padding:10px;background:none;border:1.5px solid #dc2626;border-radius:10px;color:#dc2626;font-size:14px;font-weight:600;cursor:pointer">&#10007; Cancel Order</button>`;
@@ -1718,7 +1718,7 @@ function renderMaterialDetail(mat) {
     }
 
     html += `<div class="mat-info-card">`;
-    if (mat.brand) html += `<div class="mat-info-row"><span class="mat-info-label">Brand</span><span>${mat.brand.replace(/</g,'&lt;')}</span></div>`;
+    if (mat.brand) html += `<div class="mat-info-row"><span class="mat-info-label">Brand</span><span>${mat.brand.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</span></div>`;
     html += `<div class="mat-info-row">
         <span class="mat-info-label">Order Status</span>
         <div style="display:flex;gap:6px;flex:1;align-items:center">
@@ -3169,7 +3169,7 @@ function editMatNotes(matId) {
     openModal('Material Notes', `
         <div class="form-group">
             <label>Notes</label>
-            <textarea id="mat_notes" rows="5" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;resize:vertical">${mat.notes ? mat.notes.replace(/</g,'&lt;') : ''}</textarea>
+            <textarea id="mat_notes" rows="5" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;resize:vertical">${mat.notes ? mat.notes.replace(/&/g,'&amp;').replace(/</g,'&lt;') : ''}</textarea>
         </div>
         <p style="font-size:12px;color:#999;margin-top:4px">Vendor, SKU, contact info, links, anything useful.</p>
     `, () => {
@@ -3712,7 +3712,7 @@ function openEditNotes(floorId) {
     openModal('Floor Notes', `
         <div class="form-group">
             <label>Notes</label>
-            <textarea id="fn_notes" rows="5" style="width:100%;padding:12px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;resize:vertical;font-family:inherit;outline:none">${(floor.notes || '').replace(/</g,'&lt;')}</textarea>
+            <textarea id="fn_notes" rows="5" style="width:100%;padding:12px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;resize:vertical;font-family:inherit;outline:none">${(floor.notes || '').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</textarea>
         </div>
     `, () => {
         floor.notes = document.getElementById('fn_notes').value.trim();
@@ -4483,11 +4483,12 @@ function viewReceiptPage(id, pageIndex) {
                 <button onclick="(function(){window._rcOvCurrent=Math.min(${pages.length-1},window._rcOvCurrent+1);document.getElementById('rc_overlay').remove();window._rcOvBuild();})()" style="background:rgba(255,255,255,0.2);border:none;color:white;font-size:20px;padding:8px 18px;border-radius:99px;cursor:pointer">›</button>
             </div>` : '';
 
+        const closeOverlay = () => { overlay.remove(); window._rcOvCurrent = null; window._rcOvBuild = null; };
         overlay.innerHTML = `
             ${navHtml}
             <img src="${pages[current]}" style="max-width:100%;max-height:75vh;object-fit:contain;border-radius:8px" />
-            <button onclick="document.getElementById('rc_overlay').remove()" style="margin-top:24px;background:rgba(255,255,255,0.2);border:none;color:white;font-size:16px;font-weight:700;padding:14px 48px;border-radius:99px;cursor:pointer;letter-spacing:1px">CLOSE</button>`;
-        overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+            <button onclick="(function(){const o=document.getElementById('rc_overlay');if(o){o.remove();window._rcOvCurrent=null;window._rcOvBuild=null;}})()" style="margin-top:24px;background:rgba(255,255,255,0.2);border:none;color:white;font-size:16px;font-weight:700;padding:14px 48px;border-radius:99px;cursor:pointer;letter-spacing:1px">CLOSE</button>`;
+        overlay.addEventListener('click', e => { if (e.target === overlay) closeOverlay(); });
         document.body.appendChild(overlay);
     }
 
@@ -4499,6 +4500,7 @@ function viewReceiptPage(id, pageIndex) {
 function deleteReceipt(id) {
     if (!confirm('Delete this receipt?')) return;
     state.receipts = (state.receipts||[]).filter(r => r.id !== id);
+    delete _rcPending[id];
     persist();
     _rcRenderCards();
 }
@@ -6206,8 +6208,12 @@ async function syncPush() {
 }
 
 function _openExportWindow(html) {
-    const win = window.open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank');
-    if (!win) alert('Popup blocked — please allow popups for this site to export.');
+    try {
+        const win = window.open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank');
+        if (!win) alert('Popup blocked — please allow popups for this site to export.');
+    } catch(e) {
+        alert('Export failed — the file may be too large for your browser to open.');
+    }
 }
 
 function _showSyncToast(msg, existingToast, autoDismissMs) {
