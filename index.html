@@ -3336,7 +3336,7 @@ function unarchiveMaterial(matId) {
     if (!mat) return;
     mat.archived = false;
     persist();
-    render();
+    navigate('materials');
 }
 
 function deleteMaterial(matId) {
