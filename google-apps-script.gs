@@ -45,10 +45,11 @@ function doPost(e) {
   try {
     const payload = JSON.parse(e.postData.contents);
 
-    if (payload.type === 'receipt')       return uploadReceipt(payload);
-    if (payload.type === 'daily_report')  return generateDailyReport(payload);
-    if (payload.type === 'payroll')       return handlePayroll(payload);
-    if (payload.type === 'weekly_recap')  return generateWeeklyRecap(payload);
+    if (payload.type === 'receipt')            return uploadReceipt(payload);
+    if (payload.type === 'daily_report')       return generateDailyReport(payload);
+    if (payload.type === 'payroll')            return handlePayroll(payload);
+    if (payload.type === 'weekly_recap')       return generateWeeklyRecap(payload);
+    if (payload.type === 'clear_order_status') return clearOrderStatus(payload);
     return syncMaterials(payload);
 
   } catch (err) {
@@ -558,6 +559,34 @@ function setupReceiptSheet(sheet) {
   sheet.setColumnWidth(4, 100); // Amount
   sheet.setColumnWidth(5, 130); // Drive Link
   sheet.getRange(2, 1, 1000, 1).setNumberFormat('mmm d, yyyy');
+}
+
+// ── Clear Order Status — called when delivery confirmed or order cancelled in app ─
+function clearOrderStatus(payload) {
+  const ids = Array.isArray(payload.ids) ? payload.ids : (payload.id ? [payload.id] : []);
+  if (ids.length === 0) return json({ cleared: 0 });
+  try {
+    const ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(MASTER_SHEET);
+    if (!sheet) return json({ error: 'Master sheet not found.' });
+    const allData  = sheet.getDataRange().getValues();
+    const hdr      = allData[0].map(h => String(h).trim().replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' '));
+    const appIdIdx = hdr.indexOf('App ID');
+    const statusIdx = hdr.indexOf('Order Status');
+    if (appIdIdx < 0 || statusIdx < 0) return json({ error: 'Required columns not found.' });
+    const idSet = new Set(ids.map(String));
+    let cleared = 0;
+    allData.slice(1).forEach((r, i) => {
+      const rowId = String(r[appIdIdx] || '').trim();
+      if (idSet.has(rowId)) {
+        sheet.getRange(i + 2, statusIdx + 1).setValue('');
+        cleared++;
+      }
+    });
+    return json({ cleared });
+  } catch (err) {
+    return json({ error: err.toString() });
+  }
 }
 
 // ── Materials sync — update/add/delete/archive rows in Master sheet ───────────

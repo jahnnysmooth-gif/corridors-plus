@@ -940,17 +940,21 @@ function matDailyUsage(mat) {
         });
         return result;
     }
-    // New model: usage-based with running balance
+    // New model: usage-based with running balance (adjust entries reset the balance)
     const allDates = [...new Set(
-        log.filter(e => e.type === 'delivery' || e.type === 'usage').map(e => e.date)
+        log.filter(e => e.type === 'delivery' || e.type === 'usage' || e.type === 'adjust').map(e => e.date)
     )].sort();
     if (allDates.length === 0) return [];
     const result = [];
     let balance = mat.startQty;
     allDates.forEach(date => {
+        // Process adjusts first — they set the balance for the day
+        const adjustEntries = log.filter(e => e.type === 'adjust' && e.date === date).sort((a,b) => a.id.localeCompare(b.id));
+        if (adjustEntries.length > 0) balance = adjustEntries[adjustEntries.length - 1].qty;
         const delivered    = log.filter(e => e.type === 'delivery' && e.date === date).reduce((s,e) => s + e.qty, 0);
         const usageEntries = log.filter(e => e.type === 'usage'    && e.date === date);
         const used         = usageEntries.reduce((s,e) => s + e.qty, 0);
+        balance = balance + delivered - used;
         const floorNames = [...new Set(
             usageEntries.filter(e => e.floorId).map(e => {
                 const f = (state.floors || []).find(f => f.id === e.floorId);
@@ -964,7 +968,6 @@ function matDailyUsage(mat) {
                 return item ? item.name : null;
             }).filter(Boolean)
         )];
-        balance = balance + delivered - used;
         result.push({ date, delivered, used, balance, floors: floorNames, items: itemNames });
     });
     return result;
@@ -977,7 +980,10 @@ function matDaysRemaining(mat) {
     if (usage.length === 0) return null;
     const totalUsed = usage.reduce((s, d) => s + d.used, 0);
     if (totalUsed === 0) return null;
-    const avgDaily = totalUsed / usage.length;
+    // Use calendar days from first activity to today as denominator, not just active days
+    const firstDate = usage[0].date;
+    const calendarDays = Math.max(1, Math.round((new Date(today()) - new Date(firstDate)) / 86400000) + 1);
+    const avgDaily = totalUsed / calendarDays;
     return Math.max(0, Math.round(stock / avgDaily));
 }
 
@@ -1533,7 +1539,7 @@ function _matCardHtml(mat, tradeBadge) {
     const deliv    = (mat.log||[]).filter(e => e.type==='delivery' && e.date===today()).reduce((s,e) => s+e.qty, 0);
     const trade    = mat.trade || 'Other';
     const ordered  = mat.procStatus && mat.procStatus.toLowerCase().includes('ordered');
-    const cardHtml = `<div class="mat-card${low && !ordered ? ' low-stock' : ''}${ordered ? ' mat-card-ordered' : ''}" data-mat-name="${mat.name.toLowerCase()}" onclick="navigate('material',null,null,'${mat.id}','${trade}')">
+    const cardHtml = `<div class="mat-card${low && !ordered ? ' low-stock' : ''}${ordered ? ' mat-card-ordered' : ''}" data-mat-name="${mat.name.toLowerCase()}" data-mat-trade="${trade.toLowerCase()}" onclick="navigate('material',null,null,'${mat.id}','${trade}')">
         <div>
             <div class="mat-name">${mat.name}${low ? `<span class="low-badge">⚠ LOW</span>` : ''}${tradeBadge ? `<span class="mat-trade-badge">${trade}</span>` : ''}${ordered ? `<span class="proc-status-badge ordered-badge">&#128666; Ordered</span>` : (mat.procStatus ? `<span class="proc-status-badge">${mat.procStatus}</span>` : '')}</div>
             <div class="mat-meta">${mat.unit}${deliv > 0 ? ` &nbsp;·&nbsp; <span style="color:#16a34a;font-weight:600">+${deliv} today</span>` : ''}${mat.parQty > 0 ? ` &nbsp;·&nbsp; min: ${mat.parQty}` : ''}${mat.reorderQty > 0 ? ` &nbsp;·&nbsp; <span style="color:${ordered ? '#16a34a' : low ? '#dc2626' : '#9ca3af'}">order: ${mat.reorderQty}</span>` : ''}</div>
@@ -1719,14 +1725,6 @@ function renderMaterialDetail(mat) {
 
     html += `<div class="mat-info-card">`;
     if (mat.brand) html += `<div class="mat-info-row"><span class="mat-info-label">Brand</span><span>${mat.brand.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</span></div>`;
-    html += `<div class="mat-info-row">
-        <span class="mat-info-label">Order Status</span>
-        <div style="display:flex;gap:6px;flex:1;align-items:center">
-            <input id="proc_status_input" value="${(mat.procStatus||'').replace(/"/g,'&quot;')}" placeholder="e.g. Review, Order Needed…"
-                style="flex:1;padding:6px 10px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px"
-                onchange="saveMatStatus('${mat.id}',this.value)" />
-        </div>
-    </div>`;
     if (mat.link) html += `<div class="mat-info-row"><span class="mat-info-label">Link</span><a href="${mat.link.replace(/"/g,'&quot;')}" target="_blank" rel="noopener" class="mat-info-link">View product ↗</a></div>`;
     html += `</div>`;
 
@@ -1785,7 +1783,7 @@ function renderMaterialDetail(mat) {
     html += `<div class="delete-zone">
         <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn btn-secondary btn-sm" onclick="renameMaterial('${mat.id}')">&#9998; Rename</button>
-            <button class="btn btn-secondary btn-sm" onclick="setStartQty('${mat.id}')">&#9964; Unit${mat.unit ? ': ' + mat.unit : ''}</button>
+            <button class="btn btn-secondary btn-sm" onclick="setStartQty('${mat.id}')">&#9964; Starting Qty${mat.startQty > 0 ? ': ' + mat.startQty : ''}</button>
             <button class="btn btn-secondary btn-sm" onclick="setParQty('${mat.id}')">&#9651; Min${mat.parQty > 0 ? ': ' + mat.parQty : ''}</button>
             <button class="btn btn-secondary btn-sm" onclick="setReorderQty('${mat.id}')">&#128666; Order qty${mat.reorderQty > 0 ? ': ' + mat.reorderQty : ''}</button>
             <button class="btn btn-secondary btn-sm" style="background:#92400e;color:white;border-color:#92400e" onclick="archiveMaterial('${mat.id}')">&#128230; Archive</button>
@@ -3269,18 +3267,12 @@ function placeOrder(matId) {
             <label>Quantity to order (${mat.unit || 'units'})</label>
             <input id="po_qty" type="number" min="1" step="1" value="${mat.reorderQty || ''}" placeholder="e.g. 20" />
         </div>
-        <div class="form-group">
-            <label>Notes (optional)</label>
-            <input id="po_notes" placeholder="Vendor, SKU, urgency…" value="" />
-        </div>
         <p style="font-size:12px;color:#999;margin-top:4px">Order status will be set to <strong>Review</strong> so the office can approve before ordering.</p>
     `, () => {
         const qty = parseFloat(document.getElementById('po_qty').value);
-        const notes = document.getElementById('po_notes').value.trim();
         if (!qty || qty <= 0) { alert('Enter a valid quantity.'); return; }
         mat.reorderQty = qty;
         mat.procStatus = 'Review';
-        if (notes) mat.notes = mat.notes ? mat.notes + '\n' + notes : notes;
         persist(); closeModal(); render();
     });
     setTimeout(() => { const el = document.getElementById('po_qty'); if (el) el.focus(); }, 100);
@@ -3305,20 +3297,13 @@ function setStartQty(matId) {
     const mat = state.materials.find(m => m.id === matId);
     openModal('Edit Starting Inventory', `
         <div class="form-group">
-            <label>Unit (what you're counting)</label>
-            <input id="start_unit" value="${mat.unit}" placeholder="e.g. bags, gal, pcs, boxes" />
+            <label>Quantity on site when tracking began${mat.unit ? ' (' + mat.unit + ')' : ''}</label>
+            <input id="start_qty" type="number" min="0" step="1" value="${mat.startQty !== undefined && mat.startQty !== null ? mat.startQty : ''}" placeholder="e.g. 20" autofocus />
         </div>
-        <div class="form-group">
-            <label>Quantity on site when tracking began</label>
-            <input id="start_qty" type="number" min="0" step="1" value="${mat.startQty !== undefined && mat.startQty !== null ? mat.startQty : ''}" placeholder="e.g. 20" />
-        </div>
-        <p style="font-size:13px;color:#999;margin-top:4px">Future deliveries add to this. Daily usage subtracts from it.</p>
+        <p style="font-size:13px;color:#999;margin-top:4px">Future deliveries add to this. To change the unit, update it in the Google Sheet.</p>
     `, () => {
-        const unit = document.getElementById('start_unit').value.trim();
-        const val  = parseFloat(document.getElementById('start_qty').value);
-        if (!unit) { alert('Enter a unit.'); return; }
+        const val = parseFloat(document.getElementById('start_qty').value);
         if (isNaN(val) || val < 0) { alert('Enter a valid quantity.'); return; }
-        mat.unit     = unit;
         mat.startQty = val;
         persist(); closeModal(); render();
     });
@@ -3393,13 +3378,19 @@ function _buildMatLogModal(title, matId) {
 function openLogDelivery()              { _buildMatLogModal('Log Delivery', null); }
 function openLogDeliveryFor(id)         { _buildMatLogModal('Log Delivery', id);   }
 function openLogDeliveryForTrade(trade) {
-    const ids = (state.materials||[]).filter(m => (m.trade||'Other') === trade).map(m => m.id);
+    const ids = (state.materials||[]).filter(m => !m.archived && (m.trade||'Other') === trade).map(m => m.id);
     _buildMatLogModal('Log Delivery', ids);
 }
 
 function confirmDelivery(matId) {
     const mat = state.materials.find(m => m.id === matId);
+    const t = today(), yes = yesterday();
     openModal('Confirm Delivery — ' + mat.name, `
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+            <button class="date-chip active" id="cdchip_today" onclick="setConfirmDelivDate('${t}')">Today</button>
+            <button class="date-chip" id="cdchip_yesterday" onclick="setConfirmDelivDate('${yes}')">Yesterday</button>
+        </div>
+        <input type="hidden" id="deliv_confirm_date" value="${t}" />
         <div class="form-group">
             <label>Quantity received (${mat.unit})</label>
             <input id="deliv_confirm_qty" type="number" min="0" step="1" value="${mat.reorderQty || ''}" placeholder="qty" />
@@ -3412,17 +3403,18 @@ function confirmDelivery(matId) {
     `, () => {
         const val = parseFloat(document.getElementById('deliv_confirm_qty').value);
         if (isNaN(val) || val <= 0) { alert('Enter a valid quantity.'); return; }
-        const by = document.getElementById('deliv_confirm_by').value.trim();
+        const by   = document.getElementById('deliv_confirm_by').value.trim();
+        const date = document.getElementById('deliv_confirm_date').value || today();
         if (!mat.log) mat.log = [];
-        const entry = { id: uid(), date: today(), type: 'delivery', qty: val };
+        const entry = { id: uid(), date, type: 'delivery', qty: val };
         if (by) entry.by = by;
         mat.log.push(entry);
         mat.procStatus  = '';
         mat.deliveryEta = '';
-        mat.reorderQty  = 0;
         if (!state.pendingConfirms) state.pendingConfirms = [];
         state.pendingConfirms.push({ name: mat.name, trade: mat.trade || '' });
         persist(); closeModal(); render();
+        _clearOrderStatusInSheet([mat.id]);
     });
 }
 
@@ -3431,11 +3423,11 @@ function cancelOrder(matId) {
     if (!mat) return;
     if (!confirm('Cancel the order for ' + mat.name + '? This will clear the order status and quantity.')) return;
     mat.procStatus = '';
-    mat.reorderQty = 0;
     mat.deliveryEta = '';
     if (!state.pendingConfirms) state.pendingConfirms = [];
     state.pendingConfirms.push({ name: mat.name, trade: mat.trade || '' });
     persist(); render();
+    _clearOrderStatusInSheet([mat.id]);
 }
 
 function updateCountFromOnHand(matId) {
@@ -3547,7 +3539,7 @@ function applyMatFilter() {
             const cards = searchResults.querySelectorAll('.mat-card[data-mat-name]');
             let visible = 0;
             cards.forEach(c => {
-                const show = c.dataset.matName.includes(q);
+                const show = c.dataset.matName.includes(q) || (c.dataset.matTrade || '').toLowerCase().includes(q);
                 c.style.display = show ? '' : 'none';
                 if (show) visible++;
             });
@@ -3571,6 +3563,14 @@ function setMatDate(val) {
     const t = today(), yes = yesterday();
     document.getElementById('mchip_today')?.classList.toggle('active', val === t);
     document.getElementById('mchip_yesterday')?.classList.toggle('active', val === yes);
+}
+
+function setConfirmDelivDate(val) {
+    const el = document.getElementById('deliv_confirm_date');
+    if (el) el.value = val;
+    const t = today(), yes = yesterday();
+    document.getElementById('cdchip_today')?.classList.toggle('active', val === t);
+    document.getElementById('cdchip_yesterday')?.classList.toggle('active', val === yes);
 }
 
 // ── Multi-select floors ───────────────────────────────────────────────────────
@@ -6069,6 +6069,16 @@ function openSheetsSync() {
     `, null, true);
 }
 
+function _clearOrderStatusInSheet(ids) {
+    const url = localStorage.getItem('hallway_sheets_url');
+    if (!url || !ids || ids.length === 0) return;
+    fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ type: 'clear_order_status', ids })
+    }).catch(() => {});
+}
+
 async function syncPull() {
     const url = localStorage.getItem('hallway_sheets_url');
     if (!url) return false;
@@ -6111,7 +6121,7 @@ async function syncPull() {
                 added++;
             } else {
                 mat.brand      = row['Brand/Type'] || mat.brand || '';
-                mat.link       = row['Link']       || mat.link  || '';
+                mat.link       = row['Link'] !== undefined ? String(row['Link']) : (mat.link || '');
                 if (row['Unit']) mat.unit = String(row['Unit']).trim();
                 mat.parQty     = row['Min Stock'] !== '' && row['Min Stock'] !== undefined ? (parseFloat(row['Min Stock']) || 0) : (mat.parQty || 0);
                 // Check confirmedKeys using both the sheet's trade and the app's trade (handles mismatch)
@@ -6133,12 +6143,14 @@ async function syncPull() {
             const isoDate  = parseSheetDate(row['Last Delivery Date']);
             const sheetQty = parseFloat(row['Last Delivery Qty']);
             if (isoDate && !isNaN(sheetQty) && sheetQty > 0) {
-                const alreadyHas = (mat.log || []).some(e => e.type === 'delivery' && e.date === isoDate && e.qty === sheetQty);
-                if (!alreadyHas) {
+                // Dedup by comparing total delivered on that date vs what the sheet shows as the last delivery qty.
+                // Using total-on-date avoids dropping a real second delivery of the same qty on the same day.
+                const delivOnDate = (mat.log || []).filter(e => e.type === 'delivery' && e.date === isoDate).reduce((s,e) => s + e.qty, 0);
+                if (delivOnDate < sheetQty) {
                     const lastDel = (mat.log || []).filter(e => e.type === 'delivery').sort((a,b) => b.date.localeCompare(a.date))[0];
                     if (!lastDel || isoDate >= lastDel.date) {
                         if (!mat.log) mat.log = [];
-                        mat.log.push({ id: uid(), date: isoDate, type: 'delivery', qty: sheetQty, by: row['Ordered By'] || '' });
+                        mat.log.push({ id: uid(), date: isoDate, type: 'delivery', qty: sheetQty - delivOnDate, by: row['Ordered By'] || '' });
                     }
                 }
             }
