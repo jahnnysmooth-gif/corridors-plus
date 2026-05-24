@@ -1607,6 +1607,7 @@ function renderMaterials() {
     const isLow = m => { const s = matCurrentStock(m); return s !== null && m.parQty > 0 && s < m.parQty; };
     const totalDeliveriesToday = mats.reduce((s, m) => s + (m.log||[]).filter(e => e.type==='delivery' && e.date===today()).reduce((ss,e) => ss+e.qty, 0), 0);
     const lowCount = mats.filter(isLow).length;
+    const archivedMats = (state.materials || []).filter(m => m.archived);
     if (totalDeliveriesToday > 0) html += `<div class="stats-row" style="grid-template-columns:1fr"><div class="stat-card"><div class="stat-value">${totalDeliveriesToday}</div><div class="stat-label">Delivered Today</div></div></div>`;
     if (lowCount > 0) {
         html += `<div class="low-stock-bar"><span style="font-size:18px">⚠️</span><span class="low-stock-bar-text">${lowCount} material${lowCount !== 1 ? 's' : ''} below minimum stock</span></div>`;
@@ -1614,7 +1615,6 @@ function renderMaterials() {
 
     // Trade tile grid — hidden when searching
     html += `<div id="mat_trade_grid"><div class="trade-grid">`;
-    const archivedMats = (state.materials || []).filter(m => m.archived);
     tradeKeys.forEach(trade => {
         const tradeMats = byTrade[trade];
         const color = TRADE_COLORS[trade] || '#475569';
