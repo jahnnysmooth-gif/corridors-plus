@@ -994,17 +994,11 @@ const DOOR_PAINTING_HEADERS = ['Floor','Apt','Assigned To','Paint Batch ID#','St
 // Run ONCE from the Apps Script editor (or via custom menu) to create/rebuild the tab.
 function setupDoorPainting() {
   const ss  = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const ui  = SpreadsheetApp.getUi();
   let sheet = ss.getSheetByName(DOOR_PAINTING_SHEET);
 
   if (sheet) {
-    const resp = ui.alert(
-      'Door Painting tab already exists.',
-      'Rebuild it? This will erase all current data.',
-      ui.ButtonSet.YES_NO
-    );
-    if (resp !== ui.Button.YES) return;
     ss.deleteSheet(sheet);
+    Logger.log('Existing Door Painting tab removed — rebuilding.');
   }
 
   sheet = ss.insertSheet(DOOR_PAINTING_SHEET);
@@ -1071,13 +1065,12 @@ function setupDoorPainting() {
   }
 
   SpreadsheetApp.flush();
-  ui.alert('Done! Door Painting tab created with ' + numRows + ' rows.\n\nNext: run "Setup Door Painting Auto-Date Trigger" from the menu so Date Done fills automatically.');
+  Logger.log('Done! Door Painting tab created with ' + numRows + ' rows. Next: run setupDoorPaintingTrigger().');
 }
 
 // Run ONCE to install the installable onEdit trigger for auto-dating.
 function setupDoorPaintingTrigger() {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  // Remove any existing trigger pointing to onDoorPaintingEdit to avoid duplicates
   ScriptApp.getProjectTriggers().forEach(function(t) {
     if (t.getHandlerFunction() === 'onDoorPaintingEdit') ScriptApp.deleteTrigger(t);
   });
@@ -1085,7 +1078,7 @@ function setupDoorPaintingTrigger() {
     .forSpreadsheet(ss)
     .onEdit()
     .create();
-  SpreadsheetApp.getUi().alert('Trigger installed. Date Done will now auto-fill when a door is marked Done.');
+  Logger.log('Trigger installed. Date Done will now auto-fill when a door is marked Done.');
 }
 
 // Installable onEdit handler — auto-fills Date Done when Status is set to Done.
