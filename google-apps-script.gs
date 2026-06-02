@@ -979,7 +979,136 @@ function onOpen() {
     .addItem('Export Monthly Receipts PDF', 'exportMonthlyPDF')
     .addItem('Recalculate Receipt Totals', 'recalculateAllTotals')
     .addItem('Reapply Row Colors', 'setRowColors')
+    .addSeparator()
+    .addItem('Setup Door Painting Tab', 'setupDoorPainting')
+    .addItem('Setup Door Painting Auto-Date Trigger', 'setupDoorPaintingTrigger')
     .addToUi();
+}
+
+// ── Door Painting tab ─────────────────────────────────────────────────────────
+const DOOR_PAINTING_SHEET   = 'Door Painting';
+const DOOR_PAINTING_FLOORS  = [4,5,6,7,8,9,10,11,12,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34];
+const DOOR_PAINTING_APTS    = ['A','B','C','D','E','F','G','H','J','K','L','M','N','P'];
+const DOOR_PAINTING_HEADERS = ['Floor','Apt','Assigned To','Paint Batch ID#','Status','Date Done'];
+
+// Run ONCE from the Apps Script editor (or via custom menu) to create/rebuild the tab.
+function setupDoorPainting() {
+  const ss  = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ui  = SpreadsheetApp.getUi();
+  let sheet = ss.getSheetByName(DOOR_PAINTING_SHEET);
+
+  if (sheet) {
+    const resp = ui.alert(
+      'Door Painting tab already exists.',
+      'Rebuild it? This will erase all current data.',
+      ui.ButtonSet.YES_NO
+    );
+    if (resp !== ui.Button.YES) return;
+    ss.deleteSheet(sheet);
+  }
+
+  sheet = ss.insertSheet(DOOR_PAINTING_SHEET);
+
+  // Header
+  const hdr = sheet.getRange(1, 1, 1, DOOR_PAINTING_HEADERS.length);
+  hdr.setValues([DOOR_PAINTING_HEADERS]);
+  hdr.setFontWeight('bold').setBackground('#1a3a5c').setFontColor('#ffffff').setFontSize(12);
+  sheet.setFrozenRows(1);
+
+  // Pre-populate all floor × apt rows
+  const rows = [];
+  DOOR_PAINTING_FLOORS.forEach(function(fl) {
+    DOOR_PAINTING_APTS.forEach(function(apt) {
+      rows.push(['Floor ' + fl, apt, '', '', 'Not Started', '']);
+    });
+  });
+  const numRows = rows.length;
+  sheet.getRange(2, 1, numRows, DOOR_PAINTING_HEADERS.length).setValues(rows);
+
+  // Dropdowns
+  const assignedValidation = SpreadsheetApp.newDataValidation()
+    .requireValueInList(['Adam', 'Albert'], true)
+    .setAllowInvalid(false)
+    .build();
+  sheet.getRange(2, 3, numRows, 1).setDataValidation(assignedValidation);
+
+  const statusValidation = SpreadsheetApp.newDataValidation()
+    .requireValueInList(['Not Started', 'In Progress', 'Done'], true)
+    .setAllowInvalid(false)
+    .build();
+  sheet.getRange(2, 5, numRows, 1).setDataValidation(statusValidation);
+
+  // Conditional formatting
+  const dataRange = sheet.getRange(2, 1, numRows, DOOR_PAINTING_HEADERS.length);
+  sheet.setConditionalFormatRules([
+    SpreadsheetApp.newConditionalFormatRule()
+      .whenFormulaSatisfied('=$E2="Done"')
+      .setBackground('#c6efce').setFontColor('#276221')
+      .setRanges([dataRange]).build(),
+    SpreadsheetApp.newConditionalFormatRule()
+      .whenFormulaSatisfied('=$E2="In Progress"')
+      .setBackground('#fff2cc').setFontColor('#7d6608')
+      .setRanges([dataRange]).build(),
+  ]);
+
+  // Date Done column format
+  sheet.getRange(2, 6, numRows, 1).setNumberFormat('MM/dd/yyyy');
+
+  // Column widths
+  sheet.setColumnWidth(1, 90);   // Floor
+  sheet.setColumnWidth(2, 55);   // Apt
+  sheet.setColumnWidth(3, 120);  // Assigned To
+  sheet.setColumnWidth(4, 140);  // Paint Batch ID#
+  sheet.setColumnWidth(5, 115);  // Status
+  sheet.setColumnWidth(6, 110);  // Date Done
+
+  // Trim unused rows/columns
+  const maxRows = sheet.getMaxRows();
+  if (maxRows > numRows + 1) sheet.deleteRows(numRows + 2, maxRows - numRows - 1);
+  const maxCols = sheet.getMaxColumns();
+  if (maxCols > DOOR_PAINTING_HEADERS.length) {
+    sheet.deleteColumns(DOOR_PAINTING_HEADERS.length + 1, maxCols - DOOR_PAINTING_HEADERS.length);
+  }
+
+  SpreadsheetApp.flush();
+  ui.alert('Done! Door Painting tab created with ' + numRows + ' rows.\n\nNext: run "Setup Door Painting Auto-Date Trigger" from the menu so Date Done fills automatically.');
+}
+
+// Run ONCE to install the installable onEdit trigger for auto-dating.
+function setupDoorPaintingTrigger() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  // Remove any existing trigger pointing to onDoorPaintingEdit to avoid duplicates
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === 'onDoorPaintingEdit') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('onDoorPaintingEdit')
+    .forSpreadsheet(ss)
+    .onEdit()
+    .create();
+  SpreadsheetApp.getUi().alert('Trigger installed. Date Done will now auto-fill when a door is marked Done.');
+}
+
+// Installable onEdit handler — auto-fills Date Done when Status is set to Done.
+function onDoorPaintingEdit(e) {
+  if (!e || !e.range) return;
+  const sheet = e.range.getSheet();
+  if (sheet.getName() !== DOOR_PAINTING_SHEET) return;
+
+  const col = e.range.getColumn();
+  const row = e.range.getRow();
+  if (col !== 5 || row < 2) return; // Status is column 5
+
+  const statusVal   = e.range.getValue();
+  const dateDoneCell = sheet.getRange(row, 6);
+
+  if (statusVal === 'Done') {
+    if (!dateDoneCell.getValue()) {
+      dateDoneCell.setValue(new Date());
+      dateDoneCell.setNumberFormat('MM/dd/yyyy');
+    }
+  } else {
+    dateDoneCell.setValue('');
+  }
 }
 
 // ── Rebuild TOTAL rows for every vendor (run after manual row edits/deletions) ─
