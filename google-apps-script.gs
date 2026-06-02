@@ -692,9 +692,9 @@ function syncMaterials(payload) {
     const archives = payload.archives || [];
     if (archives.length > 0) {
       const archiveIdKeys = new Set(archives.map(d => String(d.id||'').trim()).filter(Boolean));
-      let archSheet = ss.getSheetByName('Archived');
+      let archSheet = ss.getSheetByName('Materials Archived');
       if (!archSheet) {
-        archSheet = ss.insertSheet('Archived');
+        archSheet = ss.insertSheet('Materials Archived');
         archSheet.appendRow(HEADERS);
         const ah = archSheet.getRange(1, 1, 1, HEADERS.length);
         ah.setFontWeight('bold'); ah.setBackground('#4a1942'); ah.setFontColor('#ffffff');
