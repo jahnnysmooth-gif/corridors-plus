@@ -782,6 +782,11 @@
 <input type="file" id="restoreInput" accept=".json" style="display:none" onchange="restoreData(this)" />
 
 <script>
+// Kill switch: no automatic or manual sync with the Google Sheet materials list runs while this
+// is true. Set by request after the Firebase sync incident, to prevent any further overwrites
+// while the data is being investigated. Flip back to false to re-enable.
+const MATERIALS_SYNC_DISABLED = true;
+
 // ── Firebase ──────────────────────────────────────────────────────────────────
 const FIREBASE_CONFIG = {
     apiKey:            "AIzaSyA1qrqYCFXSfz2S4NkYYDp0j2mls6kviGk",
@@ -6038,6 +6043,10 @@ async function sendPayrollToSheets(start, end) {
 }
 
 function openSheetsSync() {
+    if (MATERIALS_SYNC_DISABLED) {
+        alert('Google Sheets sync is temporarily turned off while a data issue is being investigated. No changes are being sent or pulled.');
+        return;
+    }
     const url = localStorage.getItem('hallway_sheets_url');
     const lastSync = localStorage.getItem('hallway_sheets_last_sync');
     const lastSyncStr = lastSync ? new Date(lastSync).toLocaleString() : null;
@@ -6082,6 +6091,7 @@ function _clearOrderStatusInSheet(ids) {
 }
 
 async function syncPull() {
+    if (MATERIALS_SYNC_DISABLED) return false;
     const url = localStorage.getItem('hallway_sheets_url');
     if (!url) return false;
     const toast = _showSyncToast('Pulling from Google Sheets…');
@@ -6175,6 +6185,7 @@ async function syncPull() {
 }
 
 async function syncPush() {
+    if (MATERIALS_SYNC_DISABLED) return;
     const url = localStorage.getItem('hallway_sheets_url');
     if (!url) return;
     const toast = _showSyncToast('Pushing to Google Sheets…');
@@ -6334,7 +6345,7 @@ if (_savedCode) {
 
 // Auto-sync with Google Sheets every 15 minutes (only when URL is configured)
 setInterval(() => {
-    if (localStorage.getItem('hallway_sheets_url')) {
+    if (!MATERIALS_SYNC_DISABLED && localStorage.getItem('hallway_sheets_url')) {
         syncPull().then(ok => { if (ok) syncPush(); });
     }
 }, 15 * 60 * 1000);
