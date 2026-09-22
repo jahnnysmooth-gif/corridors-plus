@@ -4017,10 +4017,7 @@ function exportPDF(floors, inRange, label, start, end, period) {
     <script>window.onload = () => window.print();<\/script>
     </body></html>`;
 
-    const blob = new Blob([html], { type: 'text/html' });
-    const url  = URL.createObjectURL(blob);
-    window.open(url, '_blank');
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    _openExportWindow(html);
 }
 
 // ── Export single item history ────────────────────────────────────────────────
@@ -4080,10 +4077,7 @@ function exportItemHistory(floorId, itemId) {
     <script>window.onload = () => window.print();<\/script>
     </body></html>`;
 
-    const blob = new Blob([html], { type: 'text/html' });
-    const url  = URL.createObjectURL(blob);
-    window.open(url, '_blank');
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    _openExportWindow(html);
 }
 
 // ── Cross-floor summary ───────────────────────────────────────────────────────
@@ -4136,10 +4130,7 @@ function exportCrossFloorSummary(floors, inRange, periodLabel) {
     <script>window.onload = () => window.print();<\/script>
     </body></html>`;
 
-    const blob = new Blob([html], { type: 'text/html' });
-    const url  = URL.createObjectURL(blob);
-    window.open(url, '_blank');
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    _openExportWindow(html);
 }
 
 // ── Daily Notes screen ────────────────────────────────────────────────────────
@@ -4184,10 +4175,7 @@ function printDailyNotes(date) {
     <div class="footer">Corridor's Plus &nbsp;·&nbsp; Generated ${displayDate(today())}</div>
     <script>window.onload=()=>window.print();<\/script>
     </body></html>`;
-    const blob = new Blob([html], {type:'text/html'});
-    const url  = URL.createObjectURL(blob);
-    window.open(url,'_blank');
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    _openExportWindow(html);
 }
 
 // ── Receipts screen ───────────────────────────────────────────────────────────
@@ -4703,7 +4691,9 @@ function exportWeeklySummary(offsetWeeks) {
         .meta { font-size:12px; color:#666; margin-bottom:8px; }
         tbody tr:nth-child(even) td { background:#f9fbff; }
         .close-btn{display:block;margin-bottom:16px;padding:10px 24px;background:none;border:1.5px solid #d1d5db;border-radius:99px;font-size:13px;color:#6b7280;cursor:pointer;width:fit-content}
-        @media print { body { padding:16px; } .close-btn { display:none; } }</style></head><body>
+        ._exportPrintBtn{display:block;width:100%;padding:14px;margin-bottom:16px;background:#1a3a5c;color:#fff;border:none;font-size:15px;font-weight:700;cursor:pointer}
+        @media print { body { padding:16px; } .close-btn { display:none; } ._exportPrintBtn { display:none; } }</style></head><body>
+        <button class="_exportPrintBtn" onclick="window.print()">🖨️ Print / Save as PDF</button>
         <button class="close-btn" onclick="window.close()">✕ Close</button>
         <h1>Corridor's Plus — Weekly Summary</h1>
         <div class="meta">Week of ${label}</div>
@@ -6228,13 +6218,17 @@ async function syncPush() {
 
 function _openExportWindow(html) {
     try {
-        // Recent iOS versions block the auto window.print() call fired from window.onload in the
-        // new tab (it no longer counts as a direct user gesture) — add a visible button so tapping
-        // it directly always triggers the print/share sheet, regardless of the auto-print behavior.
+        // Recent iOS versions silently block window.print() on pages loaded from a blob: URL,
+        // even on a direct tap — use document.write into a same-origin window instead, which
+        // print still works on. Also add a visible button since the auto window.onload print
+        // call is no longer treated as a user gesture.
         const printBtn = `<button class="_exportPrintBtn" onclick="window.print()" style="position:sticky;top:0;display:block;width:100%;padding:14px;margin-bottom:16px;background:#1a3a5c;color:#fff;border:none;font-size:15px;font-weight:700;cursor:pointer;z-index:999">🖨️ Print / Save as PDF</button><style>@media print{._exportPrintBtn{display:none}}</style>`;
         html = html.replace('<body>', '<body>' + printBtn);
-        const win = window.open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank');
-        if (!win) alert('Popup blocked — please allow popups for this site to export.');
+        const win = window.open('', '_blank');
+        if (!win) { alert('Popup blocked — please allow popups for this site to export.'); return; }
+        win.document.write(html);
+        win.document.close();
+        win.focus();
     } catch(e) {
         alert('Export failed — the file may be too large for your browser to open.');
     }
