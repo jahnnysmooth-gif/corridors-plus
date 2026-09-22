@@ -3482,13 +3482,10 @@ function printOnHand() {
         });
         body += `</tbody></table>`;
     });
-    const win = window.open('', '_blank');
-    win.document.write(`<!DOCTYPE html><html><head><title>On Hand Inventory</title>
-        <style>body{font-family:sans-serif;padding:24px;max-width:800px;margin:0 auto}@media print{body{padding:0}._exportPrintBtn{display:none}}</style>
-        </head><body><button class="_exportPrintBtn" onclick="window.print()" style="position:sticky;top:0;display:block;width:100%;padding:14px;margin-bottom:16px;background:#1a3a5c;color:#fff;border:none;font-size:15px;font-weight:700;cursor:pointer;z-index:999">🖨️ Print / Save as PDF</button>${body}</body></html>`);
-    win.document.close();
-    win.focus();
-    setTimeout(() => win.print(), 300);
+    const html = `<!DOCTYPE html><html><head><title>On Hand Inventory</title>
+        <style>body{font-family:sans-serif;padding:24px;max-width:800px;margin:0 auto}@media print{body{padding:0}}</style>
+        </head><body>${body}</body></html>`;
+    _openExportWindow(html);
 }
 
 function updateCount(matId) {
@@ -4691,22 +4688,23 @@ function exportWeeklySummary(offsetWeeks) {
         .meta { font-size:12px; color:#666; margin-bottom:8px; }
         tbody tr:nth-child(even) td { background:#f9fbff; }
         .close-btn{display:block;margin-bottom:16px;padding:10px 24px;background:none;border:1.5px solid #d1d5db;border-radius:99px;font-size:13px;color:#6b7280;cursor:pointer;width:fit-content}
-        ._exportPrintBtn{display:block;width:100%;padding:14px;margin-bottom:16px;background:#1a3a5c;color:#fff;border:none;font-size:15px;font-weight:700;cursor:pointer}
+        ._exportPrintBtn{position:sticky;top:0;padding:12px 14px;margin-bottom:16px;background:#1a3a5c;color:#fff;font-size:13px;font-weight:600;text-align:center}
         @media print { body { padding:16px; } .close-btn { display:none; } ._exportPrintBtn { display:none; } }</style></head><body>
-        <button class="_exportPrintBtn" onclick="window.print()">🖨️ Print / Save as PDF</button>
+        <div class="_exportPrintBtn">🖨️ To print or save as PDF: tap the Share icon in Safari, then choose Print</div>
         <button class="close-btn" onclick="window.close()">✕ Close</button>
         <h1>Corridor's Plus — Weekly Summary</h1>
         <div class="meta">Week of ${label}</div>
         <div class="meta">Generated: ${displayDate(today())}</div>
         ${recapSection}${floorStatusSection}${workerSection}${laborSection}
-        <script>window.onload = () => window.print();<\/script></body></html>`;
+        </body></html>`;
     };
 
     const gasUrl = localStorage.getItem('hallway_sheets_url');
     if (gasUrl && (laborLines.length > 0 || attLines.length > 0)) {
-        // Open window NOW while we still have the user's click (async callbacks can't open windows)
-        const win = window.open('', '_blank');
-        win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Generating…</title>
+        // Open window NOW while we still have the user's click (async callbacks can't open windows).
+        // Uses blob: URLs (not document.write) so the tab keeps normal Safari chrome — an empty
+        // window.open('') target loses its address bar/back navigation on iOS 27.
+        const win = window.open(URL.createObjectURL(new Blob([`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Generating…</title>
         <style>body{margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:Arial,sans-serif;background:#f8fafc}
         .spinner{width:40px;height:40px;border:4px solid #e5e7eb;border-top-color:#1a3a5c;border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:20px}
         @keyframes spin{to{transform:rotate(360deg)}}
@@ -4714,10 +4712,9 @@ function exportWeeklySummary(offsetWeeks) {
         small{color:#9ca3af;font-size:12px;margin-top:6px}
         .close-btn{margin-top:28px;padding:10px 24px;background:none;border:1.5px solid #d1d5db;border-radius:99px;font-size:13px;color:#6b7280;cursor:pointer}</style></head>
         <body><div class="spinner"></div><p>Generating Weekly Summary…</p><small>Claude is writing your recap</small>
-        <button class="close-btn" onclick="window.close()">✕ Close</button></body></html>`);
-        win.document.close();
+        <button class="close-btn" onclick="window.close()">✕ Close</button></body></html>`], { type: 'text/html' })), '_blank');
         const toast = _showSyncToast('✦ Claude is writing your recap…');
-        const load = (recapText) => { try { win.document.write(buildHTML(recapText)); win.document.close(); } catch(e) {} };
+        const load = (recapText) => { try { win.location.href = URL.createObjectURL(new Blob([buildHTML(recapText)], { type: 'text/html' })); } catch(e) {} };
         fetch(gasUrl, {
             method: 'POST',
             body: JSON.stringify({
@@ -6218,17 +6215,15 @@ async function syncPush() {
 
 function _openExportWindow(html) {
     try {
-        // Recent iOS versions silently block window.print() on pages loaded from a blob: URL,
-        // even on a direct tap — use document.write into a same-origin window instead, which
-        // print still works on. Also add a visible button since the auto window.onload print
-        // call is no longer treated as a user gesture.
-        const printBtn = `<button class="_exportPrintBtn" onclick="window.print()" style="position:sticky;top:0;display:block;width:100%;padding:14px;margin-bottom:16px;background:#1a3a5c;color:#fff;border:none;font-size:15px;font-weight:700;cursor:pointer;z-index:999">🖨️ Print / Save as PDF</button><style>@media print{._exportPrintBtn{display:none}}</style>`;
+        // iOS 27 appears to block script-triggered window.print() outright (auto on load, and
+        // now even from a direct tap on a button that calls it) — no JS workaround has fixed it.
+        // A window opened with a real blob: URL keeps normal Safari tab chrome (address bar +
+        // Share button), unlike an empty window.open('') target, so give a text hint pointing
+        // at Safari's own Share > Print instead of relying on window.print() at all.
+        const printBtn = `<div class="_exportPrintBtn" style="position:sticky;top:0;padding:12px 14px;margin-bottom:16px;background:#1a3a5c;color:#fff;font-size:13px;font-weight:600;text-align:center;z-index:999">🖨️ To print or save as PDF: tap the Share icon in Safari, then choose Print</div><style>@media print{._exportPrintBtn{display:none}}</style>`;
         html = html.replace('<body>', '<body>' + printBtn);
-        const win = window.open('', '_blank');
-        if (!win) { alert('Popup blocked — please allow popups for this site to export.'); return; }
-        win.document.write(html);
-        win.document.close();
-        win.focus();
+        const win = window.open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank');
+        if (!win) alert('Popup blocked — please allow popups for this site to export.');
     } catch(e) {
         alert('Export failed — the file may be too large for your browser to open.');
     }
