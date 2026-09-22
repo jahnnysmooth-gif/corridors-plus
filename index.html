@@ -3484,8 +3484,8 @@ function printOnHand() {
     });
     const win = window.open('', '_blank');
     win.document.write(`<!DOCTYPE html><html><head><title>On Hand Inventory</title>
-        <style>body{font-family:sans-serif;padding:24px;max-width:800px;margin:0 auto}@media print{body{padding:0}}</style>
-        </head><body>${body}</body></html>`);
+        <style>body{font-family:sans-serif;padding:24px;max-width:800px;margin:0 auto}@media print{body{padding:0}._exportPrintBtn{display:none}}</style>
+        </head><body><button class="_exportPrintBtn" onclick="window.print()" style="position:sticky;top:0;display:block;width:100%;padding:14px;margin-bottom:16px;background:#1a3a5c;color:#fff;border:none;font-size:15px;font-weight:700;cursor:pointer;z-index:999">🖨️ Print / Save as PDF</button>${body}</body></html>`);
     win.document.close();
     win.focus();
     setTimeout(() => win.print(), 300);
@@ -6228,6 +6228,11 @@ async function syncPush() {
 
 function _openExportWindow(html) {
     try {
+        // Recent iOS versions block the auto window.print() call fired from window.onload in the
+        // new tab (it no longer counts as a direct user gesture) — add a visible button so tapping
+        // it directly always triggers the print/share sheet, regardless of the auto-print behavior.
+        const printBtn = `<button class="_exportPrintBtn" onclick="window.print()" style="position:sticky;top:0;display:block;width:100%;padding:14px;margin-bottom:16px;background:#1a3a5c;color:#fff;border:none;font-size:15px;font-weight:700;cursor:pointer;z-index:999">🖨️ Print / Save as PDF</button><style>@media print{._exportPrintBtn{display:none}}</style>`;
+        html = html.replace('<body>', '<body>' + printBtn);
         const win = window.open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank');
         if (!win) alert('Popup blocked — please allow popups for this site to export.');
     } catch(e) {
