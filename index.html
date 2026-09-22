@@ -4715,11 +4715,14 @@ function exportWeeklySummary(offsetWeeks) {
         <button class="close-btn" onclick="window.close()">✕ Close</button></body></html>`], { type: 'text/html' })), '_blank');
         const toast = _showSyncToast('✦ Claude is writing your recap…');
         const load = (recapText) => {
-            try {
-                const key = '_printExport_' + Date.now();
-                localStorage.setItem(key, buildHTML(recapText));
-                win.location.href = location.pathname + '?printExport=' + key;
-            } catch(e) {}
+            const reportHtml = buildHTML(recapText);
+            fetch(gasUrl, { method: 'POST', body: JSON.stringify({ type: 'store_export', html: reportHtml }) })
+                .then(r => r.json())
+                .then(res => {
+                    if (!res.key) throw new Error('no key returned');
+                    win.location.href = gasUrl + '?viewExport=' + res.key;
+                })
+                .catch(() => { try { win.location.href = URL.createObjectURL(new Blob([reportHtml], { type: 'text/html' })); } catch(e) {} });
         };
         fetch(gasUrl, {
             method: 'POST',
@@ -6221,17 +6224,35 @@ async function syncPush() {
 
 function _openExportWindow(html) {
     try {
-        // iOS 27's Share Sheet has no Print action for blob:-URL pages (confirmed on-device —
-        // only "Save to Files" shows up there), but Print works fine for real same-origin pages.
-        // So instead of a blob: URL, stash the report HTML and open this same app URL with a
-        // marker param; the loader below swaps the whole document for the stashed report once
-        // this page has fully loaded, giving it a genuine https:// context.
-        const printBtn = `<div class="_exportPrintBtn" style="position:sticky;top:0;padding:12px 14px;margin-bottom:16px;background:#1a3a5c;color:#fff;font-size:13px;font-weight:600;text-align:center;z-index:999">🖨️ If the print dialog doesn't open automatically, tap the Share icon, then Print</div><style>@media print{._exportPrintBtn{display:none}}</style>`;
-        html = html.replace('<body>', '<body>' + printBtn);
-        const key = '_printExport_' + Date.now();
-        localStorage.setItem(key, html);
-        const win = window.open(location.pathname + '?printExport=' + key, '_blank');
-        if (!win) alert('Popup blocked — please allow popups for this site to export.');
+        // iOS 27's Share Sheet has no Print action for blob:-URL pages or pages rewritten in
+        // place via document.write (confirmed on-device — both lose Print, and document.write
+        // also loses the Share button/back navigation entirely). Only a page loaded via a real
+        // HTTP navigation keeps working Print. So the report is stored server-side (via the
+        // existing Apps Script backend) and viewed by opening that URL directly — a genuine
+        // page load, same as any other website.
+        const gasUrl = localStorage.getItem('hallway_sheets_url');
+        const tooBig = new Blob([html]).size > 95000; // Apps Script cache value limit is 100KB
+
+        if (!gasUrl || tooBig) {
+            const win = window.open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank');
+            if (!win) alert('Popup blocked — please allow popups for this site to export.');
+            return;
+        }
+
+        // Open a placeholder now, synchronously, so this still counts as a direct response to
+        // the tap (iOS blocks window.open calls made from inside an async .then callback).
+        const win = window.open(URL.createObjectURL(new Blob(['<!DOCTYPE html><body style="margin:0;display:flex;align-items:center;justify-content:center;height:100vh;font-family:-apple-system,Arial,sans-serif;color:#1a3a5c">Opening report…</body>'], { type: 'text/html' })), '_blank');
+        if (!win) { alert('Popup blocked — please allow popups for this site to export.'); return; }
+
+        fetch(gasUrl, { method: 'POST', body: JSON.stringify({ type: 'store_export', html }) })
+            .then(r => r.json())
+            .then(res => {
+                if (!res.key) throw new Error('no key returned');
+                win.location.href = gasUrl + '?viewExport=' + res.key;
+            })
+            .catch(() => {
+                try { win.location.href = URL.createObjectURL(new Blob([html], { type: 'text/html' })); } catch(e) {}
+            });
     } catch(e) {
         alert('Export failed — the file may be too large for your browser to open.');
     }
@@ -6317,19 +6338,6 @@ setInterval(() => {
         syncPull().then(ok => { if (ok) syncPush(); });
     }
 }, 15 * 60 * 1000);
-
-// ── Print Export Loader ──────────────────────────────────────────────────────
-// Runs after full page load (same document.write pattern _openExportWindow already used on
-// a loaded blank window) so it reliably replaces the whole document with the stashed report.
-window.addEventListener('load', function() {
-    const key = new URLSearchParams(location.search).get('printExport');
-    if (!key) return;
-    const reportHtml = localStorage.getItem(key);
-    localStorage.removeItem(key);
-    document.open();
-    document.write(reportHtml || '<p style="padding:24px;font-family:sans-serif">This export link expired — go back and export again.</p>');
-    document.close();
-});
 </script>
 </body>
 </html>
