@@ -5597,6 +5597,12 @@ function renderAttendance() {
         html += `<button style="width:100%;margin-bottom:12px;padding:12px;background:#fff7ed;border:1.5px solid #f97316;border-radius:10px;color:#c2410c;font-size:14px;font-weight:700;cursor:pointer" onclick="setAttendanceDate('${t}')">← Back to Today</button>`;
     }
 
+    // Jump to any date — lets you add attendance for a day with no existing record
+    html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <label style="font-size:12px;font-weight:600;color:#6b7280;white-space:nowrap">📅 Go to date</label>
+        <input type="date" value="${_attendanceDate}" max="${t}" onchange="if(this.value) setAttendanceDate(this.value)" style="flex:1;padding:8px 10px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;color:#1a1a2e" />
+    </div>`;
+
     // Section header
     html += `<div class="section-header">
         <span class="section-title">${isToday ? 'Today' : displayDate(_attendanceDate)} · ${presentCount} of ${activeCrew.length} on site</span>
