@@ -18,8 +18,6 @@ const HEADERS = [
 // ── GET — pull all materials into the app ─────────────────────────────────────
 function doGet(e) {
   try {
-    if (e.parameter && e.parameter.viewExport) return viewExport(e.parameter.viewExport);
-
     const ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
     const sheet = ss.getSheetByName(MASTER_SHEET);
     if (!sheet) {
@@ -52,7 +50,6 @@ function doPost(e) {
     if (payload.type === 'payroll')            return handlePayroll(payload);
     if (payload.type === 'weekly_recap')       return generateWeeklyRecap(payload);
     if (payload.type === 'clear_order_status') return clearOrderStatus(payload);
-    if (payload.type === 'store_export')       return storeExport(payload);
     return syncMaterials(payload);
 
   } catch (err) {
@@ -1366,24 +1363,6 @@ function handlePayroll(payload) {
 function shortDateGs(iso) {
   var parts = iso.split('-');
   return parts[1] + '/' + parts[2];
-}
-
-// ── PDF/report export viewer ───────────────────────────────────────────────────
-// iOS 27's Safari Share Sheet has no Print action for blob:-URL or rewritten-in-place pages —
-// only for pages loaded via a real HTTP navigation. So the app stores the report HTML here
-// temporarily and opens this same URL to view it, giving it a genuine https:// page to print.
-function storeExport(payload) {
-  const key   = Utilities.getUuid();
-  const cache = CacheService.getScriptCache();
-  cache.put('export_' + key, payload.html, 600); // 10 minutes — viewed immediately, not archived
-  return json({ key: key });
-}
-
-function viewExport(key) {
-  const cache = CacheService.getScriptCache();
-  const html  = cache.get('export_' + key);
-  return HtmlService.createHtmlOutput(html || '<p style="font-family:sans-serif;padding:24px">This export link expired — go back to the app and export again.</p>')
-                     .setTitle("Corridor's Plus — Export");
 }
 
 // ── Helper: return JSON response ──────────────────────────────────────────────
