@@ -5143,6 +5143,23 @@ function _applyUncompleteFloors4to20Items() {
 }
 _runSyncSafePatch(_applyUncompleteFloors4to20Items);
 
+// ── One-time: mark Demo complete on Floors 21–30 (requested 2026-10-10) ────────
+function _applyCompleteDemoFloors21to30() {
+    if (state._completedDemoFloors21to30) return;
+    const targetNames = new Set([]);
+    for (let n = 21; n <= 30; n++) targetNames.add('Floor ' + n);
+    state.floors.forEach(f => {
+        if (!targetNames.has(f.name)) return;
+        (f.items || []).forEach(item => {
+            if (item.name === 'Demo') item.status = 'done';
+        });
+    });
+    state._completedDemoFloors21to30 = true;
+    persist();
+    render();
+}
+_runSyncSafePatch(_applyCompleteDemoFloors21to30);
+
 // ── App icon (canvas-generated for PWA + favicon) ─────────────────────────────
 (function() {
     const c = document.createElement('canvas');
