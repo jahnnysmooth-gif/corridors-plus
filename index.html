@@ -1002,7 +1002,11 @@ function persist() {
     localStorage.setItem('hallway_tracker_v2', JSON.stringify(state));
     if (db && syncCode && _firstSyncReceived) {
         _localWrite = true;
-        db.ref('projects/' + syncCode + '/state').set(state)
+        // update(), not set(): only writes the top-level keys actually present in local
+        // `state`. A key this session never loaded (e.g. attendance, if this browser's state
+        // was built without it) is simply left untouched on the remote side instead of being
+        // wiped. set() replaces the whole record and has caused real data loss twice.
+        db.ref('projects/' + syncCode + '/state').update(state)
           .then(() => setTimeout(() => { _localWrite = false; }, 2000))
           .catch(() => { _localWrite = false; });
     }
@@ -5001,7 +5005,7 @@ function initFirebase() {
         } else if (!snap.exists()) {
             // Remote path truly doesn't exist — push local data up
             render();
-            db.ref('projects/' + syncCode + '/state').set(state);
+            db.ref('projects/' + syncCode + '/state').update(state);
         } else {
             // Remote exists but returned null (likely a permissions/rules error) — keep local state
             render();
