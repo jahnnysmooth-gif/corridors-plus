@@ -805,6 +805,19 @@ let _localWrite = false;
 // to push to Firebase until the first real snapshot from this sync code has actually been
 // received, so a fresh device always sees the real data before it's allowed to overwrite anything.
 let _firstSyncReceived = false;
+// Per-section change tracking (added 2026-10-10 after two data-loss incidents). Holds a
+// JSON snapshot of each top-level state key as of the last time this device's copy was
+// confirmed to match Firebase (right after a real pull, or right after a successful push).
+// persist() only ever writes keys whose value has actually changed relative to this snapshot
+// — so a save that never touched attendance cannot push attendance, not because the key
+// happens to be absent, but because nothing about it changed in this session at all. This
+// isolates every top-level section from every other one without needing separate Firebase
+// paths or touching the hundreds of call sites that call persist().
+let _lastSyncedSnapshot = {};
+function _snapshotSyncedState() {
+    _lastSyncedSnapshot = {};
+    Object.keys(state).forEach(k => { _lastSyncedSnapshot[k] = JSON.stringify(state[k]); });
+}
 let _selectMode   = false;
 let _selectedIds  = new Set();
 let _matSearch    = '';
@@ -1001,13 +1014,23 @@ function persist() {
     state.savedAt = Date.now();
     localStorage.setItem('hallway_tracker_v2', JSON.stringify(state));
     if (db && syncCode && _firstSyncReceived) {
+        // Only push the top-level sections that actually changed relative to the last confirmed
+        // sync, not the whole state object. A save that never touched attendance cannot include
+        // it — not because the key happens to be missing, but because nothing about it changed
+        // in this session. This also protects against a section that's present locally but has
+        // gone stale (another device changed it meanwhile) from being blindly re-pushed.
+        const diff = {};
+        Object.keys(state).forEach(k => {
+            const serialized = JSON.stringify(state[k]);
+            if (serialized !== _lastSyncedSnapshot[k]) diff[k] = state[k];
+        });
+        if (Object.keys(diff).length === 0) return;
         _localWrite = true;
-        // update(), not set(): only writes the top-level keys actually present in local
-        // `state`. A key this session never loaded (e.g. attendance, if this browser's state
-        // was built without it) is simply left untouched on the remote side instead of being
-        // wiped. set() replaces the whole record and has caused real data loss twice.
-        db.ref('projects/' + syncCode + '/state').update(state)
-          .then(() => setTimeout(() => { _localWrite = false; }, 2000))
+        db.ref('projects/' + syncCode + '/state').update(diff)
+          .then(() => {
+              Object.keys(diff).forEach(k => { _lastSyncedSnapshot[k] = JSON.stringify(state[k]); });
+              setTimeout(() => { _localWrite = false; }, 2000);
+          })
           .catch(() => { _localWrite = false; });
     }
 }
@@ -5000,14 +5023,24 @@ function initFirebase() {
                 }
             });
             localStorage.setItem('hallway_tracker_v2', JSON.stringify(state));
+            // Baseline the per-section diff tracker to this freshly-pulled truth, before any
+            // migration-triggered persist() below runs, so that persist() only ever pushes what
+            // actually changes from here — never the whole blob again.
+            _snapshotSyncedState();
             if (_tradeDirty) persist();
             render();
         } else if (!snap.exists()) {
-            // Remote path truly doesn't exist — push local data up
+            // Remote path truly doesn't exist — this is a genuinely new sync code, so push the
+            // full local state as the initial seed, then baseline the diff tracker to it.
             render();
             db.ref('projects/' + syncCode + '/state').update(state);
+            _snapshotSyncedState();
         } else {
-            // Remote exists but returned null (likely a permissions/rules error) — keep local state
+            // Remote exists but returned null (likely a permissions/rules error) — keep local
+            // state. Baseline the diff tracker to current local state so a future persist()
+            // only pushes what changes from here, instead of treating everything as new because
+            // the tracker was never set.
+            _snapshotSyncedState();
             render();
         }
     });
@@ -5026,7 +5059,7 @@ function joinSync() {
 function disconnectSync() {
     if (!confirm('Disconnect from "' + syncCode + '"? The app will ask for a sync code next time.')) return;
     if (db) db.ref('projects/' + syncCode + '/state').off();
-    db = null; syncCode = null; _localWrite = false; _firstSyncReceived = false;
+    db = null; syncCode = null; _localWrite = false; _firstSyncReceived = false; _lastSyncedSnapshot = {};
     _matSearch = ''; _selectMode = false; _selectedIds.clear();
     localStorage.removeItem('hallway_sync_code');
     const el = document.getElementById('syncIndicator');
@@ -6449,6 +6482,7 @@ if (_savedCode) {
                     !(remote.savedAt && state.savedAt && remote.savedAt < state.savedAt)) {
                     state = remote;
                     localStorage.setItem('hallway_tracker_v2', JSON.stringify(state));
+                    _snapshotSyncedState();
                     render();
                 }
                 _showSyncToast('Synced ✓', null, 1800);
