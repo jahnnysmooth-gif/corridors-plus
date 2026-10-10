@@ -5093,22 +5093,33 @@ function disconnectSync() {
 })();
 
 // ── One-time: mark Floors 4–20 complete except Carpet (requested 2026-10-10) ───
-(function() {
+function _applyBulkCompletedFloors4to20() {
     if (state._bulkCompletedFloors4to20) return;
     const targetNums = [];
     for (let n = 4; n <= 20; n++) { if (n !== 13) targetNums.push(n); }
     const targetNames = new Set(targetNums.map(n => 'Floor ' + n));
-    let changed = false;
     state.floors.forEach(f => {
         if (!targetNames.has(f.name)) return;
         (f.items || []).forEach(item => {
             if (item.name === 'Carpet') return;
-            if (item.status !== 'done') { item.status = 'done'; changed = true; }
+            item.status = 'done';
         });
     });
     state._bulkCompletedFloors4to20 = true;
     persist();
-})();
+    render();
+}
+if (localStorage.getItem('hallway_sync_code')) {
+    // This device syncs with Firebase — wait until the real remote data has actually been
+    // pulled down at least once before applying/saving the patch. Otherwise the listener's
+    // first pull (which arrives asynchronously, after this script has already run) replaces
+    // state wholesale and silently undoes the patch before persist() is ever allowed to push it.
+    const _waitForFirstSync = setInterval(() => {
+        if (_firstSyncReceived) { clearInterval(_waitForFirstSync); _applyBulkCompletedFloors4to20(); }
+    }, 200);
+} else {
+    _applyBulkCompletedFloors4to20();
+}
 
 // ── App icon (canvas-generated for PWA + favicon) ─────────────────────────────
 (function() {
