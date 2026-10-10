@@ -1706,6 +1706,12 @@ function renderMaterials() {
         <span style="font-size:22px">&#9729;</span>
         <span style="font-size:15px;font-weight:700">Google Sheets Sync${localStorage.getItem('hallway_sheets_url') ? ' <span style="display:inline-block;width:8px;height:8px;background:white;border-radius:50%;margin-left:6px;vertical-align:middle;opacity:0.9"></span>' : ''}</span>
     </button>`;
+    if (MATERIALS_SYNC_DISABLED) {
+        html += `<button class="trade-tile" style="width:100%;border-top:4px solid #0891b2;background:#0e2a36;color:white;margin-bottom:10px;flex-direction:row;justify-content:center;gap:10px;padding:20px 16px" onclick="pullMaterialsOnly()">
+            <span style="font-size:18px">&#8681;</span>
+            <span style="font-size:13px;font-weight:700">Pull Latest From Sheet Only (one-way, safe — nothing is sent back)</span>
+        </button>`;
+    }
     html += `</div>`;
 
     // Search results — all materials as cards, shown when searching
@@ -6184,6 +6190,13 @@ async function sendPayrollToSheets(start, end) {
     }
 }
 
+async function pullMaterialsOnly() {
+    if (!localStorage.getItem('hallway_sheets_url')) { alert('No Google Sheets URL is configured.'); return; }
+    if (!confirm('Pull the latest materials from the Google Sheet into the app?\n\nThis only reads from the sheet — nothing will be sent back to it.')) return;
+    const ok = await syncPull();
+    if (ok) alert('Done — review the Materials screen to confirm everything looks right.');
+}
+
 function openSheetsSync() {
     if (MATERIALS_SYNC_DISABLED) {
         alert('Google Sheets sync is temporarily turned off while a data issue is being investigated. No changes are being sent or pulled.');
@@ -6233,7 +6246,10 @@ function _clearOrderStatusInSheet(ids) {
 }
 
 async function syncPull() {
-    if (MATERIALS_SYNC_DISABLED) return false;
+    // Deliberately NOT gated by MATERIALS_SYNC_DISABLED: this function only ever reads from
+    // the sheet (a GET request) and writes to local app state — it never writes back to the
+    // sheet, so it carries no risk to the sheet data even while sync is otherwise switched off.
+    // syncPush() (the only thing that writes to the sheet) keeps its own separate guard below.
     const url = localStorage.getItem('hallway_sheets_url');
     if (!url) return false;
     const toast = _showSyncToast('Pulling from Google Sheets…');
