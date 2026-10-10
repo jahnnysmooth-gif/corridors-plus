@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Corridor's Plus — Export</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, Arial, sans-serif; margin: 0; color: #111; }
+  #_exportPrintBar { position: sticky; top: 0; padding: 12px 14px; background: #1a3a5c; color: #fff; font-size: 14px; font-weight: 700; text-align: center; cursor: pointer; z-index: 999; }
+  #_exportError { font-family: -apple-system, Arial, sans-serif; padding: 24px; color: #666; }
+  @media print { #_exportPrintBar { display: none; } }
+</style>
+</head>
+<body>
+<div id="_exportPrintBar" onclick="window.print()">🖨️ Tap to Print / Save as PDF</div>
+<div id="_exportError" style="display:none">This export link is invalid or has expired. Please go back to the app and export again.</div>
+<div id="_exportContent"></div>
+<script>
+(function() {
+    // This is a genuinely fresh, normally-requested static page — no document.write, no
+    // blob: URL, no backend round-trip. Report content (passed via the URL fragment, which
+    // never reaches a server) is rendered into it the same way any ordinary website renders
+    // dynamic content with JavaScript after load. That ordinariness is the whole point: it's
+    // what keeps iOS Safari's normal chrome and Print support intact, which both blob: URLs
+    // and document.write-based approaches broke.
+    try {
+        var encoded = decodeURIComponent(location.hash.slice(1));
+        if (!encoded) throw new Error('empty');
+        var fullHtml = decodeURIComponent(escape(atob(encoded)));
+        var styleMatch = fullHtml.match(/<style>([\s\S]*?)<\/style>/);
+        var bodyMatch  = fullHtml.match(/<body[^>]*>([\s\S]*?)<\/body>/);
+        if (styleMatch) document.head.insertAdjacentHTML('beforeend', '<style>' + styleMatch[1] + '</style>');
+        document.getElementById('_exportContent').innerHTML = bodyMatch ? bodyMatch[1] : fullHtml;
+    } catch (e) {
+        document.getElementById('_exportError').style.display = 'block';
+    }
+})();
+</script>
+</body>
+</html>

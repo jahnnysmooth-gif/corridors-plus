@@ -4725,9 +4725,7 @@ function exportWeeklySummary(offsetWeeks) {
         .meta { font-size:12px; color:#666; margin-bottom:8px; }
         tbody tr:nth-child(even) td { background:#f9fbff; }
         .close-btn{display:block;margin-bottom:16px;padding:10px 24px;background:none;border:1.5px solid #d1d5db;border-radius:99px;font-size:13px;color:#6b7280;cursor:pointer;width:fit-content}
-        ._exportPrintBtn{position:sticky;top:0;padding:12px 14px;margin-bottom:16px;background:#1a3a5c;color:#fff;font-size:13px;font-weight:600;text-align:center}
-        @media print { body { padding:16px; } .close-btn { display:none; } ._exportPrintBtn { display:none; } }</style></head><body>
-        <div class="_exportPrintBtn">🖨️ Tap the Share icon in Safari, then choose Print</div>
+        @media print { body { padding:16px; } .close-btn { display:none; } }</style></head><body>
         <button class="close-btn" onclick="window.close()">✕ Close</button>
         <h1>Corridor's Plus — Weekly Summary</h1>
         <div class="meta">Week of ${label}</div>
@@ -4752,14 +4750,11 @@ function exportWeeklySummary(offsetWeeks) {
         <button class="close-btn" onclick="window.close()">✕ Close</button></body></html>`], { type: 'text/html' })), '_blank');
         const toast = _showSyncToast('✦ Claude is writing your recap…');
         const load = (recapText) => {
-            const reportHtml = buildHTML(recapText);
-            fetch(gasUrl, { method: 'POST', body: JSON.stringify({ type: 'store_export', html: reportHtml }) })
-                .then(r => r.json())
-                .then(res => {
-                    if (!res.key) throw new Error('no key returned');
-                    win.location.href = gasUrl + '?viewExport=' + res.key;
-                })
-                .catch(() => { try { win.location.href = URL.createObjectURL(new Blob([reportHtml], { type: 'text/html' })); } catch(e) {} });
+            try {
+                const encoded = encodeURIComponent(btoa(unescape(encodeURIComponent(buildHTML(recapText)))));
+                const basePath = location.pathname.replace(/[^/]*$/, '');
+                win.location.href = basePath + 'export.html#' + encoded;
+            } catch(e) {}
         };
         fetch(gasUrl, {
             method: 'POST',
@@ -6382,35 +6377,22 @@ async function syncPush() {
 
 function _openExportWindow(html) {
     try {
-        // iOS 27's Share Sheet has no Print action for blob:-URL pages or pages rewritten in
-        // place via document.write (confirmed on-device — both lose Print, and document.write
-        // also loses the Share button/back navigation entirely). Only a page loaded via a real
-        // HTTP navigation keeps working Print. So the report is stored server-side (via the
-        // existing Apps Script backend) and viewed by opening that URL directly — a genuine
-        // page load, same as any other website.
-        const gasUrl = localStorage.getItem('hallway_sheets_url');
-        const tooBig = new Blob([html]).size > 95000; // Apps Script cache value limit is 100KB
-
-        if (!gasUrl || tooBig) {
+        // iOS Safari's Share Sheet has no Print action for blob:-URL pages, and loses its own
+        // chrome entirely for pages rewritten via document.write — confirmed on-device, both
+        // ways. A genuinely fresh, normally-requested static page (export.html) that renders
+        // its content with plain JavaScript after loading behaves like any ordinary website and
+        // keeps full Safari chrome + Print support. Report data travels via the URL fragment
+        // (never sent to any server) so this needs no backend at all.
+        const encoded = encodeURIComponent(btoa(unescape(encodeURIComponent(html))));
+        if (encoded.length > 500000) {
+            // Extremely large report — stay well clear of any practical URL length ceiling.
             const win = window.open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank');
             if (!win) alert('Popup blocked — please allow popups for this site to export.');
             return;
         }
-
-        // Open a placeholder now, synchronously, so this still counts as a direct response to
-        // the tap (iOS blocks window.open calls made from inside an async .then callback).
-        const win = window.open(URL.createObjectURL(new Blob(['<!DOCTYPE html><body style="margin:0;display:flex;align-items:center;justify-content:center;height:100vh;font-family:-apple-system,Arial,sans-serif;color:#1a3a5c">Opening report…</body>'], { type: 'text/html' })), '_blank');
-        if (!win) { alert('Popup blocked — please allow popups for this site to export.'); return; }
-
-        fetch(gasUrl, { method: 'POST', body: JSON.stringify({ type: 'store_export', html }) })
-            .then(r => r.json())
-            .then(res => {
-                if (!res.key) throw new Error('no key returned');
-                win.location.href = gasUrl + '?viewExport=' + res.key;
-            })
-            .catch(() => {
-                try { win.location.href = URL.createObjectURL(new Blob([html], { type: 'text/html' })); } catch(e) {}
-            });
+        const basePath = location.pathname.replace(/[^/]*$/, '');
+        const win = window.open(basePath + 'export.html#' + encoded, '_blank');
+        if (!win) alert('Popup blocked — please allow popups for this site to export.');
     } catch(e) {
         alert('Export failed — the file may be too large for your browser to open.');
     }
