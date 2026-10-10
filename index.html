@@ -6391,11 +6391,11 @@ function _openExportWindow(html) {
             return;
         }
         const basePath = location.pathname.replace(/[^/]*$/, '');
-        // Navigate the CURRENT window instead of opening a new one — experiment, requested
-        // 2026-10-10, to test whether iOS treats a same-window navigation away from a standalone
-        // Home Screen app differently than window.open() for the purposes of Print support. This
-        // does mean the app itself is left; tap the Home Screen icon again to come back to it.
-        location.href = basePath + 'export.html#' + encoded;
+        // Opens in a new tab/window rather than navigating away from the app. A same-window
+        // navigation experiment was tried 2026-10-10 and reverted — it left the standalone app
+        // entirely, which led to real confusion (a stray extra Home Screen bookmark).
+        const win = window.open(basePath + 'export.html#' + encoded, '_blank');
+        if (!win) alert('Popup blocked — please allow popups for this site to export.');
     } catch(e) {
         alert('Export failed — the file may be too large for your browser to open.');
     }
