@@ -7,13 +7,18 @@
 <style>
   * { box-sizing: border-box; }
   body { font-family: -apple-system, Arial, sans-serif; margin: 0; color: #111; }
-  #_exportPrintBar { position: sticky; top: 0; padding: 12px 14px; background: #1a3a5c; color: #fff; font-size: 14px; font-weight: 700; text-align: center; cursor: pointer; z-index: 999; }
+  #_exportPrintBar { position: sticky; top: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; background: #1a3a5c; color: #fff; font-size: 14px; font-weight: 700; z-index: 999; }
+  #_exportPrintBar span { cursor: pointer; }
+  #_exportBackLink { color: #fff; opacity: 0.8; font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; }
   #_exportError { font-family: -apple-system, Arial, sans-serif; padding: 24px; color: #666; }
   @media print { #_exportPrintBar { display: none; } }
 </style>
 </head>
 <body>
-<div id="_exportPrintBar" onclick="window.print()">🖨️ Tap to Print / Save as PDF</div>
+<div id="_exportPrintBar">
+  <span onclick="window.print()">🖨️ Tap to Print / Save as PDF</span>
+  <a id="_exportBackLink" href="./">← Back to app</a>
+</div>
 <div id="_exportError" style="display:none">This export link is invalid or has expired. Please go back to the app and export again.</div>
 <div id="_exportContent"></div>
 <script>
