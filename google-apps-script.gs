@@ -636,7 +636,7 @@ function syncMaterials(payload) {
     const tradeIdx = hdr.indexOf('Trade');
 
     if (matIdx === -1) {
-      return json({ error: 'Material column not found in sheet headers. Re-run setup() or check the header row.' });
+      return json({ error: 'Material column not found. Headers actually found: [' + hdr.map(h => '"' + h + '"').join(', ') + ']' });
     }
 
     // Build three maps: App ID, trade+name (exact), and name-only (fallback)
