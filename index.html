@@ -6222,7 +6222,7 @@ async function restoreWronglyArchivedMaterials() {
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const rows = await resp.json();
         if (rows && rows.error) throw new Error(rows.error);
-        const activeNames = new Set((rows || []).map(r => String(r['Material'] || '').trim().toLowerCase()).filter(Boolean));
+        const activeNames = new Set((rows || []).map(r => String(r['Material Name/Brand/Type'] || '').trim().toLowerCase()).filter(Boolean));
         const toRestore = (state.materials || []).filter(m => m.archived && activeNames.has(String(m.name || '').toLowerCase()));
         if (toRestore.length === 0) { alert('No archived materials matched the live Materials List sheet by name.'); return; }
         if (!confirm('Restore ' + toRestore.length + ' material(s) that are still listed as active in the Materials List sheet?')) return;
@@ -6246,7 +6246,7 @@ async function pullArchivedMaterialsOnly() {
         if (rows && rows.error) throw new Error(rows.error);
         let added = 0, updated = 0;
         (rows || []).forEach(row => {
-            const name = String(row['Material'] || '').trim();
+            const name = String(row['Material Name/Brand/Type'] || '').trim();
             if (!name) return;
             const rowAppId = String(row['App ID'] || '').trim();
             let mat = rowAppId ? state.materials.find(m => m.id === rowAppId) : null;
@@ -6347,7 +6347,7 @@ async function syncPull() {
         const confirmedKeys = new Set((state.pendingConfirms || []).map(d => (String(d.trade||'') + '||' + String(d.name||'')).toLowerCase()));
         let added = 0, updated = 0;
         (rows || []).forEach(row => {
-            const name = String(row['Material'] || '').trim();
+            const name = String(row['Material Name/Brand/Type'] || '').trim();
             if (!name) return;
             const dKey = (String(row['Trade']||'') + '||' + name).toLowerCase();
             if ((state.deletedMaterials || []).some(d => (String(d.trade||'')+'||'+String(d.name||'')).toLowerCase() === dKey)) return;
@@ -6446,7 +6446,7 @@ async function syncPush() {
         return {
             'App ID':               mat.id,
             'Trade':                mat.trade || 'Misc.',
-            'Material':             mat.name,
+            'Material Name/Brand/Type': mat.name,
             'Brand/Type':           mat.brand || '',
             'Unit':                 mat.unit  || '',
             'On Hand':              stock !== null ? stock : '',

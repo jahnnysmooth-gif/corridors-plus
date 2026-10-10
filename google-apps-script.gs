@@ -7,7 +7,7 @@ const MASTER_SHEET       = 'Materials List';
 const RECEIPTS_FOLDER_ID = '19TGCyD8v0j0UyahztXXuwIEGLVyk3LVJ';
 
 const HEADERS = [
-  'App ID', 'Trade', 'Material', 'Brand/Type', 'Unit',
+  'App ID', 'Trade', 'Material Name/Brand/Type', 'Brand/Type', 'Unit',
   'On Hand', 'Min Stock',
   'Last Delivery Date', 'Last Delivery Qty', 'Ordered By',
   'To Order', 'Order Status', 'Delivery ETA',
@@ -632,7 +632,7 @@ function syncMaterials(payload) {
 
     const allData  = sheet.getDataRange().getValues();
     const hdr      = allData[0].map(h => String(h).trim().replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' '));
-    const matIdx   = hdr.indexOf('Material');
+    const matIdx   = hdr.indexOf('Material Name/Brand/Type');
     const tradeIdx = hdr.indexOf('Trade');
 
     if (matIdx === -1) {
@@ -672,7 +672,7 @@ function syncMaterials(payload) {
     });
 
     updates.forEach(mat => {
-      const name     = String(mat['Material'] || '').trim().toLowerCase();
+      const name     = String(mat['Material Name/Brand/Type'] || '').trim().toLowerCase();
       const trade    = String(mat['Trade']    || '').trim().toLowerCase();
       const appId    = String(mat['App ID']   || '').trim();
       // Match by App ID first (strongest), then trade+name, then name only
@@ -728,10 +728,10 @@ function syncMaterials(payload) {
         archSheet.setFrozenRows(1);
       }
       const archHdr    = archSheet.getDataRange().getValues()[0].map(h => String(h).trim());
-      const archMatIdx = archHdr.indexOf('Material');
+      const archMatIdx = archHdr.indexOf('Material Name/Brand/Type');
       const freshData  = sheet.getDataRange().getValues();
       const freshHdr   = freshData[0].map(h => String(h).trim().replace(/[\r\n]+/g,' ').replace(/\s+/g,' '));
-      const fMat   = freshHdr.indexOf('Material');
+      const fMat   = freshHdr.indexOf('Material Name/Brand/Type');
       const fAppId = freshHdr.indexOf('App ID');
       for (let i = freshData.length - 1; i >= 1; i--) {
         const rowId   = String(fAppId >= 0 ? freshData[i][fAppId] : '').trim();
