@@ -1711,6 +1711,10 @@ function renderMaterials() {
             <span style="font-size:18px">&#8681;</span>
             <span style="font-size:13px;font-weight:700">Pull Latest From Sheet Only (one-way, safe — nothing is sent back)</span>
         </button>`;
+        html += `<button class="trade-tile" style="width:100%;border-top:4px solid #92400e;background:#2b1a06;color:white;margin-bottom:10px;flex-direction:row;justify-content:center;gap:10px;padding:20px 16px" onclick="pullArchivedMaterialsOnly()">
+            <span style="font-size:18px">&#128230;</span>
+            <span style="font-size:13px;font-weight:700">Pull Archived Materials From Sheet Only</span>
+        </button>`;
     }
     html += `</div>`;
 
@@ -6195,6 +6199,54 @@ async function pullMaterialsOnly() {
     if (!confirm('Pull the latest materials from the Google Sheet into the app?\n\nThis only reads from the sheet — nothing will be sent back to it.')) return;
     const ok = await syncPull();
     if (ok) alert('Done — review the Materials screen to confirm everything looks right.');
+}
+
+async function pullArchivedMaterialsOnly() {
+    const url = localStorage.getItem('hallway_sheets_url');
+    if (!url) { alert('No Google Sheets URL is configured.'); return; }
+    if (!confirm('Pull archived materials from the "Materials Archived" sheet tab into the app?\n\nThis only reads from the sheet — nothing will be sent back to it.')) return;
+    const toast = _showSyncToast('Pulling archived materials…');
+    try {
+        const resp = await fetch(url + (url.includes('?') ? '&' : '?') + 'archivedList=1&_t=' + Date.now());
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const rows = await resp.json();
+        if (rows && rows.error) throw new Error(rows.error);
+        let added = 0, updated = 0;
+        (rows || []).forEach(row => {
+            const name = String(row['Material'] || '').trim();
+            if (!name) return;
+            const rowAppId = String(row['App ID'] || '').trim();
+            let mat = rowAppId ? state.materials.find(m => m.id === rowAppId) : null;
+            if (!mat) mat = state.materials.find(m => m.name.toLowerCase() === name.toLowerCase());
+            if (!mat) {
+                mat = {
+                    id: rowAppId || uid(), name,
+                    trade: String(row['Trade'] || '').trim() || 'Misc.',
+                    unit: row['Unit'] || '',
+                    startQty: parseFloat(row['On Hand']) || 0,
+                    parQty: parseFloat(row['Min Stock']) || 0,
+                    reorderQty: parseFloat(row['To Order']) || 0,
+                    log: [],
+                    brand: row['Brand/Type'] || '',
+                    notes: row['Notes'] || '',
+                    link: row['Link'] || '',
+                    procStatus: row['Order Status'] || '',
+                    deliveryEta: _normalizeEtaDate(row['Delivery ETA'] || ''),
+                    archived: true
+                };
+                state.materials.push(mat);
+                added++;
+            } else if (!mat.archived) {
+                mat.archived = true;
+                updated++;
+            }
+        });
+        persist(); render();
+        _showSyncToast(`&#10003; Archived pull: ${added} added, ${updated} marked archived`, toast, 3500);
+        alert('Done — check the Archived section on the Materials screen.');
+    } catch(err) {
+        _showSyncToast('&#10007; Pull failed: ' + err.message, toast, 4500);
+    }
 }
 
 function openSheetsSync() {

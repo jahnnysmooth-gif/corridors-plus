@@ -19,6 +19,7 @@ const HEADERS = [
 function doGet(e) {
   try {
     if (e.parameter && e.parameter.viewExport) return viewExport(e.parameter.viewExport);
+    if (e.parameter && e.parameter.archivedList) return getArchivedMaterials();
 
     const ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
     const sheet = ss.getSheetByName(MASTER_SHEET);
@@ -37,6 +38,29 @@ function doGet(e) {
         return obj;
       });
     return json(materials);
+  } catch (err) {
+    return json({ error: err.toString() });
+  }
+}
+
+// ── GET (?archivedList=1) — pull rows from the Materials Archived tab ─────────
+function getArchivedMaterials() {
+  try {
+    const ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName('Materials Archived');
+    if (!sheet) return json([]);
+    const data = sheet.getDataRange().getValues();
+    if (data.length < 2) return json([]);
+
+    const headers = data[0].map(h => String(h).trim().replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' '));
+    const rows = data.slice(1)
+      .filter(r => String(r[1] || r[0]).trim())
+      .map(r => {
+        const obj = {};
+        headers.forEach((h, i) => { obj[h] = (r[i] !== undefined && r[i] !== '') ? String(r[i]) : ''; });
+        return obj;
+      });
+    return json(rows);
   } catch (err) {
     return json({ error: err.toString() });
   }
