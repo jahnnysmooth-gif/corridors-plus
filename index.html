@@ -783,9 +783,11 @@
 
 <script>
 // Kill switch: no automatic or manual sync with the Google Sheet materials list runs while this
-// is true. Set by request after the Firebase sync incident, to prevent any further overwrites
-// while the data is being investigated. Flip back to false to re-enable.
-const MATERIALS_SYNC_DISABLED = true;
+// is true. Was set after the Firebase sync incident on 2026-09-21/22 to prevent further
+// overwrites during investigation/recovery. Re-enabled 2026-10-10 once materials were restored
+// and verified, and syncMaterials() on the GAS side was confirmed to do targeted cell updates
+// only (never a bulk sheet rewrite).
+const MATERIALS_SYNC_DISABLED = false;
 
 // ── Firebase ──────────────────────────────────────────────────────────────────
 const FIREBASE_CONFIG = {
