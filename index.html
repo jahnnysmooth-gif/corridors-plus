@@ -800,6 +800,11 @@ const FIREBASE_CONFIG = {
 let db         = null;
 let syncCode   = null;
 let _localWrite = false;
+// Guards against the Sept 2026 data-loss bug: a brand-new/empty device could seed placeholder
+// floors and push that over real remote data before ever pulling it down. persist() now refuses
+// to push to Firebase until the first real snapshot from this sync code has actually been
+// received, so a fresh device always sees the real data before it's allowed to overwrite anything.
+let _firstSyncReceived = false;
 let _selectMode   = false;
 let _selectedIds  = new Set();
 let _matSearch    = '';
@@ -995,7 +1000,7 @@ function matDaysRemaining(mat) {
 function persist() {
     state.savedAt = Date.now();
     localStorage.setItem('hallway_tracker_v2', JSON.stringify(state));
-    if (db && syncCode) {
+    if (db && syncCode && _firstSyncReceived) {
         _localWrite = true;
         db.ref('projects/' + syncCode + '/state').set(state)
           .then(() => setTimeout(() => { _localWrite = false; }, 2000))
@@ -4920,6 +4925,7 @@ function initFirebase() {
 
     // Real-time listener — updates all devices when anyone saves
     db.ref('projects/' + syncCode + '/state').on('value', snap => {
+        _firstSyncReceived = true;
         if (_localWrite) return;
         const remote = snap.val();
         // Reject remote state that is older than what we already have locally
@@ -5016,7 +5022,7 @@ function joinSync() {
 function disconnectSync() {
     if (!confirm('Disconnect from "' + syncCode + '"? The app will ask for a sync code next time.')) return;
     if (db) db.ref('projects/' + syncCode + '/state').off();
-    db = null; syncCode = null; _localWrite = false;
+    db = null; syncCode = null; _localWrite = false; _firstSyncReceived = false;
     _matSearch = ''; _selectMode = false; _selectedIds.clear();
     localStorage.removeItem('hallway_sync_code');
     const el = document.getElementById('syncIndicator');
