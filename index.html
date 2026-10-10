@@ -5160,6 +5160,24 @@ function _applyCompleteDemoFloors21to30() {
 }
 _runSyncSafePatch(_applyCompleteDemoFloors21to30);
 
+// ── One-time: mark 5 items complete on Floors 21–26 (requested 2026-10-10) ─────
+function _applyCompleteItemsFloors21to26() {
+    if (state._completedItemsFloors21to26) return;
+    const targetNames = new Set([]);
+    for (let n = 21; n <= 26; n++) targetNames.add('Floor ' + n);
+    const itemNames = new Set(['Ceiling Skim Coat', 'Wall Skim Coat', 'Wall Prime', 'Ceiling Prime', 'Ceiling Paint']);
+    state.floors.forEach(f => {
+        if (!targetNames.has(f.name)) return;
+        (f.items || []).forEach(item => {
+            if (itemNames.has(item.name)) item.status = 'done';
+        });
+    });
+    state._completedItemsFloors21to26 = true;
+    persist();
+    render();
+}
+_runSyncSafePatch(_applyCompleteItemsFloors21to26);
+
 // ── App icon (canvas-generated for PWA + favicon) ─────────────────────────────
 (function() {
     const c = document.createElement('canvas');
