@@ -6268,7 +6268,13 @@ async function syncPull() {
             if ((state.deletedMaterials || []).some(d => (String(d.trade||'')+'||'+String(d.name||'')).toLowerCase() === dKey)) return;
             const rowAppId = String(row['App ID'] || '').trim();
             let mat = rowAppId ? state.materials.find(m => m.id === rowAppId) : null;
-            if (rowAppId && !mat) return;
+            // No longer skipping rows whose App ID doesn't match anything locally. That was meant
+            // to stop a deliberately-deleted material's stale sheet row from resurrecting it, but
+            // the deletedMaterials check above already handles that correctly (by trade+name).
+            // This stricter ID check was also silently skipping materials that exist for a real
+            // reason the app doesn't know about locally — e.g. lost from local/Firebase state in
+            // the Sept 2026 data-loss incident while the sheet's own copy stayed intact. Falling
+            // through to name-matching (or creating new) is correct for both cases.
             if (!mat) mat = state.materials.find(m => m.name.toLowerCase() === name.toLowerCase());
             if (mat && mat.archived) return;
             const isNewMat = !mat;
