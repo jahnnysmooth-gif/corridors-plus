@@ -5109,17 +5109,39 @@ function _applyBulkCompletedFloors4to20() {
     persist();
     render();
 }
-if (localStorage.getItem('hallway_sync_code')) {
-    // This device syncs with Firebase — wait until the real remote data has actually been
-    // pulled down at least once before applying/saving the patch. Otherwise the listener's
-    // first pull (which arrives asynchronously, after this script has already run) replaces
-    // state wholesale and silently undoes the patch before persist() is ever allowed to push it.
-    const _waitForFirstSync = setInterval(() => {
-        if (_firstSyncReceived) { clearInterval(_waitForFirstSync); _applyBulkCompletedFloors4to20(); }
-    }, 200);
-} else {
-    _applyBulkCompletedFloors4to20();
+// Runs a one-time state patch safely: on a synced device, waits for the real remote data to
+// be pulled down at least once first (otherwise the listener's async first pull would replace
+// state wholesale and silently undo the patch before persist() is allowed to push it).
+function _runSyncSafePatch(fn) {
+    if (localStorage.getItem('hallway_sync_code')) {
+        const _wait = setInterval(() => {
+            if (_firstSyncReceived) { clearInterval(_wait); fn(); }
+        }, 200);
+    } else {
+        fn();
+    }
 }
+
+_runSyncSafePatch(_applyBulkCompletedFloors4to20);
+
+// ── One-time: un-complete 4 items on Floors 4–20 (requested 2026-10-10) ────────
+function _applyUncompleteFloors4to20Items() {
+    if (state._uncompletedFloors4to20Items) return;
+    const targetNums = [];
+    for (let n = 4; n <= 20; n++) { if (n !== 13) targetNums.push(n); }
+    const targetNames = new Set(targetNums.map(n => 'Floor ' + n));
+    const itemNames = new Set(['Service Door Painting', 'Door IDs', 'Baseboard Installation', 'Misc. Labor']);
+    state.floors.forEach(f => {
+        if (!targetNames.has(f.name)) return;
+        (f.items || []).forEach(item => {
+            if (itemNames.has(item.name)) item.status = 'pending';
+        });
+    });
+    state._uncompletedFloors4to20Items = true;
+    persist();
+    render();
+}
+_runSyncSafePatch(_applyUncompleteFloors4to20Items);
 
 // ── App icon (canvas-generated for PWA + favicon) ─────────────────────────────
 (function() {
