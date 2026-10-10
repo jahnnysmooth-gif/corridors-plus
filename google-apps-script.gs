@@ -897,14 +897,26 @@ function setRowColors() {
 
   sheet.clearConditionalFormatRules();
 
+  // Read the sheet's actual header row instead of assuming it matches the HEADERS constant's
+  // order — the real sheet's columns have drifted from that assumed order (e.g. App ID is the
+  // last column here, not the first, and there's no actual Brand/Type column), which silently
+  // pointed these formulas at the wrong columns and broke Review/Ordered highlighting.
+  const hdr = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+                    .map(h => String(h).trim().replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' '));
+
   const lastRow = Math.max(sheet.getLastRow(), 200);
-  const numCols = HEADERS.length;
+  const numCols = hdr.length;
   const range   = sheet.getRange(2, 1, lastRow - 1, numCols);
 
-  const onHandCol   = HEADERS.indexOf('On Hand')     + 1;
-  const minStockCol = HEADERS.indexOf('Min Stock')    + 1;
-  const statusCol   = HEADERS.indexOf('Order Status') + 1;
-  const tradeCol    = 1;
+  const onHandCol   = hdr.indexOf('On Hand')     + 1;
+  const minStockCol = hdr.indexOf('Min Stock')    + 1;
+  const statusCol   = hdr.indexOf('Order Status') + 1;
+  const tradeCol    = hdr.indexOf('Trade')        + 1;
+
+  if (!onHandCol || !minStockCol || !statusCol || !tradeCol) {
+    SpreadsheetApp.getUi().alert('Could not find one of On Hand / Min Stock / Order Status / Trade in the header row — check row 1.');
+    return;
+  }
 
   const onHandLetter   = columnLetter(onHandCol);
   const minStockLetter = columnLetter(minStockCol);
