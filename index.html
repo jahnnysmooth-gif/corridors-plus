@@ -6205,20 +6205,31 @@ async function pullMaterialsOnly() {
     if (ok) alert('Done — review the Materials screen to confirm everything looks right.');
 }
 
-function restoreWronglyArchivedMaterials() {
+async function restoreWronglyArchivedMaterials() {
     // Recovery for a bug in pullArchivedMaterialsOnly(): the "Materials Archived" sheet tab's
     // header row doesn't match the column order some of its rows actually contain, so material
     // names read from it were sometimes wrong and coincidentally matched real active materials,
-    // which got incorrectly flagged archived. Heuristic: a material with real logged delivery or
-    // usage history was almost certainly an active material before this just happened, not
-    // something genuinely archived earlier — genuinely-archived-from-the-sheet entries created by
-    // that same pull have no log history (log: [] when created).
-    const candidates = (state.materials || []).filter(m => m.archived && (m.log || []).length > 0);
-    if (candidates.length === 0) { alert('No archived materials with order/delivery history were found.'); return; }
-    if (!confirm('Restore ' + candidates.length + ' material(s) with real order/delivery history back to active (undoing the archived-materials pull mistake)?')) return;
-    candidates.forEach(m => { m.archived = false; });
-    persist(); render();
-    alert('Restored ' + candidates.length + ' material(s) to active. Please double-check the Materials screen.');
+    // which got incorrectly flagged archived. A "has logged history" heuristic was tried first
+    // and failed (nothing had log history yet). This instead cross-checks directly against the
+    // live "Materials List" sheet tab — the real, authoritative source of what should be active —
+    // and restores anything archived locally that's still listed there by name.
+    const url = localStorage.getItem('hallway_sheets_url');
+    if (!url) { alert('No Google Sheets URL is configured.'); return; }
+    try {
+        const resp = await fetch(url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now());
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const rows = await resp.json();
+        if (rows && rows.error) throw new Error(rows.error);
+        const activeNames = new Set((rows || []).map(r => String(r['Material'] || '').trim().toLowerCase()).filter(Boolean));
+        const toRestore = (state.materials || []).filter(m => m.archived && activeNames.has(String(m.name || '').toLowerCase()));
+        if (toRestore.length === 0) { alert('No archived materials matched the live Materials List sheet by name.'); return; }
+        if (!confirm('Restore ' + toRestore.length + ' material(s) that are still listed as active in the Materials List sheet?')) return;
+        toRestore.forEach(m => { m.archived = false; });
+        persist(); render();
+        alert('Restored ' + toRestore.length + ' material(s) to active. Please double-check the Materials screen.');
+    } catch(err) {
+        alert('Failed to check the sheet: ' + err.message);
+    }
 }
 
 async function pullArchivedMaterialsOnly() {
