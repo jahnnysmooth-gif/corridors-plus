@@ -5178,6 +5178,24 @@ function _applyCompleteItemsFloors21to26() {
 }
 _runSyncSafePatch(_applyCompleteItemsFloors21to26);
 
+// ── One-time: mark 2 items complete on Floors 21–24 (requested 2026-10-10) ─────
+function _applyCompleteItemsFloors21to24() {
+    if (state._completedItemsFloors21to24) return;
+    const targetNames = new Set([]);
+    for (let n = 21; n <= 24; n++) targetNames.add('Floor ' + n);
+    const itemNames = new Set(['Crown/Raceway', 'Apt Door Painting']);
+    state.floors.forEach(f => {
+        if (!targetNames.has(f.name)) return;
+        (f.items || []).forEach(item => {
+            if (itemNames.has(item.name)) item.status = 'done';
+        });
+    });
+    state._completedItemsFloors21to24 = true;
+    persist();
+    render();
+}
+_runSyncSafePatch(_applyCompleteItemsFloors21to24);
+
 // ── App icon (canvas-generated for PWA + favicon) ─────────────────────────────
 (function() {
     const c = document.createElement('canvas');
