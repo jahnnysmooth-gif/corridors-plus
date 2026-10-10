@@ -5092,6 +5092,24 @@ function disconnectSync() {
     if (dirty) persist();
 })();
 
+// ── One-time: mark Floors 4–20 complete except Carpet (requested 2026-10-10) ───
+(function() {
+    if (state._bulkCompletedFloors4to20) return;
+    const targetNums = [];
+    for (let n = 4; n <= 20; n++) { if (n !== 13) targetNums.push(n); }
+    const targetNames = new Set(targetNums.map(n => 'Floor ' + n));
+    let changed = false;
+    state.floors.forEach(f => {
+        if (!targetNames.has(f.name)) return;
+        (f.items || []).forEach(item => {
+            if (item.name === 'Carpet') return;
+            if (item.status !== 'done') { item.status = 'done'; changed = true; }
+        });
+    });
+    state._bulkCompletedFloors4to20 = true;
+    persist();
+})();
+
 // ── App icon (canvas-generated for PWA + favicon) ─────────────────────────────
 (function() {
     const c = document.createElement('canvas');
