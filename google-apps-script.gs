@@ -1006,10 +1006,56 @@ function onOpen() {
     .addItem('Export Monthly Receipts PDF', 'exportMonthlyPDF')
     .addItem('Recalculate Receipt Totals', 'recalculateAllTotals')
     .addItem('Reapply Row Colors', 'setRowColors')
+    .addItem('Reorganize Materials by Trade', 'reorganizeMaterialsByTrade')
     .addSeparator()
     .addItem('Setup Door Painting Tab', 'setupDoorPainting')
     .addItem('Setup Door Painting Auto-Date Trigger', 'setupDoorPaintingTrigger')
     .addToUi();
+}
+
+// ── Re-sort Materials List rows by Trade, then by name within each trade ──────
+// Run this after manually changing a row's Trade in the sheet, so it moves to sit
+// with the rest of that trade's rows instead of staying wherever it physically was.
+function reorganizeMaterialsByTrade() {
+  const ui = SpreadsheetApp.getUi();
+  const resp = ui.alert(
+    'Reorganize Materials by Trade',
+    'Re-sorts every row in the Materials List tab, grouped by trade (Plaster, Paint, Wallcovering, Carpentry, Electrical, Misc., Tools, then anything else), alphabetically within each group. Continue?',
+    ui.ButtonSet.YES_NO
+  );
+  if (resp !== ui.Button.YES) return;
+
+  const ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(MASTER_SHEET);
+  if (!sheet) { ui.alert('Materials List sheet not found.'); return; }
+
+  const data = sheet.getDataRange().getValues();
+  if (data.length < 2) { ui.alert('No material rows to sort.'); return; }
+
+  const hdr      = data[0].map(h => String(h).trim().replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' '));
+  const tradeIdx = hdr.indexOf('Trade');
+  const matIdx   = hdr.indexOf('Material Name/Brand/Type');
+  if (tradeIdx === -1 || matIdx === -1) {
+    ui.alert('Could not find the Trade or Material Name/Brand/Type column — check the header row.');
+    return;
+  }
+
+  const TRADE_ORDER = ['Plaster', 'Paint', 'Wallcovering', 'Carpentry', 'Electrical', 'Misc.', 'Tools'];
+  const rows = data.slice(1);
+  rows.sort((a, b) => {
+    const tradeA = String(a[tradeIdx] || '').trim();
+    const tradeB = String(b[tradeIdx] || '').trim();
+    let ia = TRADE_ORDER.indexOf(tradeA); if (ia === -1) ia = TRADE_ORDER.length;
+    let ib = TRADE_ORDER.indexOf(tradeB); if (ib === -1) ib = TRADE_ORDER.length;
+    if (ia !== ib) return ia - ib;
+    if (tradeA !== tradeB) return tradeA.localeCompare(tradeB); // unrecognized trades, group together alphabetically
+    const nameA = String(a[matIdx] || '').trim().toLowerCase();
+    const nameB = String(b[matIdx] || '').trim().toLowerCase();
+    return nameA.localeCompare(nameB);
+  });
+
+  sheet.getRange(2, 1, rows.length, hdr.length).setValues(rows);
+  ui.alert('Done — ' + rows.length + ' rows reorganized by trade.');
 }
 
 // ── Door Painting tab ─────────────────────────────────────────────────────────
