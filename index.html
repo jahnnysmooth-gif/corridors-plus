@@ -1715,6 +1715,10 @@ function renderMaterials() {
             <span style="font-size:18px">&#128230;</span>
             <span style="font-size:13px;font-weight:700">Pull Archived Materials From Sheet Only</span>
         </button>`;
+        html += `<button class="trade-tile" style="width:100%;border-top:4px solid #dc2626;background:#450a0a;color:white;margin-bottom:10px;flex-direction:row;justify-content:center;gap:10px;padding:20px 16px" onclick="restoreWronglyArchivedMaterials()">
+            <span style="font-size:18px">&#9888;&#65039;</span>
+            <span style="font-size:13px;font-weight:700">Fix: Restore Materials Wrongly Marked Archived</span>
+        </button>`;
     }
     html += `</div>`;
 
@@ -6199,6 +6203,22 @@ async function pullMaterialsOnly() {
     if (!confirm('Pull the latest materials from the Google Sheet into the app?\n\nThis only reads from the sheet — nothing will be sent back to it.')) return;
     const ok = await syncPull();
     if (ok) alert('Done — review the Materials screen to confirm everything looks right.');
+}
+
+function restoreWronglyArchivedMaterials() {
+    // Recovery for a bug in pullArchivedMaterialsOnly(): the "Materials Archived" sheet tab's
+    // header row doesn't match the column order some of its rows actually contain, so material
+    // names read from it were sometimes wrong and coincidentally matched real active materials,
+    // which got incorrectly flagged archived. Heuristic: a material with real logged delivery or
+    // usage history was almost certainly an active material before this just happened, not
+    // something genuinely archived earlier — genuinely-archived-from-the-sheet entries created by
+    // that same pull have no log history (log: [] when created).
+    const candidates = (state.materials || []).filter(m => m.archived && (m.log || []).length > 0);
+    if (candidates.length === 0) { alert('No archived materials with order/delivery history were found.'); return; }
+    if (!confirm('Restore ' + candidates.length + ' material(s) with real order/delivery history back to active (undoing the archived-materials pull mistake)?')) return;
+    candidates.forEach(m => { m.archived = false; });
+    persist(); render();
+    alert('Restored ' + candidates.length + ' material(s) to active. Please double-check the Materials screen.');
 }
 
 async function pullArchivedMaterialsOnly() {
