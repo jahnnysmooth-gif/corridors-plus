@@ -940,7 +940,7 @@ function setRowColors() {
   // Trade group colors (lower priority)
   const tradeColors = [
     ['Plaster',      '#dbeafe'],
-    ['Paint',        '#ede9fe'],
+    ['Paint',        '#dcfce7'],
     ['Wallcovering', '#fce7f3'],
     ['Carpentry',    '#fef3c7'],
     ['Electrical',   '#cffafe'],
